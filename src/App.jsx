@@ -967,15 +967,16 @@ function Quinteto(){
 
   const generateAIQuintets=async()=>{
     setAiLoading(true);setAiResult(null);
-    const activePl=players.filter(p=>p.active);
-    const statsStr=activePl.map(p=>`${p.name} (${p.pos}): PTS ${p.pts} REB ${p.reb} AST ${p.ast} ROB ${p.stl} TAP ${p.blk} TC% ${p.fg}`).join("\n");
+    const activePl=players.filter(p=>p.active&&(p.pj||0)>0);
+    if(activePl.length<5){setAiResult({error:"Necesitas al menos 5 jugadores con partidos jugados (PJ > 0)."});setAiLoading(false);return;}
+    const statsStr=activePl.map(p=>{const c=calcStats(p);return `${p.name} (${p.pos}): PJ ${p.pj}, PTS/P ${c.pts_p}, Min/P ${c.min_p}', TL% ${c.tl_pct}%, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, FC/P ${c.fc_p}`;}).join("\n");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,messages:[{role:"user",content:`Eres un analista de baloncesto. Tengo estos jugadores con sus estadísticas:\n\n${statsStr}\n\nSugiere 2 quintetos:\n1. QUINTETO OFENSIVO: Los 5 mejores para atacar (máxima anotación, asistencias y porcentaje)\n2. QUINTETO DEFENSIVO: Los 5 mejores para defender (máximos robos, tapones y rebotes)\n\nResponde en JSON: {"ofensivo":["nombre1","nombre2","nombre3","nombre4","nombre5"],"defensivo":["nombre1","nombre2","nombre3","nombre4","nombre5"],"razon_ofensivo":"explicación corta","razon_defensivo":"explicación corta"}`}]})});
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Eres un analista experto de baloncesto. Jugadores del CB Binissalem con estadísticas reales:\n\n${statsStr}\n\nBasándote ÚNICAMENTE en estos datos reales, sugiere 2 quintetos:\n1. OFENSIVO: Los 5 mejores para atacar (mayor PTS/P, T2%, T3%, Min/P)\n2. DEFENSIVO: Los 5 mejores defensivamente (FC/P bajo, equilibrio posicional, al menos 1 pívot)\n\nResponde SOLO JSON válido sin texto extra:\n{"ofensivo":["nombre completo 1","nombre completo 2","nombre completo 3","nombre completo 4","nombre completo 5"],"defensivo":["nombre completo 1","nombre completo 2","nombre completo 3","nombre completo 4","nombre completo 5"],"razon_ofensivo":"razón en 15 palabras max","razon_defensivo":"razón en 15 palabras max"}`}]})});
       const data=await res.json();
-      const txt=data.content.find(b=>b.type==="text")?.text||"{}";
+      const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
       const clean=txt.replace(/```json|```/g,"").trim();
       setAiResult(JSON.parse(clean));
-    }catch(e){setAiResult({error:"Error al generar. Inténtalo de nuevo."});}
+    }catch(e){console.error(e);setAiResult({error:"Error al conectar con la IA. Inténtalo de nuevo."});}
     setAiLoading(false);
   };
 
