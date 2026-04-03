@@ -26,19 +26,35 @@ const DARK  = { bg:"#07070f",card:"#111120",card2:"#181828",nav:"#09091a",border
 const LIGHT = { bg:"#f0f2f5",card:"#ffffff",card2:"#f8fafc",nav:"#1e293b",border:"#e2e8f0",border2:"#cbd5e1",text:"#0f172a",sub:"#64748b",muted:"#94a3b8",accent:"#f97316",mode:"light",tableHead:"#f8fafc",rowHover:"rgba(249,115,22,.04)",inputBg:"#ffffff" };
 
 /* ── DEFAULT DATA ─────────────────────────────────────────── */
+// Campos: pj=partidos jugados, pt=puntos totales, min=minutos totales
+// tl_i/tl_m=tiros libres intentados/metidos, t2_i/t2_m=tiros 2, t3_i/t3_m=tiros 3
+// fc=faltas cometidas totales
+// Calculados: min_p=min/pj, pts_p=pt/pj, tl%=tl_m/tl_i, t2%=t2_m/t2_i, t3%=t3_m/t3_i, fc_p=fc/pj
+const emptyStats=()=>({pj:0,pt:0,min:0,tl_i:0,tl_m:0,t2_i:0,t2_m:0,t3_i:0,t3_m:0,fc:0});
+const calcStats=p=>{
+  const pj=p.pj||0;
+  return{
+    min_p:pj?+(p.min/pj).toFixed(1):0,
+    pts_p:pj?+(p.pt/pj).toFixed(1):0,
+    tl_pct:p.tl_i?+((p.tl_m/p.tl_i)*100).toFixed(1):0,
+    t2_pct:p.t2_i?+((p.t2_m/p.t2_i)*100).toFixed(1):0,
+    t3_pct:p.t3_i?+((p.t3_m/p.t3_i)*100).toFixed(1):0,
+    fc_p:pj?+(p.fc/pj).toFixed(1):0,
+  };
+};
 const DP = [
-  {id:1, name:"Joan Mir Crespí",      num:4,  pos:"Base",      active:true,  pts:12.4,reb:3.2,ast:5.1,stl:1.4,blk:0.2,fg:45.2},
-  {id:2, name:"Toni Alcover Pons",    num:7,  pos:"Escolta",   active:true,  pts:10.2,reb:2.8,ast:3.4,stl:1.1,blk:0.4,fg:42.6},
-  {id:3, name:"Marc Rosselló Vich",   num:11, pos:"Alero",     active:true,  pts:8.7, reb:5.9,ast:2.1,stl:0.9,blk:0.7,fg:48.3},
-  {id:4, name:"Pau Vicens Fiol",      num:14, pos:"Ala-Pívot", active:true,  pts:7.5, reb:7.4,ast:1.5,stl:0.7,blk:1.2,fg:52.1},
-  {id:5, name:"Biel Moyà Llull",      num:21, pos:"Pívot",     active:true,  pts:6.3, reb:9.8,ast:0.9,stl:0.4,blk:1.9,fg:58.4},
-  {id:6, name:"Andreu Pons Amengual", num:8,  pos:"Base",      active:true,  pts:9.1, reb:2.6,ast:4.8,stl:1.2,blk:0.2,fg:41.8},
-  {id:7, name:"Miquel Bestard Sans",  num:15, pos:"Escolta",   active:true,  pts:8.6, reb:3.1,ast:2.9,stl:1.3,blk:0.3,fg:43.9},
-  {id:8, name:"Rafel Perelló Reus",   num:3,  pos:"Alero",     active:true,  pts:6.8, reb:4.7,ast:1.7,stl:0.8,blk:0.6,fg:47.5},
-  {id:9, name:"Arnau Sastre Munar",   num:23, pos:"Ala-Pívot", active:true,  pts:5.4, reb:6.2,ast:1.2,stl:0.6,blk:1.1,fg:50.8},
-  {id:10,name:"Tomeu Ramis Fiol",     num:33, pos:"Pívot",     active:true,  pts:4.2, reb:7.1,ast:0.6,stl:0.3,blk:1.7,fg:56.9},
-  {id:11,name:"Xavi Colom Ferrer",    num:9,  pos:"Escolta",   active:false, pts:5.8, reb:2.0,ast:2.5,stl:0.7,blk:0.3,fg:40.1},
-  {id:12,name:"Jaume Morro Pujol",    num:17, pos:"Alero",     active:true,  pts:7.9, reb:4.3,ast:1.9,stl:0.8,blk:0.5,fg:49.6},
+  {id:1, name:"Joan Mir Crespí",      num:4,  pos:"Base",      active:true,  pj:18,pt:223,min:486,tl_i:42,tl_m:34,t2_i:78,t2_m:52,t3_i:38,t3_m:14,fc:32},
+  {id:2, name:"Toni Alcover Pons",    num:7,  pos:"Escolta",   active:true,  pj:17,pt:173,min:425,tl_i:28,tl_m:20,t2_i:64,t2_m:40,t3_i:45,t3_m:17,fc:28},
+  {id:3, name:"Marc Rosselló Vich",   num:11, pos:"Alero",     active:true,  pj:18,pt:157,min:392,tl_i:22,tl_m:16,t2_i:55,t2_m:34,t3_i:32,t3_m:11,fc:35},
+  {id:4, name:"Pau Vicens Fiol",      num:14, pos:"Ala-Pívot", active:true,  pj:16,pt:120,min:368,tl_i:38,tl_m:28,t2_i:72,t2_m:48,t3_i:8, t3_m:2, fc:42},
+  {id:5, name:"Biel Moyà Llull",      num:21, pos:"Pívot",     active:true,  pj:18,pt:113,min:340,tl_i:52,tl_m:38,t2_i:68,t2_m:48,t3_i:2, t3_m:0, fc:48},
+  {id:6, name:"Andreu Pons Amengual", num:8,  pos:"Base",      active:true,  pj:17,pt:155,min:408,tl_i:30,tl_m:22,t2_i:58,t2_m:36,t3_i:42,t3_m:15,fc:30},
+  {id:7, name:"Miquel Bestard Sans",  num:15, pos:"Escolta",   active:true,  pj:16,pt:138,min:372,tl_i:24,tl_m:18,t2_i:62,t2_m:40,t3_i:36,t3_m:13,fc:26},
+  {id:8, name:"Rafel Perelló Reus",   num:3,  pos:"Alero",     active:true,  pj:15,pt:102,min:318,tl_i:18,tl_m:13,t2_i:48,t2_m:30,t3_i:28,t3_m:9, fc:22},
+  {id:9, name:"Arnau Sastre Munar",   num:23, pos:"Ala-Pívot", active:true,  pj:14,pt:76, min:280,tl_i:16,tl_m:11,t2_i:44,t2_m:28,t3_i:10,t3_m:3, fc:30},
+  {id:10,name:"Tomeu Ramis Fiol",     num:33, pos:"Pívot",     active:true,  pj:15,pt:63, min:255,tl_i:24,tl_m:16,t2_i:40,t2_m:26,t3_i:0, t3_m:0, fc:38},
+  {id:11,name:"Xavi Colom Ferrer",    num:9,  pos:"Escolta",   active:false, pj:8, pt:46, min:182,tl_i:10,tl_m:7, t2_i:22,t2_m:13,t3_i:18,t3_m:6, fc:12},
+  {id:12,name:"Jaume Morro Pujol",    num:17, pos:"Alero",     active:true,  pj:16,pt:126,min:348,tl_i:20,tl_m:14,t2_i:52,t2_m:32,t3_i:30,t3_m:10,fc:24},
 ];
 const DS = [
   {id:1,date:"2025-04-08",type:"Técnico-Táctico",dur:90,title:"Presentación + Ataque posicional",notes:"",exs:["Calentamiento 15'","Sistemas ofensivos 40'","5v5 restringido 25'","Vuelta calma 10'"]},
@@ -234,8 +250,8 @@ function Dashboard(){
   const active=players.filter(p=>p.active);
   const wins=matches.filter(m=>m.pts_us>m.pts_them).length;
   const losses=matches.filter(m=>m.pts_us<=m.pts_them).length;
-  const avgPts=active.length?(active.reduce((a,p)=>a+p.pts,0)/active.length).toFixed(1):"—";
-  const avgReb=active.length?(active.reduce((a,p)=>a+p.reb,0)/active.length).toFixed(1):"—";
+  const avgPts=active.length?(active.reduce((a,p)=>a+calcStats(p).pts_p,0)/active.length).toFixed(1):"—";
+  const avgMin=active.length?(active.reduce((a,p)=>a+calcStats(p).min_p,0)/active.length).toFixed(1):"—";
 
   // Attendance summary
   const datesWithData=Object.keys(attDates).filter(d=>ALL_TRAINING_DATES.includes(d));
@@ -245,8 +261,8 @@ function Dashboard(){
 
   const kpis=[
     {label:"Record",    value:`${wins}–${losses}`,sub:"victorias–derrotas",color:"#f97316",icon:Trophy},
-    {label:"Pts/Jgo",   value:avgPts,             sub:"media equipo",      color:"#3b82f6",icon:Activity},
-    {label:"Reb/Jgo",   value:avgReb,             sub:"media equipo",      color:"#8b5cf6",icon:Target},
+    {label:"PTS/P",     value:avgPts,             sub:"media equipo",      color:"#3b82f6",icon:Activity},
+    {label:"Min/P",     value:avgMin+"'",          sub:"media equipo",      color:"#8b5cf6",icon:Target},
     {label:"Asistencia",value:`${avgAtt}%`,        sub:"media entrenos",    color:"#10b981",icon:Check},
   ];
   const chartData=matches.map(m=>({
@@ -257,7 +273,7 @@ function Dashboard(){
   const allPts=matches.flatMap(m=>[m.pts_us,m.pts_them]);
   const minPts=allPts.length?Math.max(0,Math.min(...allPts)-10):0;
   const maxPts=allPts.length?Math.max(...allPts)+10:100;
-  const top5=[...active].sort((a,b)=>b.pts-a.pts).slice(0,5);
+  const top5=[...active].map(p=>({...p,...calcStats(p)})).sort((a,b)=>b.pts_p-a.pts_p).slice(0,5);
   const tt={background:th.card,border:`1px solid ${th.border}`,borderRadius:8,color:th.text,fontSize:12};
 
   // Player attendance rates for summary
@@ -313,7 +329,7 @@ function Dashboard(){
         {top5.map((p,i)=><div key={p.id} style={{background:th.card2,borderRadius:12,padding:"16px 10px",textAlign:"center",border:`1px solid ${th.border}`}}>
           <div style={{width:40,height:40,borderRadius:20,background:i===0?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px",fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:i===0?"#fff":th.sub}}>{p.num}</div>
           <p style={{fontSize:11,color:th.text,fontWeight:600,marginBottom:6}}>{p.name.split(" ")[0]}</p>
-          <p style={{fontFamily:"DM Mono",fontSize:22,color:"#f97316",fontWeight:700,lineHeight:1}}>{p.pts}</p>
+          <p style={{fontFamily:"DM Mono",fontSize:22,color:"#f97316",fontWeight:700,lineHeight:1}}>{p.pts_p}</p>
           <p style={{fontSize:10,color:th.muted,marginTop:3}}>pts/jgo</p>
         </div>)}
       </div>
@@ -328,52 +344,83 @@ function Plantilla(){
   const{th}=useTheme();const{players,setPlayers}=useData();
   const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
   const[sa,setSa]=useState(false);
-  const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,pts:0,reb:0,ast:0,stl:0,blk:0,fg:0});
+  const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,...emptyStats()});
   const pos=["Base","Escolta","Alero","Ala-Pívot","Pívot"];
-  const numF=["pts","reb","ast","stl","blk","fg"];
-  const numL=["PTS","REB","AST","ROB","TAP","TC%"];
-  const se=p=>{setEd(p.id);setEf({name:p.name,num:p.num,pos:p.pos,active:p.active,pts:p.pts,reb:p.reb,ast:p.ast,stl:p.stl,blk:p.blk,fg:p.fg});};
-  const sv=()=>{setPlayers(prev=>prev.map(p=>p.id===ed?{...p,...ef,num:+ef.num,...Object.fromEntries(numF.map(k=>[k,+ef[k]]))}:p));setEd(null);};
+  const rawFields=["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"];
+  const fieldLabels={pj:"PJ",pt:"PT",min:"Min",tl_i:"TL Int.",tl_m:"TL Met.",t2_i:"T2 Int.",t2_m:"T2 Met.",t3_i:"T3 Int.",t3_m:"T3 Met.",fc:"FC"};
+
+  const se=p=>{setEd(p.id);setEf({name:p.name,num:p.num,pos:p.pos,active:p.active,...Object.fromEntries(rawFields.map(k=>[k,p[k]??0]))});};
+  const sv=()=>{setPlayers(prev=>prev.map(p=>p.id===ed?{...p,...ef,num:+ef.num,...Object.fromEntries(rawFields.map(k=>[k,+ef[k]]))}:p));setEd(null);};
   const dl=id=>setPlayers(prev=>prev.filter(p=>p.id!==id));
   const tg=id=>setPlayers(prev=>prev.map(p=>p.id===id?{...p,active:!p.active}:p));
-  const add=()=>{if(!af.name||!af.num)return;const id=Math.max(0,...players.map(p=>p.id))+1;setPlayers(prev=>[...prev,{id,...af,num:+af.num,...Object.fromEntries(numF.map(k=>[k,+af[k]]))}]);setAf({name:"",num:"",pos:"Base",active:true,pts:0,reb:0,ast:0,stl:0,blk:0,fg:0});setSa(false);};
+  const add=()=>{if(!af.name||!af.num)return;const id=Math.max(0,...players.map(p=>p.id))+1;setPlayers(prev=>[...prev,{id,...af,num:+af.num,...Object.fromEntries(rawFields.map(k=>[k,+af[k]]))}]);setAf({name:"",num:"",pos:"Base",active:true,...emptyStats()});setSa(false);};
+
+  const StatInput=({label,field,state,setState})=><div>
+    <Lbl>{label}</Lbl>
+    <input type="number" min="0" value={state[field]??0} onChange={e=>setState(f=>({...f,[field]:e.target.value}))} style={{textAlign:"right"}}/>
+  </div>;
+
+  const EditPanel=({state,setState})=><>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:14}}>
+      <div><Lbl>Nombre completo</Lbl><input value={state.name} onChange={e=>setState(f=>({...f,name:e.target.value}))}/></div>
+      <div><Lbl>Dorsal</Lbl><input type="number" value={state.num} onChange={e=>setState(f=>({...f,num:e.target.value}))}/></div>
+      <div><Lbl>Posición</Lbl><select value={state.pos} onChange={e=>setState(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
+    </div>
+    <div style={{background:th.card2,borderRadius:10,padding:14,marginBottom:4}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Datos acumulados de temporada</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+        <StatInput label="PJ (Partidos Jugados)" field="pj" state={state} setState={setState}/>
+        <StatInput label="PT (Puntos Totales)" field="pt" state={state} setState={setState}/>
+        <StatInput label="Min (Minutos Totales)" field="min" state={state} setState={setState}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros Libres (TL)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <StatInput label="Intentados" field="tl_i" state={state} setState={setState}/>
+            <StatInput label="Metidos" field="tl_m" state={state} setState={setState}/>
+          </div>
+        </div>
+        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#3b82f6",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros de 2 (T2)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <StatInput label="Intentados" field="t2_i" state={state} setState={setState}/>
+            <StatInput label="Metidos" field="t2_m" state={state} setState={setState}/>
+          </div>
+        </div>
+        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros de 3 (T3)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <StatInput label="Intentados" field="t3_i" state={state} setState={setState}/>
+            <StatInput label="Metidos" field="t3_m" state={state} setState={setState}/>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
+        <StatInput label="FC (Faltas Cometidas)" field="fc" state={state} setState={setState}/>
+        <div style={{padding:"8px 12px",background:th.card,borderRadius:8,border:`1px solid ${th.border}`}}>
+          <p style={{fontSize:10,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Valores calculados (preview)</p>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+            {[["Min/P",(state.pj?+(state.min/state.pj).toFixed(1):0)+"'"],["PTS/P",(state.pj?+(state.pt/state.pj).toFixed(1):0)],["TL%",(state.tl_i?+((state.tl_m/state.tl_i)*100).toFixed(1):0)+"%"],["T2%",(state.t2_i?+((state.t2_m/state.t2_i)*100).toFixed(1):0)+"%"],["T3%",(state.t3_i?+((state.t3_m/state.t3_i)*100).toFixed(1):0)+"%"],["FC/P",(state.pj?+(state.fc/state.pj).toFixed(1):0)]].map(([l,v])=><div key={l}><p style={{fontSize:9,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase"}}>{l}</p><p style={{fontFamily:"DM Mono",fontSize:14,color:"#f97316",fontWeight:700}}>{v}</p></div>)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </>;
 
   return <div>
     <SH title="Plantilla" sub="Gestión de jugadores y estadísticas" right={<Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Jugador</Btn>}/>
 
-    {/* Formulario nuevo jugador */}
     {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Jugador</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:12}}>
-        <div><Lbl>Nombre completo</Lbl><input value={af.name} onChange={e=>setAf(f=>({...f,name:e.target.value}))} placeholder="Nombre"/></div>
-        <div><Lbl>Dorsal</Lbl><input type="number" value={af.num} onChange={e=>setAf(f=>({...f,num:e.target.value}))}/></div>
-        <div><Lbl>Posición</Lbl><select value={af.pos} onChange={e=>setAf(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
-      </div>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas por partido</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:14}}>
-        {numF.map((k,i)=><div key={k}><Lbl>{numL[i]}</Lbl><input type="number" step="0.1" value={af[k]} onChange={e=>setAf(f=>({...f,[k]:e.target.value}))}/></div>)}
-      </div>
-      <div style={{display:"flex",gap:8}}><Btn onClick={add}>Guardar</Btn><Btn onClick={()=>setSa(false)} variant="ghost">Cancelar</Btn></div>
+      <EditPanel state={af} setState={setAf}/>
+      <div style={{display:"flex",gap:8,marginTop:12}}><Btn onClick={add}>Guardar</Btn><Btn onClick={()=>setSa(false)} variant="ghost">Cancelar</Btn></div>
     </div>}
 
-    {/* Panel de edición de estadísticas — se muestra debajo de la tabla cuando se edita */}
     {ed&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640",borderWidth:2}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>
-        Editando: {ef.name} · #{ef.num}
-      </p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:14}}>
-        <div><Lbl>Nombre completo</Lbl><input value={ef.name} onChange={e=>setEf(f=>({...f,name:e.target.value}))}/></div>
-        <div><Lbl>Dorsal</Lbl><input type="number" value={ef.num} onChange={e=>setEf(f=>({...f,num:e.target.value}))}/></div>
-        <div><Lbl>Posición</Lbl><select value={ef.pos} onChange={e=>setEf(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
-      </div>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas por partido</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:14}}>
-        {numF.map((k,i)=><div key={k}>
-          <Lbl>{numL[i]}</Lbl>
-          <input type="number" step="0.1" value={ef[k]} onChange={e=>setEf(f=>({...f,[k]:e.target.value}))}/>
-        </div>)}
-      </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Editando: {ef.name} · #{ef.num}</p>
+      <EditPanel state={ef} setState={setEf}/>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12}}>
         <Btn onClick={sv}>Guardar cambios</Btn>
         <Btn onClick={()=>setEd(null)} variant="ghost">Cancelar</Btn>
         <div onClick={()=>tg(ed)} style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",padding:"5px 14px",borderRadius:6,background:ef.active?"rgba(239,68,68,.1)":"rgba(16,185,129,.1)",border:`1px solid ${ef.active?"rgba(239,68,68,.3)":"rgba(16,185,129,.3)"}`}}>
@@ -382,18 +429,23 @@ function Plantilla(){
       </div>
     </div>}
 
-    {/* Tabla de jugadores */}
     <div className="card" style={{overflow:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",minWidth:750}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:600}}>
         <thead><tr style={{background:th.tableHead}}>
-          {["#","Nombre","Pos","PTS","REB","AST","ROB","TAP","TC%","Estado",""].map((h,i)=><th key={i} style={{padding:"10px 12px",textAlign:i>2&&i<9?"right":"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{h}</th>)}
+          {["#","Jugador","Pos","PJ","Min/P","PTS/P","TL%","T2%","T3%","FC/P","Estado",""].map((h,i)=><th key={i} style={{padding:"10px 12px",textAlign:i>2?"right":"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{h}</th>)}
         </tr></thead>
         <tbody>
-          {players.map(p=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:ed===p.id?"rgba(249,115,22,.05)":"transparent"}}>
+          {players.map(p=>{const c=calcStats(p);return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:ed===p.id?"rgba(249,115,22,.05)":"transparent"}}>
             <td style={{padding:"10px 12px"}}><div style={{width:30,height:30,borderRadius:15,background:p.active?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff"}}>{p.num}</div></td>
             <td style={{padding:"10px 12px",fontSize:13,color:p.active?th.text:th.muted,whiteSpace:"nowrap"}}>{p.name}</td>
             <td style={{padding:"10px 12px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
-            {numF.map(k=><td key={k} style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{p[k]}</td>)}
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.sub}}>{p.pj??0}</td>
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{c.min_p}'</td>
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:13,color:"#f97316",fontWeight:700}}>{c.pts_p}</td>
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:"#f59e0b"}}>{c.tl_pct}%</td>
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:"#3b82f6"}}>{c.t2_pct}%</td>
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:"#8b5cf6"}}>{c.t3_pct}%</td>
+            <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{c.fc_p}</td>
             <td style={{padding:"10px 12px"}}><span style={{fontFamily:"DM Mono",fontSize:11,color:p.active?"#10b981":"#ef4444",fontWeight:600}}>{p.active?"Activo":"Baja"}</span></td>
             <td style={{padding:"10px 12px"}}>
               <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -403,7 +455,7 @@ function Plantilla(){
                 <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>dl(p.id)}/>
               </div>
             </td>
-          </tr>)}
+          </tr>;})}
         </tbody>
       </table>
     </div>
@@ -448,36 +500,178 @@ function Partidos(){
 }
 
 /* ══════════════════════════════════════════════════════════
-   4. PLANIFICACIÓN
+   4. PLANIFICACIÓN — Totalmente editable
 ══════════════════════════════════════════════════════════ */
+const TIPO_OPTIONS=["Pretemporada","Temporada","Transición","Playoffs","Otro"];
+const SESSION_TYPES=["Técnico-Táctico","Físico","Técnico","Táctico","Recuperación","Partido","Libre","Otro"];
+const INTENS_OPTIONS=["Mínima","Baja","Media-Baja","Media","Media-Alta","Alta","Máxima","—"];
+const COLOR_OPTIONS=["#f97316","#3b82f6","#8b5cf6","#10b981","#ef4444","#f59e0b","#06b6d4","#ec4899","#4b5563","#64748b"];
+
+const DEFAULT_MESOS_EDIT=[
+  {id:1,name:"Preparación General",    s:"Sem 1", e:"Sem 4", type:"Pretemporada",weeks:4, color:"#3b82f6",goal:"Base física y adaptación motriz"},
+  {id:2,name:"Preparación Específica", s:"Sem 5", e:"Sem 8", type:"Pretemporada",weeks:4, color:"#8b5cf6",goal:"Trabajo técnico-táctico intensivo"},
+  {id:3,name:"Competición I",          s:"Sem 9", e:"Sem 20",type:"Temporada",   weeks:12,color:"#f97316",goal:"Rendimiento competitivo sostenido"},
+  {id:4,name:"Recuperación Activa",    s:"Sem 21",e:"Sem 22",type:"Transición",  weeks:2, color:"#10b981",goal:"Descarga y regeneración"},
+  {id:5,name:"Playoffs",               s:"Sem 23",e:"Sem 34",type:"Playoffs",    weeks:12,color:"#ef4444",goal:"Pico de forma – Fase final"},
+];
+const DEFAULT_MICRO_EDIT=[
+  {day:"Lunes",    type:"Libre",            focus:"Descanso activo",           intens:"—",          color:"#4b5563",load:10},
+  {day:"Martes",   type:"Técnico-Táctico",  focus:"Ataque + sistemas",         intens:"Media-Alta", color:"#f97316",load:85},
+  {day:"Miércoles",type:"Técnico",          focus:"Tiro y bote",               intens:"Media",      color:"#f59e0b",load:65},
+  {day:"Jueves",   type:"Físico",           focus:"Fuerza / Potencia",         intens:"Alta",       color:"#3b82f6",load:75},
+  {day:"Viernes",  type:"Táctico",          focus:"Defensa / Sistemas",        intens:"Media",      color:"#8b5cf6",load:60},
+  {day:"Sábado",   type:"Partido",          focus:"Competición",               intens:"Máxima",     color:"#ef4444",load:100},
+  {day:"Domingo",  type:"Recuperación",     focus:"Regenerativo post-partido", intens:"Mínima",     color:"#10b981",load:15},
+];
+
 function Planificacion(){
-  const{th}=useTheme();const[tab,setTab]=useState("meso");
+  const{th}=useTheme();const{planMesos,setPlanMesos,planMicro,setPlanMicro}=useData();
+  const[tab,setTab]=useState("meso");
+  const[edMeso,setEdMeso]=useState(null);const[mf,setMf]=useState({});
+  const[edMicro,setEdMicro]=useState(null);const[micf,setMicf]=useState({});
+  const[addMeso,setAddMeso]=useState(false);
+  const[newM,setNewM]=useState({name:"",s:"",e:"",type:"Temporada",weeks:4,color:"#f97316",goal:""});
+
+  const mesos=planMesos||DEFAULT_MESOS_EDIT;
+  const micro=planMicro||DEFAULT_MICRO_EDIT;
+
+  const saveMeso=()=>{setPlanMesos(prev=>(prev||DEFAULT_MESOS_EDIT).map(m=>m.id===edMeso?{...m,...mf,weeks:+mf.weeks}:m));setEdMeso(null);};
+  const delMeso=id=>setPlanMesos(prev=>(prev||DEFAULT_MESOS_EDIT).filter(m=>m.id!==id));
+  const addNewMeso=()=>{if(!newM.name)return;const id=Date.now();setPlanMesos(prev=>[...(prev||DEFAULT_MESOS_EDIT),{...newM,id,weeks:+newM.weeks}]);setNewM({name:"",s:"",e:"",type:"Temporada",weeks:4,color:"#f97316",goal:""});setAddMeso(false);};
+  const saveMicro=idx=>{setPlanMicro(prev=>{const n=[...(prev||DEFAULT_MICRO_EDIT)];n[idx]={...n[idx],...micf,load:+micf.load};return n;});setEdMicro(null);};
+  const resetPlan=()=>{if(confirm("¿Resetear la planificación a los valores por defecto?")){{setPlanMesos(DEFAULT_MESOS_EDIT);setPlanMicro(DEFAULT_MICRO_EDIT);}}};
+
   return <div>
-    <SH title="Planificación" sub="Estructura temporal y carga semanal"/>
+    <SH title="Planificación" sub="Estructura de temporada editable · Adáptala a tu realidad"
+      right={<button onClick={resetPlan} style={{background:"transparent",border:`1px solid ${th.border2}`,color:th.muted,cursor:"pointer",padding:"6px 12px",borderRadius:7,fontSize:11,fontFamily:"Barlow Condensed,sans-serif"}}>Resetear valores</button>}/>
     <TB tabs={[["meso","Mesociclos"],["micro","Microciclo Semanal"]]} active={tab} onChange={setTab}/>
+
     {tab==="meso"?<>
+      {/* Timeline */}
       <div className="card" style={{padding:22,marginBottom:14}}>
         <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>Timeline de Temporada</p>
-        <div style={{display:"flex",height:46,gap:2,borderRadius:8,overflow:"hidden"}}>{MESOS.map(m=><div key={m.id} style={{flex:m.weeks,background:m.color+"22",border:`1px solid ${m.color}40`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontFamily:"Barlow Condensed",fontSize:10,color:m.color,fontWeight:700,textTransform:"uppercase"}}>{m.name.split(" ")[0]}</span></div>)}</div>
+        <div style={{display:"flex",height:46,gap:2,borderRadius:8,overflow:"hidden"}}>
+          {mesos.map(m=><div key={m.id} style={{flex:m.weeks,background:m.color+"22",border:`1px solid ${m.color}40`,display:"flex",alignItems:"center",justifyContent:"center",minWidth:30}}>
+            <span style={{fontFamily:"Barlow Condensed",fontSize:10,color:m.color,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",padding:"0 4px"}}>{m.name.split(" ")[0]}</span>
+          </div>)}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+          {mesos.map(m=><span key={m.id} style={{fontFamily:"DM Mono",fontSize:9,color:th.muted}}>{m.s}</span>)}
+          <span style={{fontFamily:"DM Mono",fontSize:9,color:th.muted}}>{mesos[mesos.length-1]?.e}</span>
+        </div>
       </div>
-      {MESOS.map(m=><div key={m.id} className="card" style={{padding:20,marginBottom:10,borderLeft:`4px solid ${m.color}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}><h3 style={{fontFamily:"Barlow Condensed",fontSize:21,fontWeight:700,color:th.text}}>{m.name}</h3><Badge color={m.color}>{m.type}</Badge></div><p style={{fontSize:13,color:th.sub}}>{m.goal}</p></div><div style={{textAlign:"right"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted}}>{m.s} — {m.e}</p><p style={{fontFamily:"DM Mono",fontSize:26,color:m.color,fontWeight:700,lineHeight:1.1}}>{m.weeks}<span style={{fontSize:12,color:th.muted}}> sem</span></p></div></div>
-        <div style={{display:"flex",gap:4,marginTop:14,flexWrap:"wrap"}}>{Array.from({length:m.weeks},(_,i)=><div key={i} style={{width:28,height:28,borderRadius:5,background:m.color+"18",border:`1px solid ${m.color}38`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontFamily:"DM Mono",fontSize:9,color:m.color}}>{i+1}</span></div>)}</div>
+
+      {/* Mesociclos editables */}
+      {mesos.map((m,idx)=><div key={m.id}>
+        {edMeso===m.id?(
+          <div className="card" style={{padding:20,marginBottom:10,borderLeft:`4px solid ${mf.color||m.color}`}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#f97316",textTransform:"uppercase",marginBottom:14}}>Editando mesociclo</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+              <div><Lbl>Nombre</Lbl><input value={mf.name} onChange={e=>setMf(f=>({...f,name:e.target.value}))}/></div>
+              <div><Lbl>Tipo</Lbl><select value={mf.type} onChange={e=>setMf(f=>({...f,type:e.target.value}))}>{TIPO_OPTIONS.map(t=><option key={t}>{t}</option>)}</select></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px",gap:12,marginBottom:12}}>
+              <div><Lbl>Semana inicio</Lbl><input value={mf.s} onChange={e=>setMf(f=>({...f,s:e.target.value}))} placeholder="Sem 1"/></div>
+              <div><Lbl>Semana fin</Lbl><input value={mf.e} onChange={e=>setMf(f=>({...f,e:e.target.value}))} placeholder="Sem 8"/></div>
+              <div><Lbl>Semanas</Lbl><input type="number" min="1" max="34" value={mf.weeks} onChange={e=>setMf(f=>({...f,weeks:e.target.value}))}/></div>
+            </div>
+            <div style={{marginBottom:12}}><Lbl>Objetivo principal</Lbl><input value={mf.goal} onChange={e=>setMf(f=>({...f,goal:e.target.value}))} placeholder="Describe el objetivo de este bloque…"/></div>
+            <div style={{marginBottom:14}}>
+              <Lbl>Color identificativo</Lbl>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
+                {COLOR_OPTIONS.map(c=><div key={c} onClick={()=>setMf(f=>({...f,color:c}))} style={{width:28,height:28,borderRadius:14,background:c,cursor:"pointer",border:`3px solid ${mf.color===c?"#fff":"transparent"}`,outline:mf.color===c?`2px solid ${c}`:"none",outlineOffset:1}}/>)}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8}}><Btn onClick={saveMeso}>Guardar</Btn><Btn onClick={()=>setEdMeso(null)} variant="ghost">Cancelar</Btn></div>
+          </div>
+        ):(
+          <div className="card" style={{padding:20,marginBottom:10,borderLeft:`4px solid ${m.color}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <h3 style={{fontFamily:"Barlow Condensed",fontSize:21,fontWeight:700,color:th.text}}>{m.name}</h3>
+                  <Badge color={m.color}>{m.type}</Badge>
+                </div>
+                <p style={{fontSize:13,color:th.sub}}>{m.goal}</p>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+                <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted}}>{m.s} — {m.e}</p>
+                <p style={{fontFamily:"DM Mono",fontSize:26,color:m.color,fontWeight:700,lineHeight:1}}>{m.weeks}<span style={{fontSize:12,color:th.muted}}> sem</span></p>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{setEdMeso(m.id);setMf({name:m.name,s:m.s,e:m.e,type:m.type,weeks:m.weeks,color:m.color,goal:m.goal});}} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:11,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}><Edit2 size={11}/>Editar</button>
+                  {mesos.length>1&&<button onClick={()=>delMeso(m.id)} style={{width:26,height:26,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>}
+                </div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:4,marginTop:14,flexWrap:"wrap"}}>
+              {Array.from({length:m.weeks},(_,i)=><div key={i} style={{width:28,height:28,borderRadius:5,background:m.color+"18",border:`1px solid ${m.color}38`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontFamily:"DM Mono",fontSize:9,color:m.color}}>{i+1}</span></div>)}
+            </div>
+          </div>
+        )}
       </div>)}
+
+      {/* Añadir mesociclo */}
+      {addMeso?(
+        <div className="card" style={{padding:20,borderColor:"#f9731640"}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#f97316",textTransform:"uppercase",marginBottom:14}}>Nuevo Bloque</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div><Lbl>Nombre</Lbl><input value={newM.name} onChange={e=>setNewM(f=>({...f,name:e.target.value}))} placeholder="Ej: Competición II"/></div>
+            <div><Lbl>Tipo</Lbl><select value={newM.type} onChange={e=>setNewM(f=>({...f,type:e.target.value}))}>{TIPO_OPTIONS.map(t=><option key={t}>{t}</option>)}</select></div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px",gap:12,marginBottom:12}}>
+            <div><Lbl>Semana inicio</Lbl><input value={newM.s} onChange={e=>setNewM(f=>({...f,s:e.target.value}))} placeholder="Sem 1"/></div>
+            <div><Lbl>Semana fin</Lbl><input value={newM.e} onChange={e=>setNewM(f=>({...f,e:e.target.value}))} placeholder="Sem 8"/></div>
+            <div><Lbl>Semanas</Lbl><input type="number" value={newM.weeks} onChange={e=>setNewM(f=>({...f,weeks:e.target.value}))}/></div>
+          </div>
+          <div style={{marginBottom:12}}><Lbl>Objetivo</Lbl><input value={newM.goal} onChange={e=>setNewM(f=>({...f,goal:e.target.value}))} placeholder="Objetivo principal de este bloque"/></div>
+          <div style={{marginBottom:14}}><Lbl>Color</Lbl><div style={{display:"flex",gap:6,marginTop:4}}>{COLOR_OPTIONS.map(c=><div key={c} onClick={()=>setNewM(f=>({...f,color:c}))} style={{width:26,height:26,borderRadius:13,background:c,cursor:"pointer",border:`3px solid ${newM.color===c?"#fff":"transparent"}`,outline:newM.color===c?`2px solid ${c}`:"none",outlineOffset:1}}/>)}</div></div>
+          <div style={{display:"flex",gap:8}}><Btn onClick={addNewMeso}>Añadir</Btn><Btn onClick={()=>setAddMeso(false)} variant="ghost">Cancelar</Btn></div>
+        </div>
+      ):(
+        <button onClick={()=>setAddMeso(true)} style={{width:"100%",padding:"12px",borderRadius:10,border:`2px dashed ${th.border2}`,background:"transparent",cursor:"pointer",color:th.muted,fontSize:13,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,marginTop:4}}>+ Añadir bloque de temporada</button>
+      )}
     </>:<>
+      {/* Microciclo editable */}
+      <p style={{fontSize:12,color:th.muted,marginBottom:14}}>Haz clic en cualquier día para editarlo. Define el tipo de sesión, foco, intensidad y carga relativa para cada día de la semana.</p>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:10,marginBottom:14}}>
-        {MICRO_DAYS.map((day,i)=>{const m=MICRO[i];return <div key={day} className="card" style={{padding:16,borderTop:`3px solid ${m.color}`}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>{day}</p>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:m.color,marginBottom:4}}>{m.type}</p>
-          <p style={{fontSize:11,color:th.sub,marginBottom:10,lineHeight:1.4}}>{m.focus}</p>
-          <Badge color={m.color} sm>{m.intens}</Badge>
-        </div>;})}
+        {micro.map((m,i)=><div key={m.day}>
+          {edMicro===i?(
+            <div className="card" style={{padding:14,borderTop:`3px solid ${micf.color||m.color}`,gridColumn:"span 1"}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:micf.color||m.color,textTransform:"uppercase",marginBottom:10}}>{m.day}</p>
+              <div style={{marginBottom:8}}><Lbl>Tipo sesión</Lbl><select value={micf.type} onChange={e=>setMicf(f=>({...f,type:e.target.value}))} style={{fontSize:11}}>{SESSION_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+              <div style={{marginBottom:8}}><Lbl>Foco</Lbl><input value={micf.focus} onChange={e=>setMicf(f=>({...f,focus:e.target.value}))} placeholder="Descripción breve" style={{fontSize:11}}/></div>
+              <div style={{marginBottom:8}}><Lbl>Intensidad</Lbl><select value={micf.intens} onChange={e=>setMicf(f=>({...f,intens:e.target.value}))} style={{fontSize:11}}>{INTENS_OPTIONS.map(t=><option key={t}>{t}</option>)}</select></div>
+              <div style={{marginBottom:10}}><Lbl>Carga (1-100)</Lbl><input type="number" min="0" max="100" value={micf.load} onChange={e=>setMicf(f=>({...f,load:e.target.value}))} style={{fontSize:11}}/></div>
+              <div style={{marginBottom:10}}><Lbl>Color</Lbl><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{COLOR_OPTIONS.map(c=><div key={c} onClick={()=>setMicf(f=>({...f,color:c}))} style={{width:20,height:20,borderRadius:10,background:c,cursor:"pointer",border:`2px solid ${micf.color===c?"#fff":"transparent"}`,outline:micf.color===c?`2px solid ${c}`:"none",outlineOffset:1}}/>)}</div></div>
+              <div style={{display:"flex",gap:6}}><Btn onClick={()=>saveMicro(i)} sm>✓</Btn><Btn onClick={()=>setEdMicro(null)} variant="ghost" sm>✗</Btn></div>
+            </div>
+          ):(
+            <div className="card" style={{padding:14,borderTop:`3px solid ${m.color}`,cursor:"pointer"}} onClick={()=>{setEdMicro(i);setMicf({type:m.type,focus:m.focus,intens:m.intens,color:m.color,load:m.load});}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>{m.day}</p>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:m.color,marginBottom:4}}>{m.type}</p>
+              <p style={{fontSize:11,color:th.sub,marginBottom:8,lineHeight:1.4}}>{m.focus}</p>
+              <Badge color={m.color} sm>{m.intens}</Badge>
+              <div style={{marginTop:8,height:4,background:th.border2,borderRadius:2,overflow:"hidden"}}><div style={{width:`${m.load}%`,height:"100%",background:m.color,borderRadius:2}}/></div>
+              <p style={{fontSize:9,color:th.muted,marginTop:3,fontFamily:"DM Mono"}}>Carga: {m.load}%</p>
+            </div>
+          )}
+        </div>)}
       </div>
+
+      {/* Gráfico de carga */}
       <div className="card" style={{padding:20}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Carga Semanal</p>
-        <div style={{display:"flex",gap:4,alignItems:"flex-end",height:60}}>{ML.map((h,i)=><div key={i} style={{flex:1,background:MICRO[i].color,height:`${h}%`,borderRadius:"4px 4px 0 0",opacity:.72,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.72}/>)}</div>
-        <div style={{display:"flex",marginTop:6}}>{MICRO_DAYS.map(d=><div key={d} style={{flex:1,textAlign:"center",fontSize:9,color:th.muted,fontFamily:"DM Mono"}}>{d}</div>)}</div>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Distribución de Carga Semanal</p>
+        <div style={{display:"flex",gap:4,alignItems:"flex-end",height:80}}>
+          {micro.map((m,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+            <span style={{fontFamily:"DM Mono",fontSize:9,color:m.color,fontWeight:600}}>{m.load}%</span>
+            <div style={{width:"100%",background:m.color,height:`${m.load}%`,minHeight:4,borderRadius:"4px 4px 0 0",opacity:.8}}/>
+          </div>)}
+        </div>
+        <div style={{display:"flex",marginTop:6}}>
+          {micro.map(m=><div key={m.day} style={{flex:1,textAlign:"center",fontSize:9,color:th.muted,fontFamily:"DM Mono"}}>{m.day.slice(0,3)}</div>)}
+        </div>
       </div>
+      <p style={{fontSize:11,color:th.muted,marginTop:8}}>💡 Haz clic en cualquier día para editar su contenido</p>
     </>}
   </div>;
 }
@@ -486,35 +680,114 @@ function Planificacion(){
    5. ESTADÍSTICAS
 ══════════════════════════════════════════════════════════ */
 function Estadisticas(){
-  const{th}=useTheme();const{players}=useData();const[sb,setSb]=useState("pts");
-  const cols=[{key:"pts",lbl:"PTS"},{key:"reb",lbl:"REB"},{key:"ast",lbl:"AST"},{key:"stl",lbl:"ROB"},{key:"blk",lbl:"TAP"},{key:"fg",lbl:"TC%"}];
-  const sorted=[...players.filter(p=>p.active)].sort((a,b)=>b[sb]-a[sb]);
-  const cd=sorted.slice(0,8).map(p=>({name:p.name.split(" ")[0].slice(0,8),val:p[sb]}));
+  const{th}=useTheme();const{players}=useData();
+  const[sortBy,setSortBy]=useState("pts_p");
+  const active=players.filter(p=>p.active);
+  const withCalc=active.map(p=>({...p,...calcStats(p)}));
+  const sorted=[...withCalc].sort((a,b)=>(b[sortBy]||0)-(a[sortBy]||0));
+  const chartData=sorted.slice(0,8).map(p=>({name:p.name.split(" ")[0].slice(0,8),val:+(p[sortBy]||0)}));
   const tt={background:th.card,border:`1px solid ${th.border}`,borderRadius:8,color:th.text,fontSize:12};
+
+  const sortCols=[
+    {key:"pts_p",lbl:"PTS/P",color:"#f97316"},
+    {key:"min_p",lbl:"Min/P",color:"#3b82f6"},
+    {key:"tl_pct",lbl:"TL%",color:"#f59e0b"},
+    {key:"t2_pct",lbl:"T2%",color:"#3b82f6"},
+    {key:"t3_pct",lbl:"T3%",color:"#8b5cf6"},
+    {key:"fc_p",lbl:"FC/P",color:"#ef4444"},
+  ];
+
+  const Th=({children,k,right})=><th onClick={()=>k&&setSortBy(k)} style={{padding:"10px 10px",textAlign:right?"right":"left",fontFamily:"Barlow Condensed",fontSize:10,color:sortBy===k?"#f97316":th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,cursor:k?"pointer":"default",whiteSpace:"nowrap",borderBottom:`2px solid ${sortBy===k?"#f97316":"transparent"}`}}>{children}</th>;
+  const Td=({children,accent,color})=><td style={{padding:"9px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:color||(accent?"#f97316":th.text),fontWeight:accent?700:400}}>{children}</td>;
+
   return <div>
-    <SH title="Estadísticas" sub="Medias individuales por partido"/>
+    <SH title="Estadísticas" sub="CB Binissalem Senior A · Haz clic en una columna para ordenar"/>
+
+    {/* Gráfico ranking */}
     <div className="card" style={{padding:22,marginBottom:14}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Ranking visual</p>
-        <div style={{display:"flex",gap:6}}>{cols.map(c=><button key={c.key} onClick={()=>setSb(c.key)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:sb===c.key?"#f97316":th.card2,color:sb===c.key?"#fff":th.sub,transition:"all .15s"}}>{c.lbl}</button>)}</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {sortCols.map(c=><button key={c.key} onClick={()=>setSortBy(c.key)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:sortBy===c.key?c.color:th.card2,color:sortBy===c.key?"#fff":th.sub,transition:"all .15s"}}>{c.lbl}</button>)}
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={155}><BarChart data={cd} barCategoryGap="35%"><CartesianGrid strokeDasharray="3 3" stroke={th.border} vertical={false}/><XAxis dataKey="name" tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/><YAxis tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={tt}/><Bar dataKey="val" fill="#f97316" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
+      <ResponsiveContainer width="100%" height={140}>
+        <BarChart data={chartData} barCategoryGap="35%">
+          <CartesianGrid strokeDasharray="3 3" stroke={th.border} vertical={false}/>
+          <XAxis dataKey="name" tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/>
+          <YAxis tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/>
+          <Tooltip contentStyle={tt}/>
+          <Bar dataKey="val" fill={sortCols.find(c=>c.key===sortBy)?.color||"#f97316"} radius={[4,4,0,0]}/>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
-    <div className="card" style={{overflow:"hidden"}}>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr style={{background:th.tableHead}}>
-          <th style={{padding:"11px 16px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>#</th>
-          <th style={{padding:"11px 16px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Jugador</th>
-          <th style={{padding:"11px 16px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Pos</th>
-          {cols.map(c=><th key={c.key} onClick={()=>setSb(c.key)} style={{padding:"11px 14px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,cursor:"pointer",color:sb===c.key?"#f97316":th.muted}}>{c.lbl}</th>)}
-        </tr></thead>
-        <tbody>{sorted.map((p,i)=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:i===0?"rgba(249,115,22,.04)":"transparent"}}>
-          <td style={{padding:"10px 16px",fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{i+1}</td>
-          <td style={{padding:"10px 16px"}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:28,height:28,borderRadius:14,background:i===0?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:i===0?"#fff":th.sub,flexShrink:0}}>{p.num}</div><span style={{fontSize:13,color:th.text}}>{p.name}</span></div></td>
-          <td style={{padding:"10px 16px",fontSize:12,color:th.sub}}>{p.pos}</td>
-          {cols.map(c=><td key={c.key} style={{padding:"10px 14px",textAlign:"right",fontFamily:"DM Mono",fontSize:13,color:sb===c.key?"#f97316":th.text,fontWeight:sb===c.key?700:400}}>{p[c.key]}</td>)}
-        </tr>)}</tbody>
+
+    {/* Tabla completa */}
+    <div className="card" style={{overflow:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
+        <thead>
+          <tr style={{background:th.tableHead}}>
+            <Th>Jug.</Th>
+            <Th>Jugador</Th>
+            <Th>Pos</Th>
+            <Th k="pj" right>PJ</Th>
+            <Th k="min_p" right>Min/P</Th>
+            <Th k="pts_p" right>PTS/P</Th>
+            {/* TL group */}
+            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,borderBottom:"2px solid #f59e0b22",background:th.tableHead}}>Tiros Libres</th>
+            {/* T2 group */}
+            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,borderBottom:"2px solid #3b82f622",background:th.tableHead}}>Tiros de 2</th>
+            {/* T3 group */}
+            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,borderBottom:"2px solid #8b5cf622",background:th.tableHead}}>Tiros de 3</th>
+            <Th k="fc_p" right>FC/P</Th>
+          </tr>
+          <tr style={{background:th.tableHead}}>
+            <th colSpan={6} style={{background:th.tableHead}}/>
+            {/* TL sub */}
+            {["Int.","Met.","%"].map(h=><th key={"tl"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#f59e0b",fontWeight:600,textTransform:"uppercase",background:th.tableHead,opacity:.8}}>{h}</th>)}
+            {/* T2 sub */}
+            {["Int.","Met.","%"].map(h=><th key={"t2"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#3b82f6",fontWeight:600,textTransform:"uppercase",background:th.tableHead,opacity:.8}}>{h}</th>)}
+            {/* T3 sub */}
+            {["Int.","Met.","%"].map(h=><th key={"t3"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#8b5cf6",fontWeight:600,textTransform:"uppercase",background:th.tableHead,opacity:.8}}>{h}</th>)}
+            <th style={{background:th.tableHead}}/>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((p,i)=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:i===0?"rgba(249,115,22,.04)":"transparent"}}>
+            <td style={{padding:"9px 12px"}}><div style={{width:28,height:28,borderRadius:14,background:i===0?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff"}}>{p.num}</div></td>
+            <td style={{padding:"9px 12px",fontSize:12,color:th.text,whiteSpace:"nowrap"}}>{p.name}</td>
+            <td style={{padding:"9px 10px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
+            <Td color={th.sub}>{p.pj}</Td>
+            <Td>{p.min_p}'</Td>
+            <Td accent={sortBy==="pts_p"}>{p.pts_p}</Td>
+            {/* TL */}
+            <Td color={th.muted}>{p.tl_i}</Td><Td color={th.muted}>{p.tl_m}</Td><Td accent={sortBy==="tl_pct"} color="#f59e0b">{p.tl_pct}%</Td>
+            {/* T2 */}
+            <Td color={th.muted}>{p.t2_i}</Td><Td color={th.muted}>{p.t2_m}</Td><Td accent={sortBy==="t2_pct"} color="#3b82f6">{p.t2_pct}%</Td>
+            {/* T3 */}
+            <Td color={th.muted}>{p.t3_i}</Td><Td color={th.muted}>{p.t3_m}</Td><Td accent={sortBy==="t3_pct"} color="#8b5cf6">{p.t3_pct}%</Td>
+            <Td accent={sortBy==="fc_p"} color="#ef4444">{p.fc_p}</Td>
+          </tr>)}
+        </tbody>
       </table>
+    </div>
+
+    {/* Totales del equipo */}
+    <div className="card" style={{padding:20,marginTop:14}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>Totales de equipo</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12}}>
+        {[
+          {lbl:"Total TL%",val:`${active.reduce((a,p)=>a+(p.tl_i||0),0)?+((active.reduce((a,p)=>a+(p.tl_m||0),0)/active.reduce((a,p)=>a+(p.tl_i||0),0))*100).toFixed(1):0}%`,color:"#f59e0b"},
+          {lbl:"Total T2%",val:`${active.reduce((a,p)=>a+(p.t2_i||0),0)?+((active.reduce((a,p)=>a+(p.t2_m||0),0)/active.reduce((a,p)=>a+(p.t2_i||0),0))*100).toFixed(1):0}%`,color:"#3b82f6"},
+          {lbl:"Total T3%",val:`${active.reduce((a,p)=>a+(p.t3_i||0),0)?+((active.reduce((a,p)=>a+(p.t3_m||0),0)/active.reduce((a,p)=>a+(p.t3_i||0),0))*100).toFixed(1):0}%`,color:"#8b5cf6"},
+          {lbl:"Jugadores activos",val:active.length,color:"#10b981"},
+          {lbl:"Partidos disputados",val:Math.max(0,...active.map(p=>p.pj||0)),color:"#f97316"},
+          {lbl:"PTS/P equipo",val:active.length&&active.some(p=>p.pj)?+(active.reduce((a,p)=>a+calcStats(p).pts_p,0)/active.filter(p=>p.pj).length).toFixed(1):0,color:"#f97316"},
+        ].map(item=><div key={item.lbl} style={{textAlign:"center",padding:"14px 8px",background:th.card2,borderRadius:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"DM Mono",fontSize:24,fontWeight:700,color:item.color,lineHeight:1,marginBottom:5}}>{item.val}</p>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>{item.lbl}</p>
+        </div>)}
+      </div>
     </div>
   </div>;
 }
@@ -1176,8 +1449,10 @@ export default function App(){
   const[customEx,  setCustomExRaw] = useState([]);
   const[customPlays,setCustomPlaysRaw]=useState([]);
   const[savedDrawings,setSavedDrawingsRaw]=useState([]);
+  const[planMesos, setPlanMesosRaw]=useState(null);
+  const[planMicro, setPlanMicroRaw]=useState(null);
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,customEx:[],customPlays:[],savedDrawings:[],dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,customEx:[],customPlays:[],savedDrawings:[],planMesos:null,planMicro:null,dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -1202,6 +1477,8 @@ export default function App(){
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
   const setCustomPlays=useCallback(fn=>setCustomPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customPlays:n});return n;}),[persist]);
   const setSavedDrawings=useCallback(fn=>setSavedDrawingsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({savedDrawings:n});return n;}),[persist]);
+  const setPlanMesos=useCallback(fn=>setPlanMesosRaw(prev=>{const cur=prev||DEFAULT_MESOS_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMesos:n});return n;}),[persist]);
+  const setPlanMicro=useCallback(fn=>setPlanMicroRaw(prev=>{const cur=prev||DEFAULT_MICRO_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMicro:n});return n;}),[persist]);
 
   useEffect(()=>{
     const load=async()=>{
@@ -1218,6 +1495,8 @@ export default function App(){
           if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
           if(d.customPlays){setCustomPlaysRaw(d.customPlays);stRef.current.customPlays=d.customPlays;}
           if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
+          if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
+          if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
           if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
         }else if(error?.code==="PGRST116"){
           await sb.from("dashboard").upsert({id:"state",data:stRef.current});
@@ -1238,6 +1517,8 @@ export default function App(){
         if(d.customEx)   setCustomExRaw(d.customEx);
         if(d.customPlays)setCustomPlaysRaw(d.customPlays);
         if(d.savedDrawings)setSavedDrawingsRaw(d.savedDrawings);
+        if(d.planMesos) setPlanMesosRaw(d.planMesos);
+        if(d.planMicro) setPlanMicroRaw(d.planMicro);
         if(d.dark!==undefined)setDarkRaw(d.dark);
         setSync("saved");
       }).subscribe();
@@ -1258,7 +1539,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,customEx,setCustomEx,customPlays,setCustomPlays,savedDrawings,setSavedDrawings}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,customEx,setCustomEx,customPlays,setCustomPlays,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100vh",overflow:"hidden",background:th.bg}}>
           <aside style={{width:222,flexShrink:0,background:th.nav,display:"flex",flexDirection:"column",height:"100vh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,.06)"}}>
