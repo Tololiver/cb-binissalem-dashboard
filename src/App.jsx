@@ -326,7 +326,8 @@ function Dashboard(){
 ══════════════════════════════════════════════════════════ */
 function Plantilla(){
   const{th}=useTheme();const{players,setPlayers}=useData();
-  const[ed,setEd]=useState(null);const[ef,setEf]=useState({});const[sa,setSa]=useState(false);
+  const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
+  const[sa,setSa]=useState(false);
   const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,pts:0,reb:0,ast:0,stl:0,blk:0,fg:0});
   const pos=["Base","Escolta","Alero","Ala-Pívot","Pívot"];
   const numF=["pts","reb","ast","stl","blk","fg"];
@@ -338,7 +339,9 @@ function Plantilla(){
   const add=()=>{if(!af.name||!af.num)return;const id=Math.max(0,...players.map(p=>p.id))+1;setPlayers(prev=>[...prev,{id,...af,num:+af.num,...Object.fromEntries(numF.map(k=>[k,+af[k]]))}]);setAf({name:"",num:"",pos:"Base",active:true,pts:0,reb:0,ast:0,stl:0,blk:0,fg:0});setSa(false);};
 
   return <div>
-    <SH title="Plantilla" sub="Gestión de jugadores y estadísticas" right={<Btn onClick={()=>setSa(!sa)} icon={<Plus size={14}/>}>Añadir Jugador</Btn>}/>
+    <SH title="Plantilla" sub="Gestión de jugadores y estadísticas" right={<Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Jugador</Btn>}/>
+
+    {/* Formulario nuevo jugador */}
     {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Jugador</p>
       <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:12}}>
@@ -346,37 +349,60 @@ function Plantilla(){
         <div><Lbl>Dorsal</Lbl><input type="number" value={af.num} onChange={e=>setAf(f=>({...f,num:e.target.value}))}/></div>
         <div><Lbl>Posición</Lbl><select value={af.pos} onChange={e=>setAf(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:12}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas por partido</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:14}}>
         {numF.map((k,i)=><div key={k}><Lbl>{numL[i]}</Lbl><input type="number" step="0.1" value={af[k]} onChange={e=>setAf(f=>({...f,[k]:e.target.value}))}/></div>)}
       </div>
       <div style={{display:"flex",gap:8}}><Btn onClick={add}>Guardar</Btn><Btn onClick={()=>setSa(false)} variant="ghost">Cancelar</Btn></div>
     </div>}
+
+    {/* Panel de edición de estadísticas — se muestra debajo de la tabla cuando se edita */}
+    {ed&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640",borderWidth:2}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>
+        Editando: {ef.name} · #{ef.num}
+      </p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:14}}>
+        <div><Lbl>Nombre completo</Lbl><input value={ef.name} onChange={e=>setEf(f=>({...f,name:e.target.value}))}/></div>
+        <div><Lbl>Dorsal</Lbl><input type="number" value={ef.num} onChange={e=>setEf(f=>({...f,num:e.target.value}))}/></div>
+        <div><Lbl>Posición</Lbl><select value={ef.pos} onChange={e=>setEf(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
+      </div>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas por partido</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:14}}>
+        {numF.map((k,i)=><div key={k}>
+          <Lbl>{numL[i]}</Lbl>
+          <input type="number" step="0.1" value={ef[k]} onChange={e=>setEf(f=>({...f,[k]:e.target.value}))}/>
+        </div>)}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <Btn onClick={sv}>Guardar cambios</Btn>
+        <Btn onClick={()=>setEd(null)} variant="ghost">Cancelar</Btn>
+        <div onClick={()=>tg(ed)} style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",padding:"5px 14px",borderRadius:6,background:ef.active?"rgba(239,68,68,.1)":"rgba(16,185,129,.1)",border:`1px solid ${ef.active?"rgba(239,68,68,.3)":"rgba(16,185,129,.3)"}`}}>
+          <span style={{fontFamily:"DM Mono",fontSize:11,color:ef.active?"#ef4444":"#10b981",fontWeight:600}}>{ef.active?"Dar de baja":"Activar"}</span>
+        </div>
+      </div>
+    </div>}
+
+    {/* Tabla de jugadores */}
     <div className="card" style={{overflow:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:750}}>
         <thead><tr style={{background:th.tableHead}}>
           {["#","Nombre","Pos","PTS","REB","AST","ROB","TAP","TC%","Estado",""].map((h,i)=><th key={i} style={{padding:"10px 12px",textAlign:i>2&&i<9?"right":"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{h}</th>)}
         </tr></thead>
         <tbody>
-          {players.map(p=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
-            {ed===p.id?(
-              <><td style={{padding:"8px 12px"}} colSpan={3}>
-                <div style={{display:"flex",gap:8}}>
-                  <input type="number" value={ef.num} onChange={e=>setEf(f=>({...f,num:e.target.value}))} style={{width:50}}/>
-                  <input value={ef.name} onChange={e=>setEf(f=>({...f,name:e.target.value}))} style={{flex:1}}/>
-                  <select value={ef.pos} onChange={e=>setEf(f=>({...f,pos:e.target.value}))} style={{width:120}}>{pos.map(pp=><option key={pp}>{pp}</option>)}</select>
-                </div>
-              </td>
-              {numF.map(k=><td key={k} style={{padding:"8px 8px"}}><input type="number" step="0.1" value={ef[k]} onChange={e=>setEf(f=>({...f,[k]:e.target.value}))} style={{width:70,textAlign:"right"}}/></td>)}
-              <td style={{padding:"8px 12px"}}><Badge color={ef.active?"#10b981":"#ef4444"}>{ef.active?"Activo":"Baja"}</Badge></td>
-              <td style={{padding:"8px 12px"}}><div style={{display:"flex",gap:6}}><Btn onClick={sv} sm>✓</Btn><Btn onClick={()=>setEd(null)} variant="ghost" sm>✗</Btn></div></td></>
-            ):(
-              <><td style={{padding:"10px 12px"}}><div style={{width:30,height:30,borderRadius:15,background:p.active?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff"}}>{p.num}</div></td>
-              <td style={{padding:"10px 12px",fontSize:13,color:p.active?th.text:th.muted,whiteSpace:"nowrap"}}>{p.name}</td>
-              <td style={{padding:"10px 12px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
-              {numF.map(k=><td key={k} style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{p[k]}</td>)}
-              <td style={{padding:"10px 12px"}}><div onClick={()=>tg(p.id)} style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",padding:"3px 10px",borderRadius:6,background:p.active?"rgba(16,185,129,.1)":"rgba(239,68,68,.1)",border:`1px solid ${p.active?"rgba(16,185,129,.3)":"rgba(239,68,68,.3)"}`}}><span style={{fontFamily:"DM Mono",fontSize:11,color:p.active?"#10b981":"#ef4444",fontWeight:600}}>{p.active?"Activo":"Baja"}</span></div></td>
-              <td style={{padding:"10px 12px"}}><div style={{display:"flex",gap:10}}><Edit2 size={14} color={th.sub} style={{cursor:"pointer"}} onClick={()=>se(p)}/><Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>dl(p.id)}/></div></td></>
-            )}
+          {players.map(p=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:ed===p.id?"rgba(249,115,22,.05)":"transparent"}}>
+            <td style={{padding:"10px 12px"}}><div style={{width:30,height:30,borderRadius:15,background:p.active?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff"}}>{p.num}</div></td>
+            <td style={{padding:"10px 12px",fontSize:13,color:p.active?th.text:th.muted,whiteSpace:"nowrap"}}>{p.name}</td>
+            <td style={{padding:"10px 12px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
+            {numF.map(k=><td key={k} style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{p[k]}</td>)}
+            <td style={{padding:"10px 12px"}}><span style={{fontFamily:"DM Mono",fontSize:11,color:p.active?"#10b981":"#ef4444",fontWeight:600}}>{p.active?"Activo":"Baja"}</span></td>
+            <td style={{padding:"10px 12px"}}>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                <button onClick={()=>ed===p.id?setEd(null):se(p)} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,border:`1px solid ${ed===p.id?"#f97316":th.border2}`,background:ed===p.id?"rgba(249,115,22,.1)":th.card2,cursor:"pointer",color:ed===p.id?"#f97316":th.sub,fontSize:11,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                  <Edit2 size={11}/>{ed===p.id?"Cerrar":"Editar"}
+                </button>
+                <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>dl(p.id)}/>
+              </div>
+            </td>
           </tr>)}
         </tbody>
       </table>
@@ -499,8 +525,11 @@ function Estadisticas(){
 function Entrenamientos(){
   const{th}=useTheme();const{sessions,setSessions}=useData();
   const[exp,setExp]=useState(null);const[add,setAdd]=useState(false);
+  const[editNotes,setEditNotes]=useState(null);const[notesVal,setNotesVal]=useState("");
   const[f,setF]=useState({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});
   const save=()=>{if(!f.title||!f.date)return;const id=sessions.length?Math.max(...sessions.map(s=>s.id))+1:1;setSessions(p=>[...p,{id,...f,dur:+f.dur,exs:f.exs.split("\n").filter(Boolean)}]);setAdd(false);setF({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});};
+  const saveNotes=sid=>{setSessions(prev=>prev.map(s=>s.id===sid?{...s,notes:notesVal}:s));setEditNotes(null);};
+
   return <div>
     <SH title="Entrenamientos" sub="Mar · Mié · Jue · Vie — desde el 7 de abril" right={<Btn onClick={()=>setAdd(true)} icon={<Plus size={14}/>}>Nueva Sesión</Btn>}/>
     {add&&<div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640"}}>
@@ -512,7 +541,7 @@ function Entrenamientos(){
       </div>
       <div style={{marginBottom:12}}><Lbl>Título</Lbl><input type="text" value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder="Título de la sesión"/></div>
       <div style={{marginBottom:12}}><Lbl>Ejercicios (uno por línea)</Lbl><textarea rows={4} value={f.exs} onChange={e=>setF(p=>({...p,exs:e.target.value}))} placeholder={"Calentamiento 15'\nEjercicio principal 30'..."}/></div>
-      <div style={{marginBottom:16}}><Lbl>Notas del entrenador</Lbl><textarea rows={3} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Observaciones, incidencias, ajustes tácticos…"/></div>
+      <div style={{marginBottom:16}}><Lbl>Notas previas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones previas…"/></div>
       <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={()=>setAdd(false)} variant="ghost">Cancelar</Btn></div>
     </div>}
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -520,7 +549,7 @@ function Entrenamientos(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setExp(op?null:s.id)}>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
             <div style={{minWidth:52,textAlign:"center"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted}}>{s.date}</p><p style={{fontFamily:"DM Mono",fontSize:13,color:c,fontWeight:700}}>{s.dur}'</p></div>
-            <div><h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4}}>{s.title}</h4><Badge color={c}>{s.type}</Badge></div>
+            <div><h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4}}>{s.title}</h4><div style={{display:"flex",gap:6,alignItems:"center"}}><Badge color={c}>{s.type}</Badge>{s.notes&&<span style={{fontSize:10,color:th.muted}}>📝 con notas</span>}</div></div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <button title="Exportar PDF" onClick={e=>{e.stopPropagation();exportSessionPDF(s);}} style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
@@ -529,7 +558,24 @@ function Entrenamientos(){
           </div>
         </div>
         {op&&<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${th.border}`}}>
-          {s.notes&&<div style={{background:c+"0f",borderLeft:`3px solid ${c}`,padding:"8px 12px",borderRadius:4,marginBottom:12,fontSize:12,color:th.sub,lineHeight:1.6}}><strong style={{color:c,fontFamily:"Barlow Condensed",fontSize:13}}>NOTAS</strong><br/>{s.notes}</div>}
+          {/* Notas */}
+          {editNotes===s.id?(
+            <div style={{marginBottom:14}}>
+              <Lbl>Notas del entrenador</Lbl>
+              <textarea rows={4} value={notesVal} onChange={e=>setNotesVal(e.target.value)} placeholder="Observaciones, incidencias, ajustes tácticos, rendimiento del equipo…" style={{marginBottom:8}}/>
+              <div style={{display:"flex",gap:8}}><Btn onClick={()=>saveNotes(s.id)} sm>Guardar notas</Btn><Btn onClick={()=>setEditNotes(null)} variant="ghost" sm>Cancelar</Btn></div>
+            </div>
+          ):(
+            <div style={{marginBottom:12}}>
+              {s.notes?<div style={{background:c+"0f",borderLeft:`3px solid ${c}`,padding:"8px 12px",borderRadius:4,marginBottom:8,fontSize:12,color:th.sub,lineHeight:1.6}}>
+                <strong style={{color:c,fontFamily:"Barlow Condensed",fontSize:13}}>NOTAS</strong><br/>{s.notes}
+              </div>:null}
+              <button onClick={()=>{setEditNotes(s.id);setNotesVal(s.notes||"");}} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:11,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <Edit2 size={11}/>{s.notes?"Editar notas":"Añadir notas post-entreno"}
+              </button>
+            </div>
+          )}
+          {/* Ejercicios */}
           {(s.exs||[]).map((ex,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
             <div style={{width:22,height:22,borderRadius:11,background:c+"18",border:`1px solid ${c}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:"DM Mono",fontSize:9,color:c}}>{i+1}</span></div>
             <span style={{fontSize:13,color:th.sub}}>{ex}</span>
@@ -756,26 +802,55 @@ function PlaybookForm({onSave,onCancel}){
 function Playbook(){
   const{th}=useTheme();const{customPlays,setCustomPlays}=useData();
   const[filter,setFilter]=useState("Todos");const[showAdd,setShowAdd]=useState(false);const[viewImg,setViewImg]=useState(null);
+  const[pdfLoading,setPdfLoading]=useState(false);const[pdfMsg,setPdfMsg]=useState(null);
   const cats=["Todos","Ataque","Defensa","Especial"];
   const allPlays=[...DEFAULT_PLAYS,...customPlays];
   const filtered=filter==="Todos"?allPlays:allPlays.filter(p=>p.cat===filter);
-  const[pdfName,setPdfName]=useState(null);const fr=useRef();
+  const fr=useRef();
+
+  const handlePDF=async e=>{
+    const file=e.target.files[0];if(!file)return;
+    setPdfLoading(true);setPdfMsg("Leyendo PDF con IA…");
+    try{
+      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",max_tokens:2000,
+        messages:[{role:"user",content:[
+          {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+          {type:"text",text:`Este PDF es un documento de baloncesto con jugadas o sistemas. Extrae TODAS las jugadas/sistemas que encuentres y devuelve SOLO JSON válido sin explicaciones ni markdown:
+{"jugadas":[{"nombre":"nombre jugada","categoria":"Ataque|Defensa|Especial","descripcion":"descripción clara de la jugada","etiquetas":["tag1","tag2"]}]}
+Si no encuentras jugadas claras, devuelve {"jugadas":[]}`}
+        ]}]
+      })});
+      const data=await resp.json();
+      const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
+      const clean=txt.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      const nuevas=(parsed.jugadas||[]).map(j=>({id:Date.now()+Math.random(),name:j.nombre||j.name||"Sin nombre",cat:j.categoria||j.cat||"Ataque",desc:j.descripcion||j.desc||"",tags:j.etiquetas||j.tags||[],images:[]}));
+      if(nuevas.length>0){
+        setCustomPlays(prev=>[...prev,...nuevas]);
+        setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length>1?"s":""} importada${nuevas.length>1?"s":""} del PDF`);
+      }else{setPdfMsg("⚠️ No se encontraron jugadas en el PDF. Prueba a crearlas manualmente.");}
+    }catch(err){console.error(err);setPdfMsg("❌ Error al procesar el PDF. Inténtalo de nuevo.");}
+    setPdfLoading(false);
+    e.target.value="";
+    setTimeout(()=>setPdfMsg(null),5000);
+  };
 
   return <div>
     <SH title="Playbook" sub="Jugadas y sistemas de juego del equipo" right={<div style={{display:"flex",gap:8}}>
-      <input ref={fr} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>setPdfName(e.target.files[0]?.name)}/>
-      <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={<FileText size={14}/>} sm>{pdfName||"Subir PDF"}</Btn>
+      <input ref={fr} type="file" accept=".pdf" style={{display:"none"}} onChange={handlePDF}/>
+      <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>} disabled={pdfLoading}>
+        {pdfLoading?"Analizando…":"Importar PDF"}
+      </Btn>
       <Btn onClick={()=>setShowAdd(true)} icon={<Plus size={14}/>}>Nueva Jugada</Btn>
     </div>}/>
-    {pdfName&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.25)",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#10b981"}}>📄 <strong>{pdfName}</strong> cargado · Usa los datos del PDF para crear jugadas con el botón "Nueva Jugada"</div>}
+    {pdfMsg&&<div style={{background:pdfMsg.startsWith("✅")?"rgba(16,185,129,.07)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.07)":"rgba(239,68,68,.07)",border:`1px solid ${pdfMsg.startsWith("✅")?"rgba(16,185,129,.3)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.3)":"rgba(239,68,68,.3)"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:th.text}}>{pdfMsg}</div>}
     {showAdd&&<PlaybookForm onSave={p=>{setCustomPlays(prev=>[...prev,p]);setShowAdd(false);}} onCancel={()=>setShowAdd(false)}/>}
     <div style={{display:"flex",gap:8,marginBottom:20}}>
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(PC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
     </div>
-
-    {/* Image viewer modal */}
     {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
-
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
       {filtered.map(play=>{const c=PC[play.cat]||"#f97316";const isCustom=play.id>100;return <div key={play.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
