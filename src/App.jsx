@@ -1052,7 +1052,7 @@ function Recursos(){
                 <h3 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4,lineHeight:1.2}}>{r.title}</h3>
                 <p style={{fontSize:11,color:"#f97316",fontFamily:"DM Mono",cursor:"pointer",wordBreak:"break-all"}} onClick={()=>openUrl(r.url)}>{(r.url||"").replace(/^https?:\/\//,"").slice(0,40)}{(r.url||"").length>40?"…":""}</p>
               </div>
-              <div style={{display:"flex",gap:6",flexShrink:0}}>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
                 <button onClick={()=>openUrl(r.url)} style={{width:28,height:28,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><ExternalLink size={12}/></button>
                 <button onClick={()=>startEdit(r)} style={{width:28,height:28,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={12}/></button>
                 <button onClick={()=>del(r.id)} style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={12}/></button>
