@@ -595,40 +595,115 @@ function Plantilla(){
 ══════════════════════════════════════════════════════════ */
 function Partidos(){
   const{th}=useTheme();const{matches,setMatches}=useData();
-  const[sa,setSa]=useState(false);const[f,setF]=useState({date:"",rival:"",location:"Casa",pts_us:"",pts_them:""});
+  const[sa,setSa]=useState(false);
+  const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
+  const[f,setF]=useState({date:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});
+
   const played=matches.filter(m=>m.pts_us!=null);
-  const w=played.filter(m=>m.pts_us>m.pts_them).length;const l=played.filter(m=>m.pts_us<=m.pts_them).length;
+  const w=played.filter(m=>m.pts_us>m.pts_them).length;
+  const l=played.filter(m=>m.pts_us<=m.pts_them).length;
   const af=played.length?(played.reduce((a,m)=>a+(m.pts_us||0),0)/played.length).toFixed(1):"—";
   const aa=played.length?(played.reduce((a,m)=>a+(m.pts_them||0),0)/played.length).toFixed(1):"—";
-  const add=()=>{if(!f.date||!f.rival||f.pts_us===""||f.pts_them==="")return;const id=matches.length?Math.max(...matches.map(m=>m.id))+1:1;setMatches(prev=>[...prev,{id,...f,pts_us:+f.pts_us,pts_them:+f.pts_them}]);setF({date:"",rival:"",location:"Casa",pts_us:"",pts_them:""});setSa(false);};
-  const ks=[{label:"Record",value:`${w}–${l}`,color:"#f97316"},{label:"Pts a favor",value:af,color:"#10b981"},{label:"Pts en contra",value:aa,color:"#ef4444"},{label:"Jugados/Total",value:`${played.length}/${matches.length}`,color:"#3b82f6"}];
-  return <div>
-    <SH title="Partidos" sub="Resultados y estadísticas" right={<Btn onClick={()=>setSa(!sa)} icon={<Plus size={14}/>}>Añadir Partido</Btn>}/>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>{ks.map(k=><div key={k.label} className="card" style={{padding:"18px 20px"}}><p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{k.label}</p><p style={{fontFamily:"DM Mono",fontSize:32,color:k.color,fontWeight:700,lineHeight:1}}>{k.value}</p></div>)}</div>
-    {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Partido</p>
+
+  const add=()=>{
+    if(!f.date||!f.rival)return;
+    const id=matches.length?Math.max(...matches.map(m=>m.id))+1:1;
+    setMatches(prev=>[...prev,{id,...f,
+      pts_us:f.pts_us!==""?+f.pts_us:null,
+      pts_them:f.pts_them!==""?+f.pts_them:null,
+    }]);
+    setF({date:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});setSa(false);
+  };
+
+  const startEdit=m=>{
+    setEd(m.id);
+    setEf({date:m.date,rival:m.rival,location:m.location,pts_us:m.pts_us???"",pts_them:m.pts_them???"",notes:m.notes||""});
+  };
+  const saveEdit=()=>{
+    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,
+      pts_us:ef.pts_us!==""?+ef.pts_us:null,
+      pts_them:ef.pts_them!==""?+ef.pts_them:null,
+    }:m));
+    setEd(null);
+  };
+
+  const ks=[
+    {label:"Record",value:`${w}–${l}`,color:"#f97316"},
+    {label:"Pts a favor",value:af,color:"#10b981"},
+    {label:"Pts en contra",value:aa,color:"#ef4444"},
+    {label:"Jugados/Total",value:`${played.length}/${matches.length}`,color:"#3b82f6"},
+  ];
+
+  const MatchForm=({vals,setVals,onSave,onCancel,title})=>(
+    <div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>{title}</p>
       <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:12,marginBottom:12}}>
-        <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(x=>({...x,date:e.target.value}))}/></div>
-        <div><Lbl>Rival</Lbl><input value={f.rival} onChange={e=>setF(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
-        <div><Lbl>Lugar</Lbl><select value={f.location} onChange={e=>setF(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
-        <div><Lbl>Nos.</Lbl><input type="number" value={f.pts_us} onChange={e=>setF(x=>({...x,pts_us:e.target.value}))} placeholder="00"/></div>
-        <div><Lbl>Riv.</Lbl><input type="number" value={f.pts_them} onChange={e=>setF(x=>({...x,pts_them:e.target.value}))} placeholder="00"/></div>
+        <div><Lbl>Fecha</Lbl><input type="date" value={vals.date} onChange={e=>setVals(x=>({...x,date:e.target.value}))}/></div>
+        <div><Lbl>Rival</Lbl><input value={vals.rival} onChange={e=>setVals(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
+        <div><Lbl>Lugar</Lbl><select value={vals.location} onChange={e=>setVals(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
+        <div><Lbl>Nos. (opt.)</Lbl><input type="number" value={vals.pts_us} onChange={e=>setVals(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
+        <div><Lbl>Riv. (opt.)</Lbl><input type="number" value={vals.pts_them} onChange={e=>setVals(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
       </div>
-      <div style={{display:"flex",gap:8}}><Btn onClick={add}>Guardar</Btn><Btn onClick={()=>setSa(false)} variant="ghost">Cancelar</Btn></div>
-    </div>}
+      <div style={{marginBottom:14}}><Lbl>Notas post partido</Lbl>
+        <textarea rows={3} value={vals.notes||""} onChange={e=>setVals(x=>({...x,notes:e.target.value}))} placeholder="Análisis del partido, aspectos a mejorar, destacados…"/>
+      </div>
+      <p style={{fontSize:11,color:th.muted,marginBottom:10}}>💡 El resultado es opcional — puedes dejarlo en blanco para planificar y añadirlo después.</p>
+      <div style={{display:"flex",gap:8}}><Btn onClick={onSave}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
+    </div>
+  );
+
+  return <div>
+    <SH title="Partidos" sub="Resultados, planificación y notas" right={<Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Partido</Btn>}/>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+      {ks.map(k=><div key={k.label} className="card" style={{padding:"18px 20px"}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{k.label}</p>
+        <p style={{fontFamily:"DM Mono",fontSize:32,color:k.color,fontWeight:700,lineHeight:1}}>{k.value}</p>
+      </div>)}
+    </div>
+
+    {sa&&<MatchForm vals={f} setVals={setF} onSave={add} onCancel={()=>setSa(false)} title="Nuevo Partido"/>}
+
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {matches.length===0&&<div className="card" style={{padding:48,textAlign:"center"}}><Trophy size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:14}}>No hay partidos registrados</p></div>}
-      {[...matches].reverse().map(m=>{
+      {matches.length===0&&<div className="card" style={{padding:48,textAlign:"center"}}>
+        <Trophy size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/>
+        <p style={{color:th.muted,fontSize:14}}>No hay partidos registrados</p>
+      </div>}
+      {[...matches].sort((a,b)=>b.date?.localeCompare(a.date)).map(m=>{
         const hasResult=m.pts_us!=null&&m.pts_them!=null;
         const win=hasResult&&m.pts_us>m.pts_them;
         const c=hasResult?(win?"#10b981":"#ef4444"):"#6366f1";
         const d=hasResult?m.pts_us-m.pts_them:null;
-        return <div key={m.id} className="card" style={{padding:"16px 20px",borderLeft:`4px solid ${c}`,display:"flex",alignItems:"center",gap:20}}>
-        <div style={{minWidth:58,textAlign:"center"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{m.date}</p><Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge></div>
-        <div style={{flex:1}}><p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p><p style={{fontSize:11,color:th.muted}}>{m.location}{hasResult?` · ${d>0?"+":""}${d} pts`:" · Pendiente"}</p></div>
-        <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:c,lineHeight:1}}>{hasResult?<>{m.pts_us}<span style={{color:th.muted,fontSize:16}}>–</span>{m.pts_them}</>:<span style={{fontSize:16,color:th.muted}}>vs</span>}</p>
-        <Trash2 size={14} color="#ef4444" style={{cursor:"pointer",flexShrink:0}} onClick={()=>setMatches(prev=>prev.filter(x=>x.id!==m.id))}/>
-      </div>;})}
+        const isEditing=ed===m.id;
+
+        if(isEditing) return <MatchForm key={m.id} vals={ef} setVals={setEf} onSave={saveEdit} onCancel={()=>setEd(null)} title={`Editar: ${m.rival}`}/>;
+
+        return <div key={m.id} className="card" style={{padding:"16px 20px",borderLeft:`4px solid ${c}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <div style={{minWidth:58,textAlign:"center",flexShrink:0}}>
+              <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{m.date}</p>
+              <Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge>
+            </div>
+            <div style={{flex:1}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p>
+              <p style={{fontSize:11,color:th.muted}}>{m.location}{hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}</p>
+            </div>
+            <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:c,lineHeight:1,flexShrink:0}}>
+              {hasResult?<>{m.pts_us}<span style={{color:th.muted,fontSize:16}}>–</span>{m.pts_them}</>:<span style={{fontSize:16,color:th.muted}}>vs</span>}
+            </p>
+            <div style={{display:"flex",gap:8,flexShrink:0}}>
+              <button onClick={()=>startEdit(m)} title="Editar partido"
+                style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}>
+                <Edit2 size={13}/>
+              </button>
+              <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setMatches(prev=>prev.filter(x=>x.id!==m.id))}/>
+            </div>
+          </div>
+          {m.notes&&<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${th.border}`,fontSize:12,color:th.sub,lineHeight:1.6}}>
+            <span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:c,textTransform:"uppercase",marginRight:8}}>Notas</span>
+            {m.notes}
+          </div>}
+        </div>;
+      })}
     </div>
   </div>;
 }
