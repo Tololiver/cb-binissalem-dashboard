@@ -617,7 +617,7 @@ function Partidos(){
 
   const startEdit=m=>{
     setEd(m.id);
-    setEf({date:m.date,rival:m.rival,location:m.location,pts_us:m.pts_us???"",pts_them:m.pts_them???"",notes:m.notes||""});
+    setEf({date:m.date,rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});
   };
   const saveEdit=()=>{
     setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,
