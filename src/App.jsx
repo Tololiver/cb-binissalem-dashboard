@@ -2087,20 +2087,52 @@ function Calendario(){
 /* ══════════════════════════════════════════════════════════
    14. IA ASISTENTE
 ══════════════════════════════════════════════════════════ */
+/* ── PDF export helper ── */
+function exportToPDF(title,content){
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>
+    body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#1e293b;line-height:1.7}
+    h1{color:#f97316;font-size:26px;margin-bottom:4px;border-bottom:3px solid #f97316;padding-bottom:8px}
+    h2{color:#f97316;font-size:18px;margin-top:24px}
+    .meta{color:#64748b;font-size:13px;margin-bottom:24px}
+    pre{white-space:pre-wrap;font-family:Arial,sans-serif;font-size:14px;line-height:1.75}
+    .footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}
+    @media print{body{margin:20px}}
+  </style></head><body>
+    <h1>${title}</h1>
+    <div class="meta">CB Binissalem Sénior A · ${new Date().toLocaleDateString("es")}</div>
+    <pre>${content.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>
+    <div class="footer">Generado por CB Binissalem Dashboard · IA Asistente</div>
+  </body></html>`);
+  w.document.close();setTimeout(()=>w.print(),400);
+}
+
 function IAAsistente(){
   const{th}=useTheme();
-  const{players,matches,sessions,apiKey}=useData();
+  const{players,matches,sessions,sesionTemplates,setSesionTemplates,setSessions,scouting,setScouting,apiKey}=useData();
   const[tab,setTab]=useState("rival");
+  const[selScout,setSelScout]=useState(null);
+
+  // Análisis rival
+  const[rivalName,setRivalName]=useState("");
   const[rivalText,setRivalText]=useState("");const[rivalResult,setRivalResult]=useState(null);const[rivalLoading,setRivalLoading]=useState(false);
-  const[sesObj,setSesObj]=useState("");const[sesDur,setSesDur]=useState("90");const[sesFocus,setSesFocus]=useState("Técnico-Táctico");const[sesResult,setSesResult]=useState(null);const[sesLoading,setSesLoading]=useState(false);
-  const[resResult,setResResult]=useState(null);const[resLoading,setResLoading]=useState(false);
   const rivalFileRef=useRef();
+
+  // Generador sesión
+  const[sesObj,setSesObj]=useState("");const[sesDur,setSesDur]=useState("90");const[sesFocus,setSesFocus]=useState("Técnico-Táctico");
+  const[sesDate,setSesDate]=useState(()=>new Date().toISOString().split("T")[0]);
+  const[sesResult,setSesResult]=useState(null);const[sesLoading,setSesLoading]=useState(false);
+  const[sesSaved,setSesSaved]=useState(false);
+
+  // Resumen temporada
+  const[resResult,setResResult]=useState(null);const[resLoading,setResLoading]=useState(false);
+
   const noKey=!apiKey;
 
   const analyzeRival=async()=>{
     if(noKey){setRivalResult({error:"Configura tu API Key en ⚙️ Ajustes del sidebar."});return;}
     if(!rivalText.trim()&&!rivalFileRef.current?.files?.[0]){setRivalResult({error:"Introduce información del rival o sube un PDF."});return;}
-    setRivalLoading(true);setRivalResult(null);
+    setRivalLoading(true);setRivalResult(null);setSelScout(null);
     try{
       const content=[];
       if(rivalFileRef.current?.files?.[0]){
@@ -2108,23 +2140,48 @@ function IAAsistente(){
         const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
         content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}});
       }
-      content.push({type:"text",text:`Eres un analista táctico de baloncesto experto. ${rivalText?`Información del rival:\n${rivalText}\n\n`:""}Genera un informe táctico completo en español con:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR\n5. JUGADAS CLAVE a preparar\n\nSé específico, práctico y directo.`});
+      content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}. `:""}${rivalText?`Información:\n${rivalText}\n\n`:""}Genera informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR\n5. JUGADAS CLAVE a preparar\n\nSé específico y práctico.`});
       const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1200,messages:[{role:"user",content}]});
-      setRivalResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
+      setRivalResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.",rival:rivalName||"Sin nombre",saved:false});
     }catch(e){setRivalResult({error:e.message});}
     setRivalLoading(false);
     if(rivalFileRef.current)rivalFileRef.current.value="";
   };
 
+  const saveScoutReport=()=>{
+    if(!rivalResult||rivalResult.error||rivalResult.saved)return;
+    setScouting(prev=>[{id:Date.now(),rival:rivalResult.rival||"Sin nombre",date:new Date().toISOString().split("T")[0],text:rivalResult.text},...prev]);
+    setRivalResult(r=>({...r,saved:true}));
+  };
+  const delScout=id=>setScouting(prev=>prev.filter(s=>s.id!==id));
+
   const generateSession=async()=>{
     if(noKey){setSesResult({error:"Configura tu API Key en ⚙️ Ajustes."});return;}
     if(!sesObj.trim()){setSesResult({error:"Describe el objetivo del entrenamiento."});return;}
-    setSesLoading(true);setSesResult(null);
+    setSesLoading(true);setSesResult(null);setSesSaved(false);
     try{
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`Eres entrenador de baloncesto. Genera una sesión de entrenamiento completa:\n- Duración: ${sesDur} min\n- Tipo: ${sesFocus}\n- Objetivo: ${sesObj}\n- Nivel: Sénior amateur\n\nIncluye:\n1. TÍTULO\n2. CALENTAMIENTO (duración + descripción)\n3. PARTE PRINCIPAL: 3-4 ejercicios con nombre, duración y descripción\n4. VUELTA A LA CALMA\n5. PUNTOS CLAVE para el equipo\n\nFormato práctico y directamente aplicable.`}]});
-      setSesResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`Eres entrenador de baloncesto. Genera sesión completa:\n- Duración: ${sesDur} min\n- Tipo: ${sesFocus}\n- Objetivo: ${sesObj}\n- Nivel: Sénior amateur\n\nIncluye:\n1. TÍTULO (una línea, descriptivo)\n2. CALENTAMIENTO\n3. PARTE PRINCIPAL: 3-4 ejercicios\n4. VUELTA A LA CALMA\n5. PUNTOS CLAVE\n\nFormato práctico.`}]});
+      const text=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
+      // Extract title from first line
+      const lines=text.split("\n").filter(l=>l.trim());
+      const titleRaw=lines[0]?.replace(/^#+\s*/,"").replace(/^1\.\s*/,"").replace(/^TÍTULO[:\s]*/i,"").trim()||sesObj;
+      setSesResult({text,title:titleRaw,date:sesDate,type:sesFocus,dur:+sesDur,obj:sesObj});
     }catch(e){setSesResult({error:e.message});}
     setSesLoading(false);
+  };
+
+  const saveSessionToCalendar=()=>{
+    if(!sesResult||sesResult.error)return;
+    const id=sessions.length?Math.max(...sessions.map(s=>s.id))+1:1;
+    const exs=sesResult.text.split("\n").filter(l=>l.trim()&&l.length>10&&!l.startsWith("#")).slice(0,12);
+    setSessions(prev=>[...prev,{id,date:sesResult.date,type:sesResult.type,dur:sesResult.dur,title:sesResult.title,exs,notes:sesResult.text}]);
+    setSesSaved(true);
+  };
+  const saveSessionAsTemplate=()=>{
+    if(!sesResult||sesResult.error)return;
+    const id=Date.now();
+    const exs=sesResult.text.split("\n").filter(l=>l.trim()&&l.length>10).slice(0,12).join("\n");
+    setSesionTemplates(prev=>[...prev,{id,name:sesResult.title,type:sesResult.type,dur:sesResult.dur,title:sesResult.title,exs,notes:sesResult.text}]);
   };
 
   const generateResumen=async()=>{
@@ -2136,63 +2193,176 @@ function IAAsistente(){
       const active=players.filter(p=>p.active);
       const statsStr=active.map(p=>{const c=calcStats(p);return `${p.name}: PJ ${p.pj}, PTS/P ${c.pts_p}, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, TL% ${c.tl_pct}%`;}).join("\n");
       const matchStr=played.slice(-10).map(m=>`${m.date} vs ${m.rival}: ${m.pts_us}-${m.pts_them} (${m.pts_us>m.pts_them?"V":"D"})`).join("\n");
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1400,messages:[{role:"user",content:`Eres el analista del CB Binissalem Sénior A. Genera un informe narrativo de temporada con estos datos reales:\n\nRESULTADOS (${wins}V-${played.length-wins}D en ${played.length} partidos):\n${matchStr}\n\nESTADÍSTICAS:\n${statsStr}\n\nSESIONES ENTRENAMIENTO: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO (narrativo)\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS con datos\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN motivadora\n\nTono profesional y honesto basado en datos reales.`}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1400,messages:[{role:"user",content:`Eres analista del CB Binissalem Sénior A. Informe narrativo:\n\nRESULTADOS (${wins}V-${played.length-wins}D):\n${matchStr||"Sin partidos registrados"}\n\nESTADÍSTICAS:\n${statsStr||"Sin datos"}\n\nSESIONES: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN\n\nTono profesional, datos reales.`}]});
       setResResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
     }catch(e){setResResult({error:e.message});}
     setResLoading(false);
   };
 
-  const ResultBox=({result,loading})=>{
+  const ResultBox=({result,loading,onPDF,pdfTitle})=>{
     if(loading)return <div style={{textAlign:"center",padding:"40px 0"}}><Loader size={28} color="#f97316" style={{animation:"spin 1s linear infinite",margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:13}}>La IA está analizando…</p></div>;
     if(!result)return null;
     if(result.error)return <div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{result.error}</div>;
-    return <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:520,overflowY:"auto"}}>{result.text}</div>;
+    return <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+        <button onClick={()=>exportToPDF(pdfTitle,result.text)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+          <Printer size={13}/>Descargar PDF
+        </button>
+      </div>
+      <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:520,overflowY:"auto"}}>{result.text}</div>
+    </div>;
   };
 
   return <div>
     <SH title="IA Asistente" sub="Análisis táctico · Sesiones · Resumen de temporada"/>
     {noKey&&<div style={{background:"rgba(245,158,11,.07)",border:"1px solid rgba(245,158,11,.3)",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#f59e0b"}}>
-      ⚙️ Para usar la IA necesitas configurar tu API Key de Anthropic en el botón <strong>⚙️ API Key</strong> del sidebar.
+      ⚙️ Configura tu API Key de Anthropic en el botón <strong>⚙️ API Key</strong> del sidebar.
     </div>}
     <TB tabs={[["rival","🏀 Análisis Rival"],["sesion","📋 Generador de Sesión"],["resumen","📊 Resumen Temporada"]]} active={tab} onChange={setTab}/>
 
-    {tab==="rival"&&<div>
-      <div className="card" style={{padding:20,marginBottom:14}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:4}}>Información sobre el rival</p>
-        <p style={{fontSize:12,color:th.muted,marginBottom:12}}>Pega texto con datos del rival o sube un PDF de scouting. La IA generará un informe táctico completo.</p>
-        <textarea rows={5} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Ej: El CB Inca usa un 2-3 en zona, su #14 anota 18 pts/P, son débiles en el bloqueo directo, su base gira siempre a derecha..."/>
-        <div style={{display:"flex",gap:10,marginTop:12,alignItems:"center",flexWrap:"wrap"}}>
-          <input ref={rivalFileRef} type="file" accept=".pdf" style={{display:"none"}}/>
-          <button onClick={()=>rivalFileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-            <FileText size={13}/>PDF de scouting
-          </button>
-          <Btn onClick={analyzeRival} disabled={rivalLoading} icon={rivalLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
-            {rivalLoading?"Analizando…":"Generar informe táctico"}
-          </Btn>
+    {tab==="rival"&&<div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:16}}>
+      {/* Panel izquierdo — generación */}
+      <div>
+        <div className="card" style={{padding:20,marginBottom:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:12}}>Scouting del rival</p>
+          <div style={{marginBottom:10}}><Lbl>Nombre del rival</Lbl><input value={rivalName} onChange={e=>setRivalName(e.target.value)} placeholder="Ej: CB Inca A"/></div>
+          <div style={{marginBottom:12}}><Lbl>Información sobre el rival</Lbl>
+            <textarea rows={5} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Sistema defensivo, jugadores clave, estadísticas, tendencias, puntos débiles conocidos..."/>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <input ref={rivalFileRef} type="file" accept=".pdf" style={{display:"none"}}/>
+            <button onClick={()=>rivalFileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+              <FileText size={13}/>PDF scouting
+            </button>
+            <Btn onClick={analyzeRival} disabled={rivalLoading} icon={rivalLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
+              {rivalLoading?"Analizando…":"Generar informe"}
+            </Btn>
+          </div>
+        </div>
+
+        {/* Resultado generado */}
+        {rivalLoading&&<div style={{textAlign:"center",padding:"40px 0"}}><Loader size={28} color="#f97316" style={{animation:"spin 1s linear infinite",margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:13}}>La IA está analizando…</p></div>}
+        {rivalResult&&!rivalLoading&&(
+          rivalResult.error
+          ?<div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{rivalResult.error}</div>
+          :<div>
+            <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+              <button onClick={saveScoutReport} disabled={rivalResult.saved}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:rivalResult.saved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:rivalResult.saved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <Save size={12}/>{rivalResult.saved?"✓ Guardado en historial":"Guardar informe"}
+              </button>
+              <button onClick={()=>exportToPDF(`Scouting — ${rivalResult.rival}`,rivalResult.text)}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <Printer size={12}/>Descargar PDF
+              </button>
+            </div>
+            {rivalResult.saved&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#10b981"}}>
+              ✅ Informe guardado — visible en el historial de informes
+            </div>}
+            <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{rivalResult.text}</div>
+          </div>
+        )}
+
+        {/* Informe guardado seleccionado */}
+        {selScout&&!rivalResult&&<div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text}}>{selScout.rival}</p>
+              <p style={{fontSize:11,color:th.muted}}>{selScout.date}</p>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>exportToPDF(`Scouting — ${selScout.rival}`,selScout.text)}
+                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <Printer size={12}/>PDF
+              </button>
+              <button onClick={()=>setSelScout(null)}
+                style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:12,fontFamily:"Barlow Condensed,sans-serif"}}>
+                ✕ Cerrar
+              </button>
+            </div>
+          </div>
+          <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{selScout.text}</div>
+        </div>}
+      </div>
+
+      {/* Panel derecho — historial */}
+      <div>
+        <div className="card" style={{padding:16}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>
+            Historial de informes {scouting.length>0&&<span style={{color:"#f97316"}}>({scouting.length})</span>}
+          </p>
+          {scouting.length===0
+            ?<div style={{textAlign:"center",padding:"24px 0"}}>
+              <FileText size={28} color={th.muted} style={{margin:"0 auto 8px",display:"block"}}/>
+              <p style={{fontSize:12,color:th.muted,lineHeight:1.5}}>Sin informes guardados.<br/>Genera un informe y guárdalo.</p>
+            </div>
+            :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {scouting.map(s=><div key={s.id}
+                style={{padding:"10px 12px",borderRadius:8,background:selScout?.id===s.id?"rgba(249,115,22,.08)":th.card2,border:`1px solid ${selScout?.id===s.id?"#f97316":th.border}`,cursor:"pointer",transition:"all .15s"}}
+                onClick={()=>{setSelScout(s);setRivalResult(null);}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:selScout?.id===s.id?"#f97316":th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.rival}</p>
+                    <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginTop:2}}>{s.date}</p>
+                  </div>
+                  <button onClick={e=>{e.stopPropagation();delScout(s.id);if(selScout?.id===s.id)setSelScout(null);}}
+                    style={{width:22,height:22,borderRadius:5,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:6}}>
+                    <Trash2 size={11}/>
+                  </button>
+                </div>
+                <p style={{fontSize:11,color:th.muted,marginTop:5,lineHeight:1.4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
+                  {s.text.slice(0,80)}…
+                </p>
+              </div>)}
+            </div>}
         </div>
       </div>
-      <ResultBox result={rivalResult} loading={rivalLoading}/>
     </div>}
 
     {tab==="sesion"&&<div>
       <div className="card" style={{padding:20,marginBottom:14}}>
         <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:14}}>Describe el entrenamiento que necesitas</p>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 110px 180px",gap:12,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 120px 180px 140px",gap:12,marginBottom:14}}>
           <div><Lbl>Objetivo principal</Lbl><input value={sesObj} onChange={e=>setSesObj(e.target.value)} placeholder="Ej: defensa press y contraataque…"/></div>
           <div><Lbl>Duración (min)</Lbl><input type="number" value={sesDur} onChange={e=>setSesDur(e.target.value)}/></div>
           <div><Lbl>Tipo de sesión</Lbl><select value={sesFocus} onChange={e=>setSesFocus(e.target.value)}>{["Técnico-Táctico","Físico","Técnico","Táctico","Recuperación","Pre-partido"].map(t=><option key={t}>{t}</option>)}</select></div>
+          <div><Lbl>Fecha del entreno</Lbl><input type="date" value={sesDate} onChange={e=>setSesDate(e.target.value)}/></div>
         </div>
         <Btn onClick={generateSession} disabled={sesLoading} icon={sesLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
           {sesLoading?"Generando…":"Generar sesión completa"}
         </Btn>
       </div>
-      <ResultBox result={sesResult} loading={sesLoading}/>
+
+      {sesLoading&&<div style={{textAlign:"center",padding:"40px 0"}}><Loader size={28} color="#f97316" style={{animation:"spin 1s linear infinite",margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:13}}>Generando sesión…</p></div>}
+
+      {sesResult&&!sesResult.error&&!sesLoading&&<div>
+        {/* Acciones sobre la sesión generada */}
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+          <button onClick={saveSessionToCalendar} disabled={sesSaved}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:sesSaved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:sesSaved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <Calendar size={13}/>{sesSaved?"✓ Añadido al calendario":"Añadir al calendario de entrenamientos"}
+          </button>
+          <button onClick={saveSessionAsTemplate}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(139,92,246,.4)",background:"rgba(139,92,246,.07)",cursor:"pointer",color:"#8b5cf6",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <Copy size={13}/>Guardar como plantilla
+          </button>
+          <button onClick={()=>exportToPDF(`Sesión: ${sesResult.title}`,sesResult.text)}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <Printer size={13}/>Descargar PDF
+          </button>
+        </div>
+        {sesSaved&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#10b981"}}>
+          ✅ Sesión añadida para el {sesDate} — visible en Entrenamientos y Calendario
+        </div>}
+        <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:520,overflowY:"auto"}}>{sesResult.text}</div>
+      </div>}
+      {sesResult?.error&&<div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{sesResult.error}</div>}
     </div>}
 
     {tab==="resumen"&&<div>
       <div className="card" style={{padding:20,marginBottom:14}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:4}}>Resumen narrativo de temporada</p>
-        <p style={{fontSize:12,color:th.muted,marginBottom:14}}>La IA analiza todos tus datos (partidos, estadísticas, sesiones) y genera un informe completo del estado de la temporada.</p>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:4}}>Informe narrativo de temporada</p>
+        <p style={{fontSize:12,color:th.muted,marginBottom:14}}>La IA analiza todos tus datos actuales y genera un informe completo.</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
           {[["Partidos jugados",matches.filter(m=>m.pts_us!=null).length],["Victorias",matches.filter(m=>m.pts_us!=null&&m.pts_us>m.pts_them).length],["Jugadores activos",players.filter(p=>p.active).length],["Sesiones",sessions.length]].map(([l,v])=>(
             <div key={l} style={{textAlign:"center",padding:"12px 8px",background:th.card2,borderRadius:8,border:`1px solid ${th.border}`}}>
@@ -2202,31 +2372,222 @@ function IAAsistente(){
           ))}
         </div>
         <Btn onClick={generateResumen} disabled={resLoading} icon={resLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
-          {resLoading?"Analizando temporada…":"Generar resumen de temporada"}
+          {resLoading?"Analizando…":"Generar resumen de temporada"}
         </Btn>
       </div>
-      <ResultBox result={resResult} loading={resLoading}/>
+      <ResultBox result={resResult} loading={resLoading} pdfTitle="Resumen de Temporada — CB Binissalem Sénior A"/>
     </div>}
   </div>;
 }
 
+/* ══════════════════════════════════════════════════════════
+   BLOQUE 3 — Modo Partido · Carga Trabajo · Evolución Stats · Informe PDF
+══════════════════════════════════════════════════════════ */
+
+function ModoPartido(){
+  const{th}=useTheme();const{matches,setMatches,players}=useData();
+  const today=new Date().toISOString().split("T")[0];
+  const upcoming=[...matches].filter(m=>m.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  const[sel,setSel]=useState(null);
+  const m=matches.find(x=>x.id===sel)||upcoming[0];
+  const[notas,setNotas]=useState("");const[editRes,setEditRes]=useState(false);
+  const[pus,setPus]=useState("");const[pth,setPth]=useState("");
+  const convPlayers=(m?.convocados||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+  const hasResult=m?.pts_us!=null;
+  const saveResult=()=>{if(!m)return;setMatches(prev=>prev.map(x=>x.id===m.id?{...x,pts_us:+pus,pts_them:+pth,notes:(x.notes||"")+(notas?"\nNOTAS PARTIDO: "+notas:"")}:x));setEditRes(false);setNotas("");};
+  if(!m)return <div style={{textAlign:"center",padding:"60px 20px"}}><Trophy size={48} color={th.muted} style={{margin:"0 auto 16px",display:"block"}}/><p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,marginBottom:8}}>No hay partidos próximos</p><p style={{color:th.muted,fontSize:13}}>Añade partidos desde Partidos o Calendario</p></div>;
+  return <div>
+    <SH title="Modo Partido" sub="Vista rápida para el día de partido"/>
+    {upcoming.length>1&&<div style={{marginBottom:16}}><Lbl>Seleccionar partido</Lbl><select value={sel||m?.id||""} onChange={e=>setSel(+e.target.value)} style={{maxWidth:340}}>{upcoming.map(x=><option key={x.id} value={x.id}>{x.date} · {x.rival}</option>)}</select></div>}
+    <div className="card" style={{padding:28,marginBottom:16,borderTop:"4px solid #f97316",textAlign:"center"}}>
+      <p style={{fontFamily:"DM Mono",fontSize:13,color:th.muted,marginBottom:8}}>{m.date} · {m.location}</p>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:36,fontWeight:900,color:th.text,lineHeight:1,marginBottom:16}}>CB Binissalem <span style={{color:th.muted,fontSize:24}}>vs</span> {m.rival}</p>
+      {hasResult?<div style={{fontFamily:"DM Mono",fontSize:56,fontWeight:900,color:m.pts_us>m.pts_them?"#10b981":"#ef4444",lineHeight:1}}>{m.pts_us}<span style={{color:th.muted,fontSize:36}}>–</span>{m.pts_them}</div>:
+      <div>{!editRes?<Btn onClick={()=>{setEditRes(true);setPus("");setPth("");}} style={{fontSize:16,padding:"10px 28px"}}>Introducir resultado</Btn>:
+      <div style={{display:"flex",gap:12,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
+        <input type="number" value={pus} onChange={e=>setPus(e.target.value)} placeholder="Nuestros" style={{width:100,fontSize:22,textAlign:"center",fontFamily:"DM Mono",padding:"10px"}}/>
+        <span style={{fontFamily:"DM Mono",fontSize:28,color:th.muted}}>–</span>
+        <input type="number" value={pth} onChange={e=>setPth(e.target.value)} placeholder="Rival" style={{width:100,fontSize:22,textAlign:"center",fontFamily:"DM Mono",padding:"10px"}}/>
+        <Btn onClick={saveResult}>Guardar</Btn>
+      </div>}</div>}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div className="card" style={{padding:20}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Convocatoria ({convPlayers.length})</p>
+        {convPlayers.length===0?<p style={{fontSize:12,color:th.muted}}>Sin convocatoria. Defínela en Partidos.</p>:
+        <div style={{display:"flex",flexDirection:"column",gap:5}}>{convPlayers.map((p,i)=><div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:th.card2,borderRadius:8}}>
+          <span style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,minWidth:18}}>{i+1}.</span>
+          <div style={{width:28,height:28,borderRadius:14,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff"}}>{p.num}</div>
+          <div style={{flex:1}}><p style={{fontSize:12,color:th.text,fontWeight:600}}>{p.name}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
+        </div>)}</div>}
+      </div>
+      <div className="card" style={{padding:20}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Notas del partido</p>
+        {m.notes&&<div style={{background:th.card2,borderRadius:8,padding:"10px 12px",marginBottom:10,fontSize:12,color:th.sub,lineHeight:1.6,maxHeight:80,overflowY:"auto"}}>{m.notes}</div>}
+        <textarea rows={4} value={notas} onChange={e=>setNotas(e.target.value)} placeholder="Ajustes tácticos, incidencias, observaciones…"/>
+        {notas&&<div style={{marginTop:8}}><Btn onClick={saveResult} sm>Guardar notas</Btn></div>}
+      </div>
+    </div>
+  </div>;
+}
+
+function CargaTrabajo(){
+  const{th}=useTheme();const{sessions}=useData();
+  const[view,setView]=useState("semanal");
+  const TC_LOAD={"Técnico-Táctico":75,"Físico":90,"Técnico":55,"Táctico":65,"Recuperación":30,"Partido":100,"Libre":10,"Otro":50};
+  const tt={background:th.card,border:`1px solid ${th.border}`,borderRadius:8,color:th.text,fontSize:12};
+  const getWeek=d=>{const dt=new Date(d+"T12:00:00");const jan1=new Date(dt.getFullYear(),0,1);return Math.ceil(((dt-jan1)/86400000+jan1.getDay()+1)/7);};
+  const weekMap={};sessions.forEach(s=>{const w=`${new Date(s.date+"T12:00:00").getFullYear()}-W${String(getWeek(s.date)).padStart(2,"0")}`;if(!weekMap[w])weekMap[w]=[];weekMap[w].push(s);});
+  const weekData=Object.entries(weekMap).sort(([a],[b])=>a.localeCompare(b)).slice(-12).map(([w,ss])=>({week:`Sem ${+w.split("-W")[1]}`,load:Math.round(ss.reduce((a,s)=>a+(TC_LOAD[s.type]||50),0)/ss.length),sessions:ss.length}));
+  const monthMap={};sessions.forEach(s=>{const dt=new Date(s.date+"T12:00:00");const k=dt.toLocaleDateString("es",{month:"short",year:"2-digit"});if(!monthMap[k])monthMap[k]=[];monthMap[k].push(s);});
+  const monthData=Object.entries(monthMap).slice(-8).map(([month,ss])=>({month,load:Math.round(ss.reduce((a,s)=>a+(TC_LOAD[s.type]||50),0)/ss.length),sessions:ss.length}));
+  const data=view==="semanal"?weekData:monthData;const key=view==="semanal"?"week":"month";
+  const dist={};sessions.forEach(s=>{dist[s.type]=(dist[s.type]||0)+1;});const total=sessions.length||1;
+  return <div>
+    <SH title="Carga de Trabajo" sub="Análisis de la distribución e intensidad del entrenamiento"/>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+      {[["Sesiones totales",sessions.length,"#f97316"],["Carga media",sessions.length?Math.round(sessions.reduce((a,s)=>a+(TC_LOAD[s.type]||50),0)/sessions.length):0+"%","#3b82f6"],["Alta intensidad",sessions.filter(s=>(TC_LOAD[s.type]||50)>=80).length,"#ef4444"],["Recuperación",sessions.filter(s=>s.type==="Recuperación").length,"#10b981"]].map(([l,v,c])=>(
+        <div key={l} className="card" style={{padding:"18px 20px"}}><p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{l}</p><p style={{fontFamily:"DM Mono",fontSize:32,color:c,fontWeight:700,lineHeight:1}}>{v}</p></div>
+      ))}
+    </div>
+    {sessions.length===0?<div className="card" style={{padding:48,textAlign:"center"}}><p style={{color:th.muted}}>Sin sesiones registradas aún.</p></div>:<>
+      <div className="card" style={{padding:22,marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Carga media por {view==="semanal"?"semana":"mes"} (%)</p>
+          <div style={{display:"flex",gap:6}}>
+            {["semanal","mensual"].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:"4px 12px",borderRadius:6,border:"none",background:view===v?"#f97316":th.card2,color:view===v?"#fff":th.sub,cursor:"pointer",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,textTransform:"capitalize"}}>{v}</button>)}
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={data} barCategoryGap="30%"><CartesianGrid strokeDasharray="3 3" stroke={th.border} vertical={false}/><XAxis dataKey={key} tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/><YAxis domain={[0,100]} tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={tt} formatter={v=>[`${v}%`,"Carga"]}/><Bar dataKey="load" fill="#f97316" radius={[4,4,0,0]}/></BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card" style={{padding:22}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>Distribución por tipo</p>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>{Object.entries(dist).sort(([,a],[,b])=>b-a).map(([type,count])=>{const c=TC[type]||"#f97316";const pct=Math.round(count/total*100);return <div key={type} style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.text,minWidth:140}}>{type}</span><div style={{flex:1,height:6,background:th.border2,borderRadius:3,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:c,borderRadius:3}}/></div><span style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,minWidth:50,textAlign:"right"}}>{count} ({pct}%)</span></div>;})}
+        </div>
+      </div>
+    </>}
+  </div>;
+}
+
+function EvolucionStats(){
+  const{th}=useTheme();const{players}=useData();
+  const[sel,setSel]=useState(null);
+  const active=players.filter(p=>p.active&&(p.pj||0)>0);
+  const p=active.find(x=>x.id===sel)||active[0];
+  const tt={background:th.card,border:`1px solid ${th.border}`,borderRadius:8,color:th.text,fontSize:12};
+  if(active.length===0)return <div style={{textAlign:"center",padding:"60px 20px"}}><p style={{color:th.muted}}>Sin jugadores con estadísticas.</p></div>;
+  const c=p?calcStats(p):null;
+  return <div>
+    <SH title="Rendimiento Individual" sub="Perfil estadístico y comparativa de jugadores"/>
+    <div style={{marginBottom:16}}><Lbl>Seleccionar jugador</Lbl><select value={sel||p?.id||""} onChange={e=>setSel(+e.target.value)} style={{maxWidth:320}}>{active.map(pl=><option key={pl.id} value={pl.id}>#{pl.num} {pl.name} ({pl.pos})</option>)}</select></div>
+    {p&&c&&<div>
+      <div className="card" style={{padding:22,marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
+          <div style={{width:56,height:56,borderRadius:28,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:26,fontWeight:900,color:"#fff"}}>{p.num}</div>
+          <div><p style={{fontFamily:"Barlow Condensed",fontSize:26,fontWeight:800,color:th.text,lineHeight:1}}>{p.name}</p><p style={{fontSize:13,color:th.muted}}>{p.pos} · {p.pj} partidos · Equipo {p.equipo||"A"}</p></div>
+          <div style={{marginLeft:"auto"}}>{p.lesionado&&<Badge color="#f59e0b">Lesión</Badge>}</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10}}>
+          {[["PTS/P",c.pts_p,"#f97316"],["Min/P",c.min_p+"'","#3b82f6"],["TL%",c.tl_pct+"%","#f59e0b"],["T2%",c.t2_pct+"%","#10b981"],["T3%",c.t3_pct+"%","#8b5cf6"],["FC/P",c.fc_p,"#ef4444"]].map(([lbl,val,col])=>(
+            <div key={lbl} style={{textAlign:"center",padding:"14px 8px",background:th.card2,borderRadius:10,border:`1px solid ${th.border}`}}>
+              <p style={{fontFamily:"DM Mono",fontSize:22,fontWeight:700,color:col,lineHeight:1,marginBottom:5}}>{val}</p>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>{lbl}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card" style={{padding:22,marginBottom:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:16}}>Eficiencia de tiro</p>
+        {[["Tiros Libres (TL)","#f59e0b",p.tl_m,p.tl_i,c.tl_pct],["Tiros de 2 (T2)","#3b82f6",p.t2_m,p.t2_i,c.t2_pct],["Tiros de 3 (T3)","#8b5cf6",p.t3_m,p.t3_i,c.t3_pct]].map(([lbl,col,met,int,pct])=>(
+          <div key={lbl} style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:col}}>{lbl}</span><span style={{fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{met||0}/{int||0} → <strong style={{color:col}}>{pct}%</strong></span></div>
+            <div style={{height:10,background:th.border2,borderRadius:5,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:col,borderRadius:5}}/></div>
+          </div>
+        ))}
+      </div>
+      <div className="card" style={{padding:22}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>Comparativa con la media del equipo</p>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={[{stat:"PTS/P",jugador:c.pts_p,equipo:+(active.reduce((a,x)=>a+calcStats(x).pts_p,0)/active.length).toFixed(1)},{stat:"TL%",jugador:c.tl_pct,equipo:+(active.reduce((a,x)=>a+calcStats(x).tl_pct,0)/active.length).toFixed(1)},{stat:"T2%",jugador:c.t2_pct,equipo:+(active.reduce((a,x)=>a+calcStats(x).t2_pct,0)/active.length).toFixed(1)},{stat:"T3%",jugador:c.t3_pct,equipo:+(active.reduce((a,x)=>a+calcStats(x).t3_pct,0)/active.length).toFixed(1)}]} barCategoryGap="25%">
+            <CartesianGrid strokeDasharray="3 3" stroke={th.border} vertical={false}/><XAxis dataKey="stat" tick={{fill:th.muted,fontSize:11}} axisLine={false} tickLine={false}/><YAxis tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={tt}/>
+            <Bar dataKey="jugador" name={p.name.split(" ")[0]} fill="#f97316" radius={[4,4,0,0]}/><Bar dataKey="equipo" name="Media equipo" fill={th.border2} radius={[4,4,0,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>}
+  </div>;
+}
+
+function InformeSemanal(){
+  const{th}=useTheme();const{players,matches,sessions}=useData();
+  const today=new Date();
+  const monday=new Date(today);monday.setDate(today.getDate()-((today.getDay()+6)%7));
+  const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+  const fmt=d=>d.toLocaleDateString("es",{day:"2-digit",month:"short"});
+  const iso=d=>d.toISOString().split("T")[0];
+  const weekSessions=sessions.filter(s=>s.date>=iso(monday)&&s.date<=iso(sunday));
+  const weekMatches=matches.filter(m=>m.date>=iso(monday)&&m.date<=iso(sunday));
+  const nextMatches=matches.filter(m=>m.date>iso(today)&&m.pts_us==null).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+  const active=players.filter(p=>p.active);
+  const played=matches.filter(m=>m.pts_us!=null);
+  const wins=played.filter(m=>m.pts_us>m.pts_them).length;
+
+  const generatePDF=()=>{
+    const top5=[...active].map(p=>({...p,...calcStats(p)})).sort((a,b)=>b.pts_p-a.pts_p).slice(0,5);
+    const avgPts=played.length?(played.reduce((a,m)=>a+m.pts_us,0)/played.length).toFixed(1):"—";
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Informe Semanal CB Binissalem</title><style>body{font-family:Arial,sans-serif;max-width:720px;margin:30px auto;padding:0 20px;color:#1e293b;font-size:14px}h1{color:#f97316;font-size:28px;margin:0 0 4px}h2{color:#f97316;font-size:16px;border-bottom:2px solid #f97316;padding-bottom:4px;margin:20px 0 10px}.meta{color:#64748b;font-size:12px;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}.kpi-val{font-size:26px;font-weight:700;color:#f97316;line-height:1;margin-bottom:4px}.kpi-lbl{font-size:10px;color:#94a3b8;text-transform:uppercase}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{background:#f8fafc;padding:8px 10px;text-align:left;font-size:11px;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0}td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:13px}.win{color:#10b981;font-weight:700}.los{color:#ef4444;font-weight:700}.footer{margin-top:36px;border-top:1px solid #e2e8f0;padding-top:12px;font-size:11px;color:#94a3b8;text-align:center}@media print{body{margin:10px}}</style></head><body>
+    <h1>CB Binissalem Sénior A</h1><div class="meta">Informe semanal · ${fmt(monday)} – ${fmt(sunday)} · ${today.toLocaleDateString("es")}</div>
+    <h2>Temporada</h2><div class="grid"><div class="kpi"><div class="kpi-val">${wins}–${played.length-wins}</div><div class="kpi-lbl">Record</div></div><div class="kpi"><div class="kpi-val">${played.length}</div><div class="kpi-lbl">Partidos</div></div><div class="kpi"><div class="kpi-val">${avgPts}</div><div class="kpi-lbl">PTS/P</div></div><div class="kpi"><div class="kpi-val">${sessions.length}</div><div class="kpi-lbl">Sesiones</div></div></div>
+    <h2>Esta semana</h2>${weekSessions.length?`<table><tr><th>Fecha</th><th>Sesión</th><th>Tipo</th><th>Dur.</th></tr>${weekSessions.map(s=>`<tr><td>${s.date}</td><td>${s.title}</td><td>${s.type}</td><td>${s.dur}'</td></tr>`).join("")}</table>`:"<p style='color:#94a3b8'>Sin sesiones</p>"}
+    ${weekMatches.length?`<table><tr><th>Rival</th><th>Lugar</th><th>Resultado</th></tr>${weekMatches.map(m=>`<tr><td>${m.rival}</td><td>${m.location}</td><td>${m.pts_us!=null?`<span class="${m.pts_us>m.pts_them?"win":"los"}">${m.pts_us}–${m.pts_them}</span>`:"—"}</td></tr>`).join("")}</table>`:""}
+    <h2>Próximos partidos</h2>${nextMatches.length?`<table><tr><th>Fecha</th><th>Rival</th><th>Lugar</th></tr>${nextMatches.map(m=>`<tr><td>${m.date}</td><td>${m.rival}</td><td>${m.location}</td></tr>`).join("")}</table>`:"<p style='color:#94a3b8'>Sin partidos próximos</p>"}
+    <h2>Top anotadores</h2><table><tr><th>#</th><th>Jugador</th><th>Pos.</th><th>PJ</th><th>PTS/P</th><th>T2%</th><th>T3%</th><th>TL%</th></tr>${top5.map((pl,i)=>`<tr><td>${i+1}</td><td><strong>${pl.name}</strong></td><td>${pl.pos}</td><td>${pl.pj}</td><td>${pl.pts_p}</td><td>${pl.t2_pct}%</td><td>${pl.t3_pct}%</td><td>${pl.tl_pct}%</td></tr>`).join("")}</table>
+    <div class="footer">CB Binissalem Dashboard</div></body></html>`;
+    const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
+  };
+
+  return <div>
+    <SH title="Informe Semanal" sub={`${fmt(monday)} – ${fmt(sunday)}`} right={<Btn onClick={generatePDF} icon={<Printer size={14}/>}>Descargar PDF</Btn>}/>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+      {[["Sesiones semana",weekSessions.length,"#f97316"],["Partidos semana",weekMatches.length,"#3b82f6"],["Próximos partidos",nextMatches.length,"#8b5cf6"],["Jugadores activos",active.length,"#10b981"]].map(([l,v,c])=>(
+        <div key={l} className="card" style={{padding:"18px 20px"}}><p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{l}</p><p style={{fontFamily:"DM Mono",fontSize:32,color:c,fontWeight:700,lineHeight:1}}>{v}</p></div>
+      ))}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div className="card" style={{padding:20}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Entrenamientos esta semana</p>
+        {weekSessions.length===0?<p style={{fontSize:12,color:th.muted}}>Sin sesiones</p>:weekSessions.map(s=>{const c=TC[s.type]||"#f97316";return <div key={s.id} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:`1px solid ${th.border}`}}><div style={{width:4,background:c,borderRadius:2,flexShrink:0}}/><div><p style={{fontSize:13,color:th.text,fontWeight:600}}>{s.title}</p><p style={{fontSize:11,color:th.muted}}>{s.date} · {s.type} · {s.dur}'</p></div></div>;})}
+      </div>
+      <div className="card" style={{padding:20}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Próximos partidos</p>
+        {nextMatches.length===0?<p style={{fontSize:12,color:th.muted}}>Sin partidos planificados</p>:nextMatches.map(m=><div key={m.id} style={{padding:"8px 0",borderBottom:`1px solid ${th.border}`}}><p style={{fontSize:13,color:th.text,fontWeight:600}}>{m.rival}</p><p style={{fontSize:11,color:th.muted}}>{m.date} · {m.location}</p></div>)}
+      </div>
+    </div>
+  </div>;
+}
+
 const NAV=[
-  {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
   {id:"partidos", label:"Partidos",      icon:Trophy},
   {id:"calendario",label:"Calendario",   icon:Calendar},
   {id:"plan",     label:"Planificación", icon:Target},
   {id:"stats",    label:"Estadísticas",  icon:BarChart2},
+  {id:"evolucion",label:"Rendimiento",   icon:Activity},
   {id:"train",    label:"Entrenamientos",icon:Dumbbell},
+  {id:"carga",    label:"Carga trabajo", icon:Zap},
+  {id:"informe",  label:"Informe PDF",   icon:Printer},
   {id:"attend",   label:"Asistencia",    icon:Check},
   {id:"lineup",   label:"Quinteto",      icon:Shield},
+  {id:"partido",  label:"Modo Partido",  icon:Trophy},
   {id:"playbook", label:"Playbook",      icon:BookOpen},
-  {id:"exercises",label:"Ejercicios",    icon:Zap},
+  {id:"exercises",label:"Ejercicios",    icon:Target},
   {id:"pizarra",  label:"Pizarra",       icon:PenTool},
   {id:"ia",       label:"IA Asistente",  icon:Brain},
   {id:"recursos", label:"Recursos",      icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,train:Entrenamientos,attend:Asistencia,lineup:Quinteto,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
@@ -2245,9 +2606,10 @@ export default function App(){
   const[planMesos, setPlanMesosRaw]=useState(null);
   const[planMicro, setPlanMicroRaw]=useState(null);
   const[sesionTemplates,setSesionTemplatesRaw]=useState([]);
+  const[scouting,     setScoutingRaw]     = useState([]);
   const[apiKey,    setApiKeyRaw]   = useState(()=>localStorage.getItem("cb_apikey")||"");
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -2274,6 +2636,7 @@ export default function App(){
   const setEjercicios=useCallback(fn=>setEjerciciosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({ejercicios:n});return n;}),[persist]);
   const setSavedDrawings=useCallback(fn=>setSavedDrawingsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({savedDrawings:n});return n;}),[persist]);
   const setSesionTemplates=useCallback(fn=>setSesionTemplatesRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({sesionTemplates:n});return n;}),[persist]);
+  const setScouting      =useCallback(fn=>setScoutingRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({scouting:n});return n;}),[persist]);
   const setPlanMesos=useCallback(fn=>setPlanMesosRaw(prev=>{const cur=prev||DEFAULT_MESOS_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMesos:n});return n;}),[persist]);
   const setPlanMicro=useCallback(fn=>setPlanMicroRaw(prev=>{const cur=prev||DEFAULT_MICRO_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMicro:n});return n;}),[persist]);
   const setApiKey   =useCallback(v=>{setApiKeyRaw(v);try{localStorage.setItem("cb_apikey",v);}catch{};},[]);
@@ -2295,6 +2658,7 @@ export default function App(){
           if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
           if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
           if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
+          if(d.scouting)      {setScoutingRaw(d.scouting);             stRef.current.scouting=d.scouting;}
           if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
           if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
           if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
@@ -2319,6 +2683,7 @@ export default function App(){
         if(d.customEx)   setCustomExRaw(d.customEx);
         if(d.savedDrawings)setSavedDrawingsRaw(d.savedDrawings);
         if(d.sesionTemplates)setSesionTemplatesRaw(d.sesionTemplates);
+        if(d.scouting)       setScoutingRaw(d.scouting);
         if(d.planMesos) setPlanMesosRaw(d.planMesos);
         if(d.planMicro) setPlanMicroRaw(d.planMicro);
         if(d.dark!==undefined)setDarkRaw(d.dark);
@@ -2345,7 +2710,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
