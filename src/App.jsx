@@ -370,12 +370,119 @@ function Dashboard(){
 /* ══════════════════════════════════════════════════════════
    2. PLANTILLA — con edición de estadísticas
 ══════════════════════════════════════════════════════════ */
+/* ── PLAYER EDIT COMPONENTS — defined outside Plantilla to avoid focus loss ── */
+function StatInput({label,field,state,setState}){
+  return <div>
+    <Lbl>{label}</Lbl>
+    <input type="number" min="0" value={state[field]??0}
+      onChange={e=>{const v=e.target.value;setState(f=>({...f,[field]:v}));}}
+      style={{textAlign:"right"}}/>
+  </div>;
+}
+
+const PLAYER_POS=["Base","Escolta","Alero","Ala-Pívot","Pívot"];
+
+function PlayerEditPanel({state,setState}){
+  const{th}=useTheme();
+  return <>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:12}}>
+      <div><Lbl>Nombre completo</Lbl>
+        <input value={state.name||""} onChange={e=>{const v=e.target.value;setState(f=>({...f,name:v}));}} placeholder="Nombre del jugador"/>
+      </div>
+      <div><Lbl>Dorsal</Lbl>
+        <input type="number" value={state.num||""} onChange={e=>{const v=e.target.value;setState(f=>({...f,num:v}));}}/>
+      </div>
+      <div><Lbl>Posición</Lbl>
+        <select value={state.pos||"Base"} onChange={e=>setState(f=>({...f,pos:e.target.value}))}>
+          {PLAYER_POS.map(p=><option key={p}>{p}</option>)}
+        </select>
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+      <div>
+        <Lbl>Estado</Lbl>
+        <div style={{display:"flex",gap:6}}>
+          {[["activo","#10b981"],["lesionado","#f59e0b"],["baja","#ef4444"]].map(([v,c])=>{
+            const active=(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado);
+            return <button key={v} type="button"
+              onClick={()=>setState(f=>({...f,active:v==="activo",lesionado:v==="lesionado"}))}
+              style={{flex:1,padding:"6px 4px",borderRadius:6,border:`1px solid ${active?c:th.border2}`,background:active?c+"18":"transparent",cursor:"pointer",fontSize:10,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,color:active?c:th.muted,textTransform:"uppercase"}}>
+              {v}
+            </button>;
+          })}
+        </div>
+      </div>
+      <div>
+        <Lbl>Equipo</Lbl>
+        <div style={{display:"flex",gap:6}}>
+          {[["A","#f97316"],["B","#3b82f6"],["Convocado","#8b5cf6"]].map(([v,c])=>(
+            <button key={v} type="button"
+              onClick={()=>setState(f=>({...f,equipo:v}))}
+              style={{flex:1,padding:"6px 4px",borderRadius:6,border:`1px solid ${state.equipo===v?c:th.border2}`,background:state.equipo===v?c+"18":"transparent",cursor:"pointer",fontSize:10,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,color:state.equipo===v?c:th.muted,textTransform:"uppercase"}}>
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+    <div style={{background:th.card2,borderRadius:10,padding:14,marginBottom:4}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Datos acumulados de temporada</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+        <StatInput label="PJ (Partidos Jugados)" field="pj" state={state} setState={setState}/>
+        <StatInput label="PT (Puntos Totales)" field="pt" state={state} setState={setState}/>
+        <StatInput label="Min (Minutos Totales)" field="min" state={state} setState={setState}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros Libres (TL)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <StatInput label="Intentados" field="tl_i" state={state} setState={setState}/>
+            <StatInput label="Metidos" field="tl_m" state={state} setState={setState}/>
+          </div>
+        </div>
+        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#3b82f6",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros de 2 (T2)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <StatInput label="Intentados" field="t2_i" state={state} setState={setState}/>
+            <StatInput label="Metidos" field="t2_m" state={state} setState={setState}/>
+          </div>
+        </div>
+        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros de 3 (T3)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <StatInput label="Intentados" field="t3_i" state={state} setState={setState}/>
+            <StatInput label="Metidos" field="t3_m" state={state} setState={setState}/>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
+        <StatInput label="FC (Faltas Cometidas)" field="fc" state={state} setState={setState}/>
+        <div style={{padding:"8px 12px",background:th.card,borderRadius:8,border:`1px solid ${th.border}`}}>
+          <p style={{fontSize:10,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Preview calculado</p>
+          <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+            {[
+              ["Min/P",(state.pj?+(state.min/state.pj).toFixed(1):0)+"'"],
+              ["PTS/P",(state.pj?+(state.pt/state.pj).toFixed(1):0)],
+              ["TL%",(state.tl_i?+((state.tl_m/state.tl_i)*100).toFixed(1):0)+"%"],
+              ["T2%",(state.t2_i?+((state.t2_m/state.t2_i)*100).toFixed(1):0)+"%"],
+              ["T3%",(state.t3_i?+((state.t3_m/state.t3_i)*100).toFixed(1):0)+"%"],
+              ["FC/P",(state.pj?+(state.fc/state.pj).toFixed(1):0)],
+            ].map(([l,v])=><div key={l}>
+              <p style={{fontSize:9,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase"}}>{l}</p>
+              <p style={{fontFamily:"DM Mono",fontSize:14,color:"#f97316",fontWeight:700}}>{v}</p>
+            </div>)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </>;
+}
+
 function Plantilla(){
   const{th}=useTheme();const{players,setPlayers}=useData();
   const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
   const[sa,setSa]=useState(false);const[xlsxMsg,setXlsxMsg]=useState(null);
   const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,lesionado:false,equipo:"A",...emptyStats()});
-  const pos=["Base","Escolta","Alero","Ala-Pívot","Pívot"];
   const rawFields=["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"];
   const xlsxRef=useRef();
 
@@ -415,73 +522,6 @@ function Plantilla(){
     reader.readAsArrayBuffer(file);
   };
 
-  const StatInput=({label,field,state,setState})=><div>
-    <Lbl>{label}</Lbl>
-    <input type="number" min="0" value={state[field]??0} onChange={e=>setState(f=>({...f,[field]:e.target.value}))} style={{textAlign:"right"}}/>
-  </div>;
-
-  const EditPanel=({state,setState})=><>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:12}}>
-      <div><Lbl>Nombre completo</Lbl><input value={state.name} onChange={e=>setState(f=>({...f,name:e.target.value}))}/></div>
-      <div><Lbl>Dorsal</Lbl><input type="number" value={state.num} onChange={e=>setState(f=>({...f,num:e.target.value}))}/></div>
-      <div><Lbl>Posición</Lbl><select value={state.pos} onChange={e=>setState(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-      <div>
-        <Lbl>Estado</Lbl>
-        <div style={{display:"flex",gap:6}}>
-          {[["activo","#10b981"],["lesionado","#f59e0b"],["baja","#ef4444"]].map(([v,c])=><button key={v} type="button" onClick={()=>setState(f=>({...f,active:v==="activo",lesionado:v==="lesionado"}))} style={{flex:1,padding:"6px 4px",borderRadius:6,border:`1px solid ${(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado)?c:th.border2}`,background:(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado)?c+"18":"transparent",cursor:"pointer",fontSize:10,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,color:(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado)?c:th.muted,textTransform:"uppercase"}}>{v}</button>)}
-        </div>
-      </div>
-      <div>
-        <Lbl>Equipo</Lbl>
-        <div style={{display:"flex",gap:6}}>
-          {[["A","#f97316"],["B","#3b82f6"],["Convocado","#8b5cf6"]].map(([v,c])=><button key={v} type="button" onClick={()=>setState(f=>({...f,equipo:v}))} style={{flex:1,padding:"6px 4px",borderRadius:6,border:`1px solid ${state.equipo===v?c:th.border2}`,background:state.equipo===v?c+"18":"transparent",cursor:"pointer",fontSize:10,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,color:state.equipo===v?c:th.muted,textTransform:"uppercase"}}>{v}</button>)}
-        </div>
-      </div>
-    </div>
-    <div style={{background:th.card2,borderRadius:10,padding:14,marginBottom:4}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Datos acumulados de temporada</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
-        <StatInput label="PJ (Partidos Jugados)" field="pj" state={state} setState={setState}/>
-        <StatInput label="PT (Puntos Totales)" field="pt" state={state} setState={setState}/>
-        <StatInput label="Min (Minutos Totales)" field="min" state={state} setState={setState}/>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
-        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros Libres (TL)</p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <StatInput label="Intentados" field="tl_i" state={state} setState={setState}/>
-            <StatInput label="Metidos" field="tl_m" state={state} setState={setState}/>
-          </div>
-        </div>
-        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#3b82f6",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros de 2 (T2)</p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <StatInput label="Intentados" field="t2_i" state={state} setState={setState}/>
-            <StatInput label="Metidos" field="t2_m" state={state} setState={setState}/>
-          </div>
-        </div>
-        <div style={{background:th.card,borderRadius:8,padding:10,border:`1px solid ${th.border}`}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Tiros de 3 (T3)</p>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <StatInput label="Intentados" field="t3_i" state={state} setState={setState}/>
-            <StatInput label="Metidos" field="t3_m" state={state} setState={setState}/>
-          </div>
-        </div>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
-        <StatInput label="FC (Faltas Cometidas)" field="fc" state={state} setState={setState}/>
-        <div style={{padding:"8px 12px",background:th.card,borderRadius:8,border:`1px solid ${th.border}`}}>
-          <p style={{fontSize:10,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Valores calculados (preview)</p>
-          <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-            {[["Min/P",(state.pj?+(state.min/state.pj).toFixed(1):0)+"'"],["PTS/P",(state.pj?+(state.pt/state.pj).toFixed(1):0)],["TL%",(state.tl_i?+((state.tl_m/state.tl_i)*100).toFixed(1):0)+"%"],["T2%",(state.t2_i?+((state.t2_m/state.t2_i)*100).toFixed(1):0)+"%"],["T3%",(state.t3_i?+((state.t3_m/state.t3_i)*100).toFixed(1):0)+"%"],["FC/P",(state.pj?+(state.fc/state.pj).toFixed(1):0)]].map(([l,v])=><div key={l}><p style={{fontSize:9,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase"}}>{l}</p><p style={{fontFamily:"DM Mono",fontSize:14,color:"#f97316",fontWeight:700}}>{v}</p></div>)}
-          </div>
-        </div>
-      </div>
-    </div>
-  </>;
-
   return <div>
     <SH title="Plantilla" sub="Gestión de jugadores y estadísticas" right={<div style={{display:"flex",gap:8}}>
       <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleXLSX}/>
@@ -495,13 +535,13 @@ function Plantilla(){
 
     {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Jugador</p>
-      <EditPanel state={af} setState={setAf}/>
+      <PlayerEditPanel state={af} setState={setAf}/>
       <div style={{display:"flex",gap:8,marginTop:12}}><Btn onClick={add}>Guardar</Btn><Btn onClick={()=>setSa(false)} variant="ghost">Cancelar</Btn></div>
     </div>}
 
     {ed&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640",borderWidth:2}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Editando: {ef.name} · #{ef.num}</p>
-      <EditPanel state={ef} setState={setEf}/>
+      <PlayerEditPanel state={ef} setState={setEf}/>
       <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12}}>
         <Btn onClick={sv}>Guardar cambios</Btn>
         <Btn onClick={()=>setEd(null)} variant="ghost">Cancelar</Btn>
@@ -1163,7 +1203,12 @@ async function callClaude(apiKey, body){
     headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
     body:JSON.stringify(body)
   });
-  if(!res.ok) throw new Error(`API error ${res.status}`);
+  if(!res.ok){
+    if(res.status===429) throw new Error("Límite de requests alcanzado (429). Espera 30 segundos e inténtalo de nuevo.");
+    if(res.status===401) throw new Error("API Key incorrecta (401). Revisa la clave en ⚙️ Ajustes.");
+    if(res.status===403) throw new Error("Sin permisos (403). Verifica tu plan en console.anthropic.com.");
+    throw new Error(`API error ${res.status}`);
+  }
   return res.json();
 }
 
