@@ -2385,49 +2385,262 @@ function IAAsistente(){
 ══════════════════════════════════════════════════════════ */
 
 function ModoPartido(){
-  const{th}=useTheme();const{matches,setMatches,players}=useData();
+  const{th}=useTheme();const{matches,setMatches,players,setPlayers}=useData();
   const today=new Date().toISOString().split("T")[0];
-  const upcoming=[...matches].filter(m=>m.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  // Show past matches too, sorted desc, most recent first
+  const allSorted=[...matches].sort((a,b)=>b.date.localeCompare(a.date));
   const[sel,setSel]=useState(null);
-  const m=matches.find(x=>x.id===sel)||upcoming[0];
-  const[notas,setNotas]=useState("");const[editRes,setEditRes]=useState(false);
-  const[pus,setPus]=useState("");const[pth,setPth]=useState("");
+  const m=matches.find(x=>x.id===sel)||allSorted[0];
+  const[tab,setTab]=useState("marcador"); // marcador | stats
+
+  // Cuartos — inicializamos del partido guardado o vacíos
+  const initQ=side=>(m?.quarters?.[side]||[0,0,0,0]).map(String);
+  const[qUs,setQUs]=useState(["","","",""]);
+  const[qTh,setQTh]=useState(["","","",""]);
+
+  // Stats por jugador {playerId: {pt,tl_i,tl_m,t2_i,t2_m,t3_i,t3_m,fc, min}}
+  const[pStats,setPStats]=useState({});
+  const[statsCommitted,setStatsCommitted]=useState(false);
+
   const convPlayers=(m?.convocados||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
-  const hasResult=m?.pts_us!=null;
-  const saveResult=()=>{if(!m)return;setMatches(prev=>prev.map(x=>x.id===m.id?{...x,pts_us:+pus,pts_them:+pth,notes:(x.notes||"")+(notas?"\nNOTAS PARTIDO: "+notas:"")}:x));setEditRes(false);setNotas("");};
-  if(!m)return <div style={{textAlign:"center",padding:"60px 20px"}}><Trophy size={48} color={th.muted} style={{margin:"0 auto 16px",display:"block"}}/><p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,marginBottom:8}}>No hay partidos próximos</p><p style={{color:th.muted,fontSize:13}}>Añade partidos desde Partidos o Calendario</p></div>;
+
+  // Cargar datos del partido seleccionado
+  useEffect(()=>{
+    if(!m)return;
+    setQUs(m.quarters?.us?.map(String)||["","","",""]);
+    setQTh(m.quarters?.them?.map(String)||["","","",""]);
+    setPStats(m.playerStats||{});
+    setStatsCommitted(!!m.statsCommitted);
+    setTab("marcador");
+  },[m?.id]);
+
+  const totUs=qUs.reduce((a,v)=>a+(+v||0),0);
+  const totTh=qTh.reduce((a,v)=>a+(+v||0),0);
+  const hasQuarters=qUs.some(v=>v!=="");
+  const finalUs=hasQuarters?totUs:(m?.pts_us??null);
+  const finalTh=hasQuarters?totTh:(m?.pts_them??null);
+  const hasResult=finalUs!=null;
+  const win=hasResult&&finalUs>finalTh;
+  const resultColor=hasResult?(win?"#10b981":"#ef4444"):"#6366f1";
+
+  const setQVal=(arr,setArr,i,v)=>{const n=[...arr];n[i]=v;setArr(n);};
+  const setStat=(pid,field,val)=>setPStats(prev=>({...prev,[pid]:{...(prev[pid]||{}), [field]:val}}));
+  const getStat=(pid,field)=>pStats[pid]?.[field]??"";
+
+  // Guardar cuartos + resultado total en el partido
+  const saveQuarters=()=>{
+    if(!m)return;
+    setMatches(prev=>prev.map(x=>x.id===m.id?{
+      ...x,
+      quarters:{us:qUs.map(v=>+v||0),them:qTh.map(v=>+v||0)},
+      pts_us:hasQuarters?totUs:x.pts_us,
+      pts_them:hasQuarters?totTh:x.pts_them,
+    }:x));
+  };
+
+  // Confirmar stats individuales → suman a totales de temporada
+  const commitStats=()=>{
+    if(!m||statsCommitted)return;
+    if(!Object.keys(pStats).length){alert("Introduce al menos las estadísticas de un jugador.");return;}
+    // Update players stats
+    setPlayers(prev=>prev.map(p=>{
+      const ms=pStats[p.id];
+      if(!ms)return p;
+      return{
+        ...p,
+        pj:(p.pj||0)+1,
+        pt:(p.pt||0)+(+ms.pt||0),
+        min:(p.min||0)+(+ms.min||0),
+        tl_i:(p.tl_i||0)+(+ms.tl_i||0),
+        tl_m:(p.tl_m||0)+(+ms.tl_m||0),
+        t2_i:(p.t2_i||0)+(+ms.t2_i||0),
+        t2_m:(p.t2_m||0)+(+ms.t2_m||0),
+        t3_i:(p.t3_i||0)+(+ms.t3_i||0),
+        t3_m:(p.t3_m||0)+(+ms.t3_m||0),
+        fc:(p.fc||0)+(+ms.fc||0),
+      };
+    }));
+    // Save stats in match + mark committed
+    setMatches(prev=>prev.map(x=>x.id===m.id?{...x,playerStats:pStats,statsCommitted:true}:x));
+    setStatsCommitted(true);
+  };
+
+  if(!m)return <div style={{textAlign:"center",padding:"60px 20px"}}>
+    <Trophy size={48} color={th.muted} style={{margin:"0 auto 16px",display:"block"}}/>
+    <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,marginBottom:8}}>No hay partidos</p>
+    <p style={{color:th.muted,fontSize:13}}>Añade partidos desde la sección Partidos o el Calendario</p>
+  </div>;
+
+  const QInput=({val,onChange,color="#f97316"})=>(
+    <input type="number" min="0" value={val} onChange={e=>onChange(e.target.value)}
+      style={{width:54,height:44,textAlign:"center",fontFamily:"DM Mono",fontSize:18,fontWeight:700,color,padding:"4px",borderRadius:8,border:`2px solid ${val?color:th.border2}`,background:val?color+"0d":th.inputBg}}/>
+  );
+
+  const SF=({label,pid,field,small})=>(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+      <span style={{fontFamily:"Barlow Condensed",fontSize:9,color:th.muted,textTransform:"uppercase",letterSpacing:.3}}>{label}</span>
+      <input type="number" min="0" value={getStat(pid,field)} onChange={e=>setStat(pid,field,e.target.value)}
+        disabled={statsCommitted}
+        style={{width:small?36:42,height:32,textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:600,padding:"2px",borderRadius:6,border:`1px solid ${th.border2}`,background:statsCommitted?th.card2:th.inputBg,color:th.text,opacity:statsCommitted?.6:1}}/>
+    </div>
+  );
+
   return <div>
-    <SH title="Modo Partido" sub="Vista rápida para el día de partido"/>
-    {upcoming.length>1&&<div style={{marginBottom:16}}><Lbl>Seleccionar partido</Lbl><select value={sel||m?.id||""} onChange={e=>setSel(+e.target.value)} style={{maxWidth:340}}>{upcoming.map(x=><option key={x.id} value={x.id}>{x.date} · {x.rival}</option>)}</select></div>}
-    <div className="card" style={{padding:28,marginBottom:16,borderTop:"4px solid #f97316",textAlign:"center"}}>
-      <p style={{fontFamily:"DM Mono",fontSize:13,color:th.muted,marginBottom:8}}>{m.date} · {m.location}</p>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:36,fontWeight:900,color:th.text,lineHeight:1,marginBottom:16}}>CB Binissalem <span style={{color:th.muted,fontSize:24}}>vs</span> {m.rival}</p>
-      {hasResult?<div style={{fontFamily:"DM Mono",fontSize:56,fontWeight:900,color:m.pts_us>m.pts_them?"#10b981":"#ef4444",lineHeight:1}}>{m.pts_us}<span style={{color:th.muted,fontSize:36}}>–</span>{m.pts_them}</div>:
-      <div>{!editRes?<Btn onClick={()=>{setEditRes(true);setPus("");setPth("");}} style={{fontSize:16,padding:"10px 28px"}}>Introducir resultado</Btn>:
-      <div style={{display:"flex",gap:12,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
-        <input type="number" value={pus} onChange={e=>setPus(e.target.value)} placeholder="Nuestros" style={{width:100,fontSize:22,textAlign:"center",fontFamily:"DM Mono",padding:"10px"}}/>
-        <span style={{fontFamily:"DM Mono",fontSize:28,color:th.muted}}>–</span>
-        <input type="number" value={pth} onChange={e=>setPth(e.target.value)} placeholder="Rival" style={{width:100,fontSize:22,textAlign:"center",fontFamily:"DM Mono",padding:"10px"}}/>
-        <Btn onClick={saveResult}>Guardar</Btn>
-      </div>}</div>}
+    <SH title="Modo Partido" sub="Cuartos · Estadísticas · Acumulación automática"/>
+
+    {/* Selector partido */}
+    <div style={{marginBottom:14}}><Lbl>Partido</Lbl>
+      <select value={sel||m?.id||""} onChange={e=>setSel(+e.target.value)} style={{maxWidth:380}}>
+        {allSorted.map(x=>{const hr=x.pts_us!=null;return <option key={x.id} value={x.id}>{x.date} · {x.rival}{hr?` (${x.pts_us}-${x.pts_them})`:""}{x.statsCommitted?" ✓":""}</option>;})}
+      </select>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div className="card" style={{padding:20}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Convocatoria ({convPlayers.length})</p>
-        {convPlayers.length===0?<p style={{fontSize:12,color:th.muted}}>Sin convocatoria. Defínela en Partidos.</p>:
-        <div style={{display:"flex",flexDirection:"column",gap:5}}>{convPlayers.map((p,i)=><div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:th.card2,borderRadius:8}}>
-          <span style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,minWidth:18}}>{i+1}.</span>
-          <div style={{width:28,height:28,borderRadius:14,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff"}}>{p.num}</div>
-          <div style={{flex:1}}><p style={{fontSize:12,color:th.text,fontWeight:600}}>{p.name}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
-        </div>)}</div>}
+
+    {/* Header partido */}
+    <div className="card" style={{padding:"20px 24px",marginBottom:14,borderTop:`4px solid ${resultColor}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <p style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,marginBottom:4}}>{m.date} · {m.location}</p>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>CB Binissalem <span style={{color:th.muted}}>vs</span> {m.rival}</p>
+        </div>
+        {hasResult&&<div style={{textAlign:"center"}}>
+          <p style={{fontFamily:"DM Mono",fontSize:42,fontWeight:900,color:resultColor,lineHeight:1}}>{finalUs}<span style={{color:th.muted,fontSize:28}}>–</span>{finalTh}</p>
+          <Badge color={resultColor} sm>{win?"VICTORIA":"DERROTA"}</Badge>
+        </div>}
       </div>
-      <div className="card" style={{padding:20}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Notas del partido</p>
-        {m.notes&&<div style={{background:th.card2,borderRadius:8,padding:"10px 12px",marginBottom:10,fontSize:12,color:th.sub,lineHeight:1.6,maxHeight:80,overflowY:"auto"}}>{m.notes}</div>}
-        <textarea rows={4} value={notas} onChange={e=>setNotas(e.target.value)} placeholder="Ajustes tácticos, incidencias, observaciones…"/>
-        {notas&&<div style={{marginTop:8}}><Btn onClick={saveResult} sm>Guardar notas</Btn></div>}
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6}}>
+        {[["marcador","🏀 Marcador por cuartos"],["stats","📊 Estadísticas individuales"],["notas","📝 Notas"]].map(([k,lbl])=>(
+          <button key={k} onClick={()=>setTab(k)}
+            style={{padding:"6px 16px",borderRadius:8,border:`1px solid ${tab===k?"#f97316":th.border2}`,background:tab===k?"rgba(249,115,22,.1)":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:tab===k?"#f97316":th.sub}}>
+            {lbl}
+          </button>
+        ))}
       </div>
     </div>
+
+    {/* ── TAB: MARCADOR POR CUARTOS ── */}
+    {tab==="marcador"&&<div className="card" style={{padding:24}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:18}}>Puntos por cuarto</p>
+
+      {/* Grid cuartos */}
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:400}}>
+          <thead>
+            <tr>
+              <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:160}}>Equipo</th>
+              {["1er Q","2º Q","3er Q","4º Q"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}
+              <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{borderTop:`1px solid ${th.border}`}}>
+              <td style={{padding:"12px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:8,height:8,borderRadius:4,background:"#f97316"}}/>
+                  <span style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>CB Binissalem</span>
+                </div>
+              </td>
+              {qUs.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
+                <QInput val={v} onChange={val=>setQVal(qUs,setQUs,i,val)} color="#f97316"/>
+              </td>)}
+              <td style={{padding:"12px 12px",textAlign:"center"}}>
+                <span style={{fontFamily:"DM Mono",fontSize:24,fontWeight:900,color:hasQuarters?(win?"#10b981":"#ef4444"):th.muted}}>{hasQuarters?totUs:"—"}</span>
+              </td>
+            </tr>
+            <tr style={{borderTop:`1px solid ${th.border}`}}>
+              <td style={{padding:"12px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:8,height:8,borderRadius:4,background:th.border2}}/>
+                  <span style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>{m.rival}</span>
+                </div>
+              </td>
+              {qTh.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
+                <QInput val={v} onChange={val=>setQVal(qTh,setQTh,i,val)} color="#3b82f6"/>
+              </td>)}
+              <td style={{padding:"12px 12px",textAlign:"center"}}>
+                <span style={{fontFamily:"DM Mono",fontSize:24,fontWeight:900,color:hasQuarters?(!win?"#10b981":"#ef4444"):th.muted}}>{hasQuarters?totTh:"—"}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Diferencia parcial por cuarto */}
+      {qUs.some(v=>v!=="")&&<div style={{display:"flex",gap:8,marginTop:14,justifyContent:"center"}}>
+        {qUs.map((v,i)=>{const d=(+v||0)-(+qTh[i]||0);return <div key={i} style={{textAlign:"center",padding:"6px 12px",borderRadius:8,background:d>0?"rgba(16,185,129,.1)":d<0?"rgba(239,68,68,.1)":th.card2,border:`1px solid ${d>0?"rgba(16,185,129,.3)":d<0?"rgba(239,68,68,.3)":th.border}`}}>
+          <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:2}}>Q{i+1}</p>
+          <p style={{fontFamily:"DM Mono",fontSize:14,fontWeight:700,color:d>0?"#10b981":d<0?"#ef4444":th.muted}}>{d>0?"+":""}{d}</p>
+        </div>;})}
+      </div>}
+
+      <div style={{marginTop:18,display:"flex",gap:8}}>
+        <Btn onClick={saveQuarters}>Guardar marcador</Btn>
+        <p style={{fontSize:11,color:th.muted,alignSelf:"center"}}>El total se calcula automáticamente de los cuartos</p>
+      </div>
+    </div>}
+
+    {/* ── TAB: ESTADÍSTICAS INDIVIDUALES ── */}
+    {tab==="stats"&&<div>
+      {statsCommitted&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:10,padding:"10px 16px",marginBottom:14,fontSize:13,color:"#10b981"}}>
+        ✅ Estadísticas ya confirmadas y sumadas a los totales de temporada. No se pueden editar para evitar duplicados.
+      </div>}
+      {convPlayers.length===0
+        ?<div className="card" style={{padding:32,textAlign:"center"}}><p style={{color:th.muted,fontSize:13}}>No hay convocatoria definida para este partido.<br/>Ve a la sección Partidos para añadir la convocatoria.</p></div>
+        :<div className="card" style={{overflow:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:680}}>
+            <thead>
+              <tr style={{background:th.tableHead}}>
+                <th style={{padding:"10px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Jugador</th>
+                <th style={{padding:"10px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>Min</th>
+                <th style={{padding:"10px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>PT</th>
+                <th colSpan={2} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",textTransform:"uppercase",borderBottom:`2px solid rgba(245,158,11,.3)`}}>TL (int/met)</th>
+                <th colSpan={2} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",textTransform:"uppercase",borderBottom:`2px solid rgba(59,130,246,.3)`}}>T2 (int/met)</th>
+                <th colSpan={2} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase",borderBottom:`2px solid rgba(139,92,246,.3)`}}>T3 (int/met)</th>
+                <th style={{padding:"10px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#ef4444",textTransform:"uppercase"}}>FC</th>
+              </tr>
+              <tr style={{background:th.tableHead}}>
+                <th/><th/><th/>
+                {["I","M","I","M","I","M"].map((h,i)=><th key={i} style={{padding:"3px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:9,color:[0,1].includes(i)?"#f59e0b":[2,3].includes(i)?"#3b82f6":"#8b5cf6",textTransform:"uppercase",opacity:.7}}>{h}</th>)}
+                <th/>
+              </tr>
+            </thead>
+            <tbody>
+              {convPlayers.map(p=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
+                <td style={{padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:14,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff"}}>{p.num}</div>
+                    <div><p style={{fontSize:12,color:th.text,fontWeight:600}}>{p.name.split(" ")[0]}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
+                  </div>
+                </td>
+                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="min" label=""/></td>
+                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="pt" label=""/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="tl_i" label="" small/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="tl_m" label="" small/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t2_i" label="" small/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t2_m" label="" small/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t3_i" label="" small/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t3_m" label="" small/></td>
+                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="fc" label="" small/></td>
+              </tr>)}
+            </tbody>
+          </table>
+          {!statsCommitted&&<div style={{padding:"16px 20px",borderTop:`1px solid ${th.border}`,display:"flex",gap:10,alignItems:"center"}}>
+            <Btn onClick={commitStats} icon={<Check size={14}/>}>Confirmar y acumular en temporada</Btn>
+            <p style={{fontSize:11,color:th.muted}}>⚠️ Esta acción suma las stats a los totales de cada jugador. Solo se puede hacer una vez por partido.</p>
+          </div>}
+        </div>
+      }
+    </div>}
+
+    {/* ── TAB: NOTAS ── */}
+    {tab==="notas"&&<div className="card" style={{padding:20}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Notas del partido</p>
+      {m.notes&&<div style={{background:th.card2,borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:12,color:th.sub,lineHeight:1.7}}>{m.notes}</div>}
+      <textarea rows={6} placeholder="Análisis táctico, ajustes realizados, rendimiento del equipo…"
+        onBlur={e=>{if(e.target.value.trim())setMatches(prev=>prev.map(x=>x.id===m.id?{...x,notes:(x.notes||"")+(x.notes?"\n":"")+e.target.value.trim()}:x));e.target.value="";}}/>
+      <p style={{fontSize:11,color:th.muted,marginTop:8}}>Las notas se guardan al salir del campo de texto</p>
+    </div>}
   </div>;
 }
 
