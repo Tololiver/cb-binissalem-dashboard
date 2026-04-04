@@ -715,9 +715,9 @@ function Partidos(){
           </div>
         );
 
-        return <div key={m.id} className="card" style={{borderLeft:`4px solid ${c}`}}>
+        return <div key={m.id} className="card" style={{borderLeft:`4px solid ${c}`,overflow:"hidden"}}>
           {/* Cabecera partido */}
-          <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:16,cursor:"pointer"}} onClick={()=>setExp(isExp?null:m.id)}>
+          <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:16}}>
             <div style={{minWidth:58,textAlign:"center",flexShrink:0}}>
               <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{m.date}</p>
               <Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge>
@@ -731,69 +731,99 @@ function Partidos(){
             <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:c,lineHeight:1,flexShrink:0}}>
               {hasResult?<>{m.pts_us}<span style={{color:th.muted,fontSize:16}}>–</span>{m.pts_them}</>:<span style={{fontSize:16,color:th.muted}}>vs</span>}
             </p>
-            <div style={{display:"flex",gap:8,flexShrink:0}} onClick={e=>e.stopPropagation()}>
-              <button onClick={()=>startEdit(m)} style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
+            {/* Botones de acción */}
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              {/* Convocatoria */}
+              <button onClick={()=>setExp(isExp&&curTab==="convocatoria"?null:m.id)&&setTab(t=>({...t,[m.id]:"convocatoria"}))||setExp(m.id)&&setTab(t=>({...t,[m.id]:"convocatoria"}))||(()=>{setExp(isExp&&curTab==="convocatoria"?null:m.id);setTab(t=>({...t,[m.id]:"convocatoria"}));})()}
+                style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${isExp&&curTab==="convocatoria"?"#6366f1":th.border2}`,background:isExp&&curTab==="convocatoria"?"rgba(99,102,241,.1)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,color:isExp&&curTab==="convocatoria"?"#6366f1":th.sub,display:"flex",alignItems:"center",gap:4}}>
+                <Users size={11}/>Conv.{convocados.length>0?` (${convocados.length})`:""}
+              </button>
+              {/* Valoración */}
+              <button onClick={()=>{setExp(isExp&&curTab==="valoracion"?null:m.id);setTab(t=>({...t,[m.id]:"valoracion"}));}}
+                style={{padding:"5px 10px",borderRadius:7,border:`1px solid ${isExp&&curTab==="valoracion"?"#f59e0b":th.border2}`,background:isExp&&curTab==="valoracion"?"rgba(245,158,11,.1)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,color:isExp&&curTab==="valoracion"?"#f59e0b":th.sub,display:"flex",alignItems:"center",gap:4}}>
+                <Star size={11}/>Val.
+              </button>
+              <button onClick={()=>startEdit(m)}
+                style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}>
+                <Edit2 size={13}/>
+              </button>
               <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setMatches(prev=>prev.filter(x=>x.id!==m.id))}/>
-              <ChevronRight size={15} color={th.muted} style={{transform:isExp?"rotate(90deg)":"none",transition:"transform .2s"}}/>
             </div>
           </div>
 
-          {/* Panel expandido */}
-          {isExp&&<div style={{borderTop:`1px solid ${th.border}`,padding:"0 20px 20px"}}>
-            {m.notes&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,padding:"12px 0",borderBottom:`1px solid ${th.border}`}}><span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:c,textTransform:"uppercase",marginRight:8}}>Notas</span>{m.notes}</p>}
+          {/* Notas del partido */}
+          {m.notes&&!isExp&&<div style={{padding:"0 20px 14px",fontSize:12,color:th.sub,lineHeight:1.6,borderTop:`1px solid ${th.border}`}}>
+            <span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:c,textTransform:"uppercase",marginRight:8}}>Notas</span>{m.notes}
+          </div>}
 
-            {/* Tabs */}
-            <div style={{display:"flex",gap:6,marginTop:14,marginBottom:14}}>
-              {[["convocatoria","Convocatoria"],["valoracion","Valoración"]].map(([k,lbl])=>(
-                <button key={k} onClick={()=>setTab(t=>({...t,[m.id]:k}))}
-                  style={{padding:"5px 14px",borderRadius:7,border:`1px solid ${curTab===k?c:th.border2}`,background:curTab===k?c+"18":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:curTab===k?c:th.sub}}>
-                  {lbl}{k==="convocatoria"&&convocados.length>0?` (${convocados.length})`:""}
-                </button>
-              ))}
-              {convocados.length>0&&<button onClick={()=>exportConvPDF(m)} style={{marginLeft:"auto",padding:"5px 14px",borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,color:th.sub,display:"flex",alignItems:"center",gap:5}}><Printer size={12}/>PDF</button>}
+          {/* Panel expandido — Convocatoria o Valoración */}
+          {isExp&&<div style={{borderTop:`1px solid ${th.border}`,padding:"16px 20px"}}>
+            {/* Sub-tabs */}
+            <div style={{display:"flex",gap:6,marginBottom:14}}>
+              <button onClick={()=>setTab(t=>({...t,[m.id]:"convocatoria"}))}
+                style={{padding:"5px 14px",borderRadius:7,border:`1px solid ${curTab==="convocatoria"?"#6366f1":th.border2}`,background:curTab==="convocatoria"?"rgba(99,102,241,.1)":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:curTab==="convocatoria"?"#6366f1":th.sub}}>
+                Convocatoria {convocados.length>0&&`(${convocados.length})`}
+              </button>
+              <button onClick={()=>setTab(t=>({...t,[m.id]:"valoracion"}))}
+                style={{padding:"5px 14px",borderRadius:7,border:`1px solid ${curTab==="valoracion"?"#f59e0b":th.border2}`,background:curTab==="valoracion"?"rgba(245,158,11,.1)":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:curTab==="valoracion"?"#f59e0b":th.sub}}>
+                Valoración post-partido
+              </button>
+              {convocados.length>0&&<button onClick={()=>exportConvPDF(m)}
+                style={{marginLeft:"auto",padding:"5px 12px",borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:12,color:th.sub,display:"flex",alignItems:"center",gap:5}}>
+                <Printer size={12}/>PDF Convocatoria
+              </button>}
+              <button onClick={()=>setExp(null)} style={{width:28,height:28,borderRadius:7,border:`1px solid ${th.border2}`,background:"transparent",cursor:"pointer",color:th.muted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✕</button>
             </div>
 
-            {/* Convocatoria */}
+            {/* CONVOCATORIA */}
             {curTab==="convocatoria"&&<div>
-              <p style={{fontSize:11,color:th.muted,marginBottom:10}}>Selecciona los jugadores convocados para este partido (activos y no lesionados)</p>
+              <p style={{fontSize:11,color:th.muted,marginBottom:12}}>Selecciona los jugadores convocados — solo activos y no lesionados</p>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
                 {availablePlayers.map(p=>{
                   const sel=convocados.includes(p.id);
                   const equipoColor={A:"#f97316",B:"#3b82f6",Convocado:"#8b5cf6"}[p.equipo||"A"];
                   return <div key={p.id} onClick={()=>toggleConv(m.id,p.id)}
-                    style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:`1px solid ${sel?c:th.border}`,background:sel?c+"10":th.card2,cursor:"pointer",transition:"all .15s"}}>
-                    <div style={{width:28,height:28,borderRadius:14,background:sel?c:th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:`1px solid ${sel?"#6366f1":th.border}`,background:sel?"rgba(99,102,241,.08)":th.card2,cursor:"pointer",transition:"all .15s"}}>
+                    <div style={{width:28,height:28,borderRadius:14,background:sel?"#6366f1":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
                     <div style={{flex:1,minWidth:0}}>
-                      <p style={{fontSize:11,color:th.text,fontWeight:sel?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name.split(" ")[0]}</p>
-                      <p style={{fontSize:10,color:equipoColor}}>{p.pos} · {p.equipo||"A"}</p>
+                      <p style={{fontSize:11,color:th.text,fontWeight:sel?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name.split(" ")[0]} {p.name.split(" ")[1]||""}</p>
+                      <p style={{fontSize:10,color:equipoColor}}>{p.pos}</p>
                     </div>
-                    {sel&&<Check size={12} color={c}/>}
+                    {sel&&<Check size={12} color="#6366f1"/>}
                   </div>;
                 })}
               </div>
             </div>}
 
-            {/* Valoración */}
+            {/* VALORACIÓN */}
             {curTab==="valoracion"&&<div>
-              {convPlayers.length===0?<p style={{fontSize:12,color:th.muted}}>Primero selecciona la convocatoria en la pestaña anterior.</p>:(
+              {convPlayers.length===0?
+                <div style={{textAlign:"center",padding:"24px 0"}}>
+                  <p style={{color:th.muted,fontSize:13,marginBottom:8}}>Primero define la convocatoria del partido</p>
+                  <Btn onClick={()=>setTab(t=>({...t,[m.id]:"convocatoria"}))} variant="ghost" sm>Ir a Convocatoria</Btn>
+                </div>
+              :(
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {convPlayers.map(p=>{
                     const val=valoraciones[p.id]||{nota:5,notas:""};
+                    const nc=val.nota>=8?"#10b981":val.nota>=6?"#f97316":"#ef4444";
                     return <div key={p.id} style={{background:th.card2,borderRadius:10,padding:"12px 14px",border:`1px solid ${th.border}`}}>
                       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
                         <div style={{width:30,height:30,borderRadius:15,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
                         <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text,flex:1}}>{p.name}</p>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <span style={{fontSize:11,color:th.muted}}>1</span>
                           <input type="range" min={1} max={10} value={val.nota||5}
                             onChange={e=>setValoracion(m.id,p.id,"nota",+e.target.value)}
-                            style={{width:100,accentColor:"#f97316"}}/>
-                          <div style={{width:36,height:36,borderRadius:8,background:val.nota>=8?"rgba(16,185,129,.15)":val.nota>=6?"rgba(249,115,22,.15)":"rgba(239,68,68,.15)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                            <span style={{fontFamily:"DM Mono",fontSize:16,fontWeight:700,color:val.nota>=8?"#10b981":val.nota>=6?"#f97316":"#ef4444"}}>{val.nota||5}</span>
+                            style={{width:120,accentColor:"#f97316"}}/>
+                          <span style={{fontSize:11,color:th.muted}}>10</span>
+                          <div style={{width:38,height:38,borderRadius:8,background:nc+"20",border:`1px solid ${nc}40`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                            <span style={{fontFamily:"DM Mono",fontSize:18,fontWeight:700,color:nc}}>{val.nota||5}</span>
                           </div>
                         </div>
                       </div>
                       <input value={val.notas||""} onChange={e=>setValoracion(m.id,p.id,"notas",e.target.value)}
-                        placeholder="Notas individuales…" style={{fontSize:12}}/>
+                        placeholder="Notas individuales: rendimiento, actitud, aspectos a mejorar…" style={{fontSize:12}}/>
                     </div>;
                   })}
                 </div>
