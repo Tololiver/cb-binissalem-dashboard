@@ -9,6 +9,7 @@ import {
   Copy, Brain, ChevronDown
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import * as XLSX from "xlsx";
 
 /* ── SUPABASE ─────────────────────────────────────────────── */
 const sb = createClient(
@@ -178,6 +179,35 @@ function GS({th}){return <style>{`
   .cl{transition:transform .2s,box-shadow .2s;cursor:pointer}.cl:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.2)}
   @keyframes spin{to{transform:rotate(360deg)}}
   @media print{.no-print{display:none!important}.print-only{display:block!important}}
+
+  /* ── RESPONSIVE ── */
+  .close-sidebar{display:none}
+  .mobile-topbar{display:none!important}
+  /* Tablet */
+  @media(max-width:900px){
+    .sidebar{position:fixed!important;left:0;top:0;height:100dvh!important;
+      transform:translateX(-100%);transition:transform .25s ease;}
+    .sidebar.open{transform:translateX(0)!important;}
+    .mobile-topbar{display:flex!important;}
+    .close-sidebar{display:block!important;}
+  }
+  /* Grids responsivos */
+  @media(max-width:900px){
+    .g4{grid-template-columns:1fr 1fr!important;}
+    .g3{grid-template-columns:1fr 1fr!important;}
+    .g7{grid-template-columns:repeat(4,1fr)!important;}
+    .g5{grid-template-columns:repeat(3,1fr)!important;}
+    .g21{grid-template-columns:1fr!important;}
+  }
+  @media(max-width:600px){
+    .g4{grid-template-columns:1fr 1fr!important;}
+    .g3{grid-template-columns:1fr!important;}
+    .g7{grid-template-columns:repeat(2,1fr)!important;}
+    .g5{grid-template-columns:1fr 1fr!important;}
+    .g21{grid-template-columns:1fr!important;}
+    .g2r{grid-template-columns:1fr!important;}
+    h2{font-size:22px!important;}
+  }
 `}</style>;}
 
 /* ── SHARED UI ────────────────────────────────────────────── */
@@ -343,17 +373,48 @@ function Dashboard(){
 function Plantilla(){
   const{th}=useTheme();const{players,setPlayers}=useData();
   const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
-  const[sa,setSa]=useState(false);
+  const[sa,setSa]=useState(false);const[xlsxMsg,setXlsxMsg]=useState(null);
   const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,...emptyStats()});
   const pos=["Base","Escolta","Alero","Ala-Pívot","Pívot"];
   const rawFields=["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"];
-  const fieldLabels={pj:"PJ",pt:"PT",min:"Min",tl_i:"TL Int.",tl_m:"TL Met.",t2_i:"T2 Int.",t2_m:"T2 Met.",t3_i:"T3 Int.",t3_m:"T3 Met.",fc:"FC"};
+  const xlsxRef=useRef();
 
   const se=p=>{setEd(p.id);setEf({name:p.name,num:p.num,pos:p.pos,active:p.active,...Object.fromEntries(rawFields.map(k=>[k,p[k]??0]))});};
   const sv=()=>{setPlayers(prev=>prev.map(p=>p.id===ed?{...p,...ef,num:+ef.num,...Object.fromEntries(rawFields.map(k=>[k,+ef[k]]))}:p));setEd(null);};
   const dl=id=>setPlayers(prev=>prev.filter(p=>p.id!==id));
   const tg=id=>setPlayers(prev=>prev.map(p=>p.id===id?{...p,active:!p.active}:p));
   const add=()=>{if(!af.name||!af.num)return;const id=Math.max(0,...players.map(p=>p.id))+1;setPlayers(prev=>[...prev,{id,...af,num:+af.num,...Object.fromEntries(rawFields.map(k=>[k,+af[k]]))}]);setAf({name:"",num:"",pos:"Base",active:true,...emptyStats()});setSa(false);};
+
+  // Excel import — columnas esperadas: Nombre, Dorsal, Posicion, PJ, PT, Min, TL_i, TL_m, T2_i, T2_m, T3_i, T3_m, FC
+  const handleXLSX=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{defval:0});
+        let updated=0,added=0;
+        const colMap={Nombre:"name",Dorsal:"num",Posicion:"pos",PJ:"pj",PT:"pt",Min:"min",TL_i:"tl_i",TL_m:"tl_m",T2_i:"t2_i",T2_m:"t2_m",T3_i:"t3_i",T3_m:"t3_m",FC:"fc"};
+        setPlayers(prev=>{
+          let next=[...prev];
+          rows.forEach(row=>{
+            const name=(row.Nombre||row.nombre||"").trim();if(!name)return;
+            const patch=Object.fromEntries(Object.entries(colMap).map(([exk,stk])=>[stk,row[exk]??row[exk.toLowerCase()]??0]));
+            patch.name=name;patch.num=+(row.Dorsal||row.dorsal||0);patch.pos=row.Posicion||row.posicion||"Base";
+            const idx=next.findIndex(p=>p.name.toLowerCase()===name.toLowerCase()||p.num===patch.num);
+            if(idx>=0){next[idx]={...next[idx],...patch,num:+patch.num,...Object.fromEntries(rawFields.map(k=>[k,+patch[k]]))};updated++;}
+            else{next.push({id:Date.now()+Math.random(),...patch,active:true,...Object.fromEntries(rawFields.map(k=>[k,+patch[k]]))});added++;}
+          });
+          return next;
+        });
+        setXlsxMsg(`✅ ${updated} jugadores actualizados, ${added} nuevos añadidos`);
+      }catch(err){setXlsxMsg(`❌ Error leyendo Excel: ${err.message}`);}
+      e.target.value="";
+      setTimeout(()=>setXlsxMsg(null),5000);
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const StatInput=({label,field,state,setState})=><div>
     <Lbl>{label}</Lbl>
@@ -409,7 +470,15 @@ function Plantilla(){
   </>;
 
   return <div>
-    <SH title="Plantilla" sub="Gestión de jugadores y estadísticas" right={<Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Jugador</Btn>}/>
+    <SH title="Plantilla" sub="Gestión de jugadores y estadísticas" right={<div style={{display:"flex",gap:8}}>
+      <input ref={xlsxRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleXLSX}/>
+      <Btn onClick={()=>xlsxRef.current?.click()} variant="ghost" icon={<Upload size={14}/>} sm>Excel</Btn>
+      <Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Jugador</Btn>
+    </div>}/>
+    {xlsxMsg&&<div style={{background:xlsxMsg.startsWith("✅")?"rgba(16,185,129,.07)":"rgba(239,68,68,.07)",border:`1px solid ${xlsxMsg.startsWith("✅")?"rgba(16,185,129,.3)":"rgba(239,68,68,.3)"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:th.text}}>{xlsxMsg}</div>}
+    <div style={{background:"rgba(249,115,22,.06)",border:"1px solid rgba(249,115,22,.2)",borderRadius:8,padding:"8px 14px",marginBottom:14,fontSize:12,color:th.sub}}>
+      💡 <strong style={{color:"#f97316"}}>Excel:</strong> columnas esperadas: <code style={{fontFamily:"DM Mono",fontSize:11}}>Nombre · Dorsal · Posicion · PJ · PT · Min · TL_i · TL_m · T2_i · T2_m · T3_i · T3_m · FC</code>
+    </div>
 
     {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Jugador</p>
@@ -936,7 +1005,7 @@ function Asistencia(){
    8. QUINTETO — 5 configuraciones + IA
 ══════════════════════════════════════════════════════════ */
 function Quinteto(){
-  const{th}=useTheme();const{players,quintets,setQuintets}=useData();
+  const{th}=useTheme();const{players,quintets,setQuintets,apiKey}=useData();
   const[activeQ,setActiveQ]=useState(0);
   const[aiLoading,setAiLoading]=useState(false);
   const[aiResult,setAiResult]=useState(null);
@@ -966,17 +1035,16 @@ function Quinteto(){
   };
 
   const generateAIQuintets=async()=>{
+    if(!apiKey){setAiResult({error:"Introduce tu API Key de Anthropic en ⚙️ Ajustes (sidebar inferior)."});return;}
     setAiLoading(true);setAiResult(null);
     const activePl=players.filter(p=>p.active&&(p.pj||0)>0);
-    if(activePl.length<5){setAiResult({error:"Necesitas al menos 5 jugadores con partidos jugados (PJ > 0)."});setAiLoading(false);return;}
+    if(activePl.length<5){setAiResult({error:"Necesitas al menos 5 jugadores con PJ > 0 para generar quintetos."});setAiLoading(false);return;}
     const statsStr=activePl.map(p=>{const c=calcStats(p);return `${p.name} (${p.pos}): PJ ${p.pj}, PTS/P ${c.pts_p}, Min/P ${c.min_p}', TL% ${c.tl_pct}%, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, FC/P ${c.fc_p}`;}).join("\n");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Eres un analista experto de baloncesto. Jugadores del CB Binissalem con estadísticas reales:\n\n${statsStr}\n\nBasándote ÚNICAMENTE en estos datos reales, sugiere 2 quintetos:\n1. OFENSIVO: Los 5 mejores para atacar (mayor PTS/P, T2%, T3%, Min/P)\n2. DEFENSIVO: Los 5 mejores defensivamente (FC/P bajo, equilibrio posicional, al menos 1 pívot)\n\nResponde SOLO JSON válido sin texto extra:\n{"ofensivo":["nombre completo 1","nombre completo 2","nombre completo 3","nombre completo 4","nombre completo 5"],"defensivo":["nombre completo 1","nombre completo 2","nombre completo 3","nombre completo 4","nombre completo 5"],"razon_ofensivo":"razón en 15 palabras max","razon_defensivo":"razón en 15 palabras max"}`}]})});
-      const data=await res.json();
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Eres analista de baloncesto. Jugadores CB Binissalem:\n\n${statsStr}\n\nSugiere 2 quintetos basándote SOLO en estos datos:\n1. OFENSIVO: mayores PTS/P, T2%, T3%, Min/P\n2. DEFENSIVO: equilibrio posicional, FC/P bajo, al menos 1 pívot\n\nResponde SOLO JSON sin texto extra:\n{"ofensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"defensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"razon_ofensivo":"15 palabras max","razon_defensivo":"15 palabras max"}`}]});
       const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
-      const clean=txt.replace(/```json|```/g,"").trim();
-      setAiResult(JSON.parse(clean));
-    }catch(e){console.error(e);setAiResult({error:"Error al conectar con la IA. Inténtalo de nuevo."});}
+      setAiResult(JSON.parse(txt.replace(/```json|```/g,"").trim()));
+    }catch(e){console.error(e);setAiResult({error:`Error: ${e.message}. Verifica tu API Key.`});}
     setAiLoading(false);
   };
 
@@ -1055,13 +1123,25 @@ function Quinteto(){
 /* ══════════════════════════════════════════════════════════
    9. PLAYBOOK — con añadir jugadas + imágenes
 ══════════════════════════════════════════════════════════ */
-function PlaybookForm({onSave,onCancel}){
+/* ─ helper: llamada a Claude API con api key ─ */
+async function callClaude(apiKey, body){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
+
+/* ── 9. PLAYBOOK ── */
+function PlaybookEditForm({play,onSave,onCancel}){
   const{th}=useTheme();
-  const[f,setF]=useState({name:"",cat:"Ataque",desc:"",tags:"",images:[]});
   const cats=["Ataque","Defensa","Especial"];
-  const save=()=>{if(!f.name)return;const tags=f.tags.split(",").map(t=>t.trim()).filter(Boolean);onSave({...f,tags,id:Date.now()});};
+  const[f,setF]=useState({name:play?.name||"",cat:play?.cat||"Ataque",desc:play?.desc||"",tags:(play?.tags||[]).join(", "),images:play?.images||[]});
+  const save=()=>{if(!f.name)return;const tags=f.tags.split(",").map(t=>t.trim()).filter(Boolean);onSave({...(play||{}),id:play?.id||Date.now(),...f,tags});};
   return <div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
-    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nueva Jugada</p>
+    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>{play?"Editar Jugada":"Nueva Jugada"}</p>
     <div style={{display:"grid",gridTemplateColumns:"1fr 150px",gap:12,marginBottom:12}}>
       <div><Lbl>Nombre</Lbl><input value={f.name} onChange={e=>setF(x=>({...x,name:e.target.value}))} placeholder="Nombre de la jugada"/></div>
       <div><Lbl>Categoría</Lbl><select value={f.cat} onChange={e=>setF(x=>({...x,cat:e.target.value}))}>{cats.map(c=><option key={c}>{c}</option>)}</select></div>
@@ -1074,70 +1154,72 @@ function PlaybookForm({onSave,onCancel}){
 }
 
 function Playbook(){
-  const{th}=useTheme();const{customPlays,setCustomPlays}=useData();
-  const[filter,setFilter]=useState("Todos");const[showAdd,setShowAdd]=useState(false);const[viewImg,setViewImg]=useState(null);
+  const{th}=useTheme();const{plays,setPlays,apiKey}=useData();
+  const[filter,setFilter]=useState("Todos");
+  const[showAdd,setShowAdd]=useState(false);
+  const[editPlay,setEditPlay]=useState(null);
+  const[viewImg,setViewImg]=useState(null);
   const[pdfLoading,setPdfLoading]=useState(false);const[pdfMsg,setPdfMsg]=useState(null);
   const cats=["Todos","Ataque","Defensa","Especial"];
-  const allPlays=[...DEFAULT_PLAYS,...customPlays];
-  const filtered=filter==="Todos"?allPlays:allPlays.filter(p=>p.cat===filter);
+  const filtered=filter==="Todos"?plays:plays.filter(p=>p.cat===filter);
   const fr=useRef();
+
+  const savePlay=p=>{
+    if(editPlay==="new"){setPlays(prev=>[...prev,{...p,id:Date.now()}]);}
+    else{setPlays(prev=>prev.map(x=>x.id===editPlay.id?{...x,...p}:x));}
+    setEditPlay(null);setShowAdd(false);
+  };
+  const delPlay=id=>setPlays(prev=>prev.filter(p=>p.id!==id));
 
   const handlePDF=async e=>{
     const file=e.target.files[0];if(!file)return;
+    if(!apiKey){setPdfMsg("❌ Introduce primero tu API Key de Anthropic en Ajustes (⚙️ en el sidebar).");e.target.value="";return;}
     setPdfLoading(true);setPdfMsg("Leyendo PDF con IA…");
     try{
       const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      const data=await callClaude(apiKey,{
         model:"claude-sonnet-4-20250514",max_tokens:2000,
         messages:[{role:"user",content:[
           {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
-          {type:"text",text:`Este PDF es un documento de baloncesto con jugadas o sistemas. Extrae TODAS las jugadas/sistemas que encuentres y devuelve SOLO JSON válido sin explicaciones ni markdown:
-{"jugadas":[{"nombre":"nombre jugada","categoria":"Ataque|Defensa|Especial","descripcion":"descripción clara de la jugada","etiquetas":["tag1","tag2"]}]}
-Si no encuentras jugadas claras, devuelve {"jugadas":[]}`}
+          {type:"text",text:`Analiza este documento de baloncesto. Extrae TODAS las jugadas o sistemas que encuentres y devuelve ÚNICAMENTE JSON válido (sin markdown ni texto extra):
+{"jugadas":[{"nombre":"nombre jugada","categoria":"Ataque|Defensa|Especial","descripcion":"descripción detallada","etiquetas":["tag1","tag2"]}]}
+Si no hay jugadas reconocibles devuelve: {"jugadas":[]}`}
         ]}]
-      })});
-      const data=await resp.json();
+      });
       const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
-      const clean=txt.replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(clean);
+      const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
       const nuevas=(parsed.jugadas||[]).map(j=>({id:Date.now()+Math.random(),name:j.nombre||j.name||"Sin nombre",cat:j.categoria||j.cat||"Ataque",desc:j.descripcion||j.desc||"",tags:j.etiquetas||j.tags||[],images:[]}));
-      if(nuevas.length>0){
-        setCustomPlays(prev=>[...prev,...nuevas]);
-        setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length>1?"s":""} importada${nuevas.length>1?"s":""} del PDF`);
-      }else{setPdfMsg("⚠️ No se encontraron jugadas en el PDF. Prueba a crearlas manualmente.");}
-    }catch(err){console.error(err);setPdfMsg("❌ Error al procesar el PDF. Inténtalo de nuevo.");}
-    setPdfLoading(false);
-    e.target.value="";
-    setTimeout(()=>setPdfMsg(null),5000);
+      if(nuevas.length>0){setPlays(prev=>[...prev,...nuevas]);setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length>1?"s":""} importada${nuevas.length>1?"s":""} del PDF`);}
+      else setPdfMsg("⚠️ No se encontraron jugadas. Prueba a crearlas manualmente.");
+    }catch(err){console.error(err);setPdfMsg(`❌ Error: ${err.message||"Inténtalo de nuevo."} Verifica tu API Key.`);}
+    setPdfLoading(false);e.target.value="";
+    setTimeout(()=>setPdfMsg(null),6000);
   };
 
   return <div>
-    <SH title="Playbook" sub="Jugadas y sistemas de juego del equipo" right={<div style={{display:"flex",gap:8}}>
+    <SH title="Playbook" sub="Jugadas y sistemas · Todas editables" right={<div style={{display:"flex",gap:8}}>
       <input ref={fr} type="file" accept=".pdf" style={{display:"none"}} onChange={handlePDF}/>
-      <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>} disabled={pdfLoading}>
-        {pdfLoading?"Analizando…":"Importar PDF"}
-      </Btn>
-      <Btn onClick={()=>setShowAdd(true)} icon={<Plus size={14}/>}>Nueva Jugada</Btn>
+      <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>} disabled={pdfLoading}>{pdfLoading?"Analizando…":"Importar PDF"}</Btn>
+      <Btn onClick={()=>{setShowAdd(true);setEditPlay("new");}} icon={<Plus size={14}/>}>Nueva Jugada</Btn>
     </div>}/>
     {pdfMsg&&<div style={{background:pdfMsg.startsWith("✅")?"rgba(16,185,129,.07)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.07)":"rgba(239,68,68,.07)",border:`1px solid ${pdfMsg.startsWith("✅")?"rgba(16,185,129,.3)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.3)":"rgba(239,68,68,.3)"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:th.text}}>{pdfMsg}</div>}
-    {showAdd&&<PlaybookForm onSave={p=>{setCustomPlays(prev=>[...prev,p]);setShowAdd(false);}} onCancel={()=>setShowAdd(false)}/>}
+    {(showAdd||editPlay)&&<PlaybookEditForm play={editPlay==="new"?null:editPlay} onSave={savePlay} onCancel={()=>{setShowAdd(false);setEditPlay(null);}}/>}
     <div style={{display:"flex",gap:8,marginBottom:20}}>
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(PC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
     </div>
     {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-      {filtered.map(play=>{const c=PC[play.cat]||"#f97316";const isCustom=play.id>100;return <div key={play.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
+      {filtered.map(play=>{const c=PC[play.cat]||"#f97316";return <div key={play.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-          <h3 style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text}}>{play.name}</h3>
-          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <h3 style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,flex:1,marginRight:8}}>{play.name}</h3>
+          <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
             <Badge color={c}>{play.cat}</Badge>
-            {isCustom&&<Trash2 size={12} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setCustomPlays(prev=>prev.filter(p=>p.id!==play.id))}/>}
+            <button onClick={()=>setEditPlay(play)} title="Editar" style={{width:26,height:26,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={11}/></button>
+            <button onClick={()=>delPlay(play.id)} title="Eliminar" style={{width:26,height:26,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>
           </div>
         </div>
         <p style={{fontSize:12,color:th.sub,lineHeight:1.65,marginBottom:12}}>{play.desc}</p>
-        {(play.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-          {play.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
-        </div>}
+        {(play.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{play.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}</div>}
         <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(play.tags||[]).map(t=><span key={t} style={{fontSize:10,color:th.muted,background:th.card2,padding:"2px 8px",borderRadius:4,border:`1px solid ${th.border}`}}>{t}</span>)}</div>
       </div>;})}
     </div>
@@ -1447,13 +1529,14 @@ export default function App(){
   const[attDates,  setAttDatesRaw] = useState(DA);
   const[quintets,  setQuintetsRaw] = useState(DEFAULT_QUINTETS);
   const[recursos,  setRecursosRaw] = useState(DEFAULT_RECURSOS);
+  const[plays,     setPlaysRaw]    = useState(DEFAULT_PLAYS);
   const[customEx,  setCustomExRaw] = useState([]);
-  const[customPlays,setCustomPlaysRaw]=useState([]);
   const[savedDrawings,setSavedDrawingsRaw]=useState([]);
   const[planMesos, setPlanMesosRaw]=useState(null);
   const[planMicro, setPlanMicroRaw]=useState(null);
+  const[apiKey,    setApiKeyRaw]   = useState(()=>localStorage.getItem("cb_apikey")||"");
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,customEx:[],customPlays:[],savedDrawings:[],planMesos:null,planMicro:null,dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -1476,10 +1559,11 @@ export default function App(){
   const setQuintets =useCallback(fn=>setQuintetsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({quintets:n});return n;}),[persist]);
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
-  const setCustomPlays=useCallback(fn=>setCustomPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customPlays:n});return n;}),[persist]);
+  const setPlays    =useCallback(fn=>setPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({plays:n});return n;}),[persist]);
   const setSavedDrawings=useCallback(fn=>setSavedDrawingsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({savedDrawings:n});return n;}),[persist]);
   const setPlanMesos=useCallback(fn=>setPlanMesosRaw(prev=>{const cur=prev||DEFAULT_MESOS_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMesos:n});return n;}),[persist]);
   const setPlanMicro=useCallback(fn=>setPlanMicroRaw(prev=>{const cur=prev||DEFAULT_MICRO_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMicro:n});return n;}),[persist]);
+  const setApiKey   =useCallback(v=>{setApiKeyRaw(v);try{localStorage.setItem("cb_apikey",v);}catch{};},[]);
 
   useEffect(()=>{
     const load=async()=>{
@@ -1493,8 +1577,8 @@ export default function App(){
           if(d.attDates)  {setAttDatesRaw(d.attDates);  stRef.current.attDates=d.attDates;}
           if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
           if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
+          if(d.plays)     {setPlaysRaw(d.plays);         stRef.current.plays=d.plays;}
           if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
-          if(d.customPlays){setCustomPlaysRaw(d.customPlays);stRef.current.customPlays=d.customPlays;}
           if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
           if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
           if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
@@ -1515,8 +1599,8 @@ export default function App(){
         if(d.attDates)   setAttDatesRaw(d.attDates);
         if(d.quintets)   setQuintetsRaw(d.quintets);
         if(d.recursos)   setRecursosRaw(d.recursos);
+        if(d.plays)      setPlaysRaw(d.plays);
         if(d.customEx)   setCustomExRaw(d.customEx);
-        if(d.customPlays)setCustomPlaysRaw(d.customPlays);
         if(d.savedDrawings)setSavedDrawingsRaw(d.savedDrawings);
         if(d.planMesos) setPlanMesosRaw(d.planMesos);
         if(d.planMicro) setPlanMicroRaw(d.planMicro);
@@ -1538,37 +1622,76 @@ export default function App(){
     </div>
   </>;
 
+  const[menuOpen,setMenuOpen]=useState(false);
+  const[showSettings,setShowSettings]=useState(false);
+  const[apiKeyInput,setApiKeyInput]=useState(apiKey);
+
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,customEx,setCustomEx,customPlays,setCustomPlays,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,apiKey,setApiKey}}>
         <GS th={th}/>
-        <div style={{display:"flex",height:"100vh",overflow:"hidden",background:th.bg}}>
-          <aside style={{width:222,flexShrink:0,background:th.nav,display:"flex",flexDirection:"column",height:"100vh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,.06)"}}>
-            <div style={{padding:"20px 20px 12px"}}>
+        <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
+
+          {/* ── OVERLAY móvil ── */}
+          {menuOpen&&<div onClick={()=>setMenuOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:40}}/>}
+
+          {/* ── SIDEBAR ── */}
+          <aside className={`sidebar${menuOpen?" open":""}`} style={{width:222,flexShrink:0,background:th.nav,display:"flex",flexDirection:"column",height:"100dvh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,.06)",zIndex:50}}>
+            <div style={{padding:"18px 18px 10px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:36,height:36,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:15,fontWeight:900,color:"#fff",letterSpacing:-.5,flexShrink:0}}>CB</div>
-                <div><p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 2024/25</p></div>
+                <div style={{width:34,height:34,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:900,color:"#fff",letterSpacing:-.5,flexShrink:0}}>CB</div>
+                <div><p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 24/25</p></div>
+                <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
               </div>
-              <div style={{marginTop:12}}><SyncBadge status={sync}/></div>
+              <div style={{marginTop:10}}><SyncBadge status={sync}/></div>
             </div>
-            <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"0 14px 6px"}}/>
-            <nav style={{flex:1,padding:"4px 0"}}>
+            <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"0 14px 4px"}}/>
+            <nav style={{flex:1,padding:"4px 0",overflowY:"auto"}}>
               {NAV.map(item=>{const Icon=item.icon;const ac=view===item.id;return(
-                <div key={item.id} onClick={()=>setView(item.id)} className={`nav-item${ac?" active":""}`}>
+                <div key={item.id} onClick={()=>{setView(item.id);setMenuOpen(false);}} className={`nav-item${ac?" active":""}`}>
                   <Icon size={15} color={ac?"#f97316":"rgba(255,255,255,.32)"}/>
                   <span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:ac?700:500,color:ac?"#f97316":"rgba(255,255,255,.42)",letterSpacing:.4}}>{item.label}</span>
                 </div>
               );})}
             </nav>
-            <div style={{padding:"12px 14px",borderTop:"1px solid rgba(255,255,255,.07)"}}>
-              <div onClick={()=>setDark(d=>!d)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"9px 12px",borderRadius:8,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.08)"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,.09)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,.05)"}>
-                {dark?<Sun size={14} color="#f59e0b"/>:<Moon size={14} color="#8b5cf6"/>}
-                <span style={{fontFamily:"Barlow Condensed",fontSize:13,color:"rgba(255,255,255,.45)",fontWeight:600}}>{dark?"Modo Claro":"Modo Oscuro"}</span>
-                <div style={{marginLeft:"auto",width:28,height:16,borderRadius:8,background:dark?"rgba(255,255,255,.12)":"#f97316",position:"relative",transition:"background .2s"}}><div style={{position:"absolute",top:2,left:dark?2:12,width:12,height:12,borderRadius:6,background:"#fff",transition:"left .2s"}}/></div>
+            <div style={{padding:"10px 12px",borderTop:"1px solid rgba(255,255,255,.07)",display:"flex",flexDirection:"column",gap:6}}>
+              {/* API Key settings */}
+              {showSettings&&<div style={{background:"rgba(255,255,255,.05)",borderRadius:8,padding:10,marginBottom:4}}>
+                <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>API Key Anthropic</p>
+                <input value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} placeholder="sk-ant-..." style={{fontSize:11,padding:"6px 8px",marginBottom:6,fontFamily:"DM Mono"}}/>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{setApiKey(apiKeyInput);setShowSettings(false);}} style={{flex:1,padding:"5px 0",borderRadius:6,border:"none",background:"#f97316",color:"#fff",cursor:"pointer",fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700}}>Guardar</button>
+                  <button onClick={()=>setShowSettings(false)} style={{flex:1,padding:"5px 0",borderRadius:6,border:"1px solid rgba(255,255,255,.15)",background:"transparent",color:"rgba(255,255,255,.4)",cursor:"pointer",fontSize:11}}>Cancelar</button>
+                </div>
+                <p style={{fontSize:10,color:"rgba(255,255,255,.25)",marginTop:6,lineHeight:1.4}}>Necesaria para IA (quintetos, PDF). Se guarda solo en este navegador.</p>
+              </div>}
+              <button onClick={()=>setShowSettings(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.08)",cursor:"pointer",color:apiKey?"#10b981":"rgba(255,255,255,.4)"}}>
+                <span style={{fontSize:13}}>⚙️</span>
+                <span style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:600}}>{apiKey?"API Key ✓":"Configurar API Key"}</span>
+              </button>
+              <div onClick={()=>setDark(d=>!d)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"8px 10px",borderRadius:8,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.08)"}}>
+                {dark?<Sun size={13} color="#f59e0b"/>:<Moon size={13} color="#8b5cf6"/>}
+                <span style={{fontFamily:"Barlow Condensed",fontSize:12,color:"rgba(255,255,255,.45)",fontWeight:600}}>{dark?"Modo Claro":"Modo Oscuro"}</span>
+                <div style={{marginLeft:"auto",width:26,height:14,borderRadius:7,background:dark?"rgba(255,255,255,.12)":"#f97316",position:"relative",transition:"background .2s"}}><div style={{position:"absolute",top:2,left:dark?2:12,width:10,height:10,borderRadius:5,background:"#fff",transition:"left .2s"}}/></div>
               </div>
             </div>
           </aside>
-          <main style={{flex:1,overflowY:"auto",padding:"28px 32px",background:th.bg}}><AV/></main>
+
+          {/* ── MAIN ── */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {/* Mobile topbar */}
+            <div className="mobile-topbar" style={{background:th.nav,padding:"10px 16px",display:"none",alignItems:"center",gap:12,borderBottom:"1px solid rgba(255,255,255,.06)",flexShrink:0}}>
+              <button onClick={()=>setMenuOpen(true)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>☰</button>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:28,height:28,borderRadius:7,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,fontWeight:900,color:"#fff"}}>CB</div>
+                <span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9"}}>Binissalem</span>
+              </div>
+              <div style={{marginLeft:"auto"}}><SyncBadge status={sync}/></div>
+            </div>
+            <main style={{flex:1,overflowY:"auto",padding:"clamp(14px,3vw,28px) clamp(14px,3vw,32px)",background:th.bg}}>
+              <AV/>
+            </main>
+          </div>
         </div>
       </DataCtx.Provider>
     </ThemeCtx.Provider>
