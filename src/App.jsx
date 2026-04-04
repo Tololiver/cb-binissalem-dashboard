@@ -594,11 +594,15 @@ function Plantilla(){
    3. PARTIDOS
 ══════════════════════════════════════════════════════════ */
 function Partidos(){
-  const{th}=useTheme();const{matches,setMatches}=useData();
+  const{th}=useTheme();
+  const{matches,setMatches,players}=useData();
   const[sa,setSa]=useState(false);
   const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
+  const[exp,setExp]=useState(null); // expanded match id
+  const[tab,setTab]=useState({}); // {matchId: "convocatoria"|"valoracion"}
   const[f,setF]=useState({date:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});
 
+  const availablePlayers=players.filter(p=>p.active&&!p.lesionado);
   const played=matches.filter(m=>m.pts_us!=null);
   const w=played.filter(m=>m.pts_us>m.pts_them).length;
   const l=played.filter(m=>m.pts_us<=m.pts_them).length;
@@ -611,49 +615,51 @@ function Partidos(){
     setMatches(prev=>[...prev,{id,...f,
       pts_us:f.pts_us!==""?+f.pts_us:null,
       pts_them:f.pts_them!==""?+f.pts_them:null,
+      convocados:[],valoraciones:{},
     }]);
     setF({date:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});setSa(false);
   };
-
-  const startEdit=m=>{
-    setEd(m.id);
-    setEf({date:m.date,rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});
-  };
+  const startEdit=m=>{setEd(m.id);setEf({date:m.date,rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
   const saveEdit=()=>{
-    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,
-      pts_us:ef.pts_us!==""?+ef.pts_us:null,
-      pts_them:ef.pts_them!==""?+ef.pts_them:null,
-    }:m));
+    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,pts_us:ef.pts_us!==""?+ef.pts_us:null,pts_them:ef.pts_them!==""?+ef.pts_them:null}:m));
     setEd(null);
   };
+  const toggleConv=(mid,pid)=>setMatches(prev=>prev.map(m=>{
+    if(m.id!==mid)return m;
+    const c=m.convocados||[];
+    return{...m,convocados:c.includes(pid)?c.filter(x=>x!==pid):[...c,pid]};
+  }));
+  const setValoracion=(mid,pid,field,val)=>setMatches(prev=>prev.map(m=>{
+    if(m.id!==mid)return m;
+    const v={...(m.valoraciones||{})};
+    v[pid]={...(v[pid]||{}),[field]:val};
+    return{...m,valoraciones:v};
+  }));
+  const exportConvPDF=m=>{
+    const conv=(m.convocados||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    const w=window.open("","_blank");
+    w.document.write(`<html><head><title>Convocatoria ${m.rival}</title><style>
+      body{font-family:Arial,sans-serif;padding:30px;max-width:500px;margin:0 auto}
+      h1{color:#f97316;font-size:24px;margin-bottom:4px}
+      h2{color:#64748b;font-size:14px;font-weight:normal;margin-bottom:24px}
+      .player{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #e2e8f0}
+      .num{width:36px;height:36px;border-radius:50%;background:#f97316;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+      .name{font-size:15px;font-weight:600}
+      .pos{font-size:12px;color:#64748b}
+      .footer{margin-top:24px;font-size:11px;color:#94a3b8;text-align:center}
+    </style></head><body>
+      <h1>CONVOCATORIA</h1>
+      <h2>${m.date} · vs ${m.rival} · ${m.location}</h2>
+      ${conv.map(p=>`<div class="player"><div class="num">${p.num}</div><div><div class="name">${p.name}</div><div class="pos">${p.pos}</div></div></div>`).join("")}
+      <div class="footer">CB Binissalem Sénior A · ${conv.length} jugadores convocados</div>
+    </body></html>`);
+    w.document.close();setTimeout(()=>w.print(),300);
+  };
 
-  const ks=[
-    {label:"Record",value:`${w}–${l}`,color:"#f97316"},
-    {label:"Pts a favor",value:af,color:"#10b981"},
-    {label:"Pts en contra",value:aa,color:"#ef4444"},
-    {label:"Jugados/Total",value:`${played.length}/${matches.length}`,color:"#3b82f6"},
-  ];
-
-  const MatchForm=({vals,setVals,onSave,onCancel,title})=>(
-    <div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>{title}</p>
-      <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:12,marginBottom:12}}>
-        <div><Lbl>Fecha</Lbl><input type="date" value={vals.date} onChange={e=>setVals(x=>({...x,date:e.target.value}))}/></div>
-        <div><Lbl>Rival</Lbl><input value={vals.rival} onChange={e=>setVals(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
-        <div><Lbl>Lugar</Lbl><select value={vals.location} onChange={e=>setVals(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
-        <div><Lbl>Nos. (opt.)</Lbl><input type="number" value={vals.pts_us} onChange={e=>setVals(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
-        <div><Lbl>Riv. (opt.)</Lbl><input type="number" value={vals.pts_them} onChange={e=>setVals(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
-      </div>
-      <div style={{marginBottom:14}}><Lbl>Notas post partido</Lbl>
-        <textarea rows={3} value={vals.notes||""} onChange={e=>setVals(x=>({...x,notes:e.target.value}))} placeholder="Análisis del partido, aspectos a mejorar, destacados…"/>
-      </div>
-      <p style={{fontSize:11,color:th.muted,marginBottom:10}}>💡 El resultado es opcional — puedes dejarlo en blanco para planificar y añadirlo después.</p>
-      <div style={{display:"flex",gap:8}}><Btn onClick={onSave}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
-    </div>
-  );
+  const ks=[{label:"Record",value:`${w}–${l}`,color:"#f97316"},{label:"Pts a favor",value:af,color:"#10b981"},{label:"Pts en contra",value:aa,color:"#ef4444"},{label:"Jugados/Total",value:`${played.length}/${matches.length}`,color:"#3b82f6"}];
 
   return <div>
-    <SH title="Partidos" sub="Resultados, planificación y notas" right={<Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Partido</Btn>}/>
+    <SH title="Partidos" sub="Resultados · Convocatorias · Valoraciones" right={<Btn onClick={()=>{setSa(!sa);setEd(null);}} icon={<Plus size={14}/>}>Añadir Partido</Btn>}/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
       {ks.map(k=><div key={k.label} className="card" style={{padding:"18px 20px"}}>
         <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{k.label}</p>
@@ -661,46 +667,138 @@ function Partidos(){
       </div>)}
     </div>
 
-    {sa&&<MatchForm vals={f} setVals={setF} onSave={add} onCancel={()=>setSa(false)} title="Nuevo Partido"/>}
+    {/* Formulario nuevo partido */}
+    {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Partido</p>
+      <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:12,marginBottom:12}}>
+        <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(x=>({...x,date:e.target.value}))}/></div>
+        <div><Lbl>Rival</Lbl><input value={f.rival} onChange={e=>setF(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
+        <div><Lbl>Lugar</Lbl><select value={f.location} onChange={e=>setF(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
+        <div><Lbl>Nos.</Lbl><input type="number" value={f.pts_us} onChange={e=>setF(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
+        <div><Lbl>Riv.</Lbl><input type="number" value={f.pts_them} onChange={e=>setF(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
+      </div>
+      <div style={{marginBottom:14}}><Lbl>Notas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(x=>({...x,notes:e.target.value}))} placeholder="Notas previas o post-partido…"/></div>
+      <p style={{fontSize:11,color:th.muted,marginBottom:10}}>💡 Resultado opcional — puedes añadirlo después</p>
+      <div style={{display:"flex",gap:8}}><Btn onClick={add}>Guardar</Btn><Btn onClick={()=>setSa(false)} variant="ghost">Cancelar</Btn></div>
+    </div>}
 
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
       {matches.length===0&&<div className="card" style={{padding:48,textAlign:"center"}}>
         <Trophy size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/>
         <p style={{color:th.muted,fontSize:14}}>No hay partidos registrados</p>
       </div>}
+
       {[...matches].sort((a,b)=>b.date?.localeCompare(a.date)).map(m=>{
         const hasResult=m.pts_us!=null&&m.pts_them!=null;
         const win=hasResult&&m.pts_us>m.pts_them;
         const c=hasResult?(win?"#10b981":"#ef4444"):"#6366f1";
         const d=hasResult?m.pts_us-m.pts_them:null;
         const isEditing=ed===m.id;
+        const isExp=exp===m.id;
+        const convocados=m.convocados||[];
+        const valoraciones=m.valoraciones||{};
+        const curTab=tab[m.id]||"convocatoria";
+        const convPlayers=convocados.map(id=>players.find(p=>p.id===id)).filter(Boolean);
 
-        if(isEditing) return <MatchForm key={m.id} vals={ef} setVals={setEf} onSave={saveEdit} onCancel={()=>setEd(null)} title={`Editar: ${m.rival}`}/>;
+        if(isEditing)return(
+          <div key={m.id} className="card" style={{padding:20,borderColor:"#f9731640"}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Editar: {m.rival}</p>
+            <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:12,marginBottom:12}}>
+              <div><Lbl>Fecha</Lbl><input type="date" value={ef.date} onChange={e=>setEf(x=>({...x,date:e.target.value}))}/></div>
+              <div><Lbl>Rival</Lbl><input value={ef.rival} onChange={e=>setEf(x=>({...x,rival:e.target.value}))}/></div>
+              <div><Lbl>Lugar</Lbl><select value={ef.location} onChange={e=>setEf(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
+              <div><Lbl>Nos.</Lbl><input type="number" value={ef.pts_us} onChange={e=>setEf(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
+              <div><Lbl>Riv.</Lbl><input type="number" value={ef.pts_them} onChange={e=>setEf(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
+            </div>
+            <div style={{marginBottom:14}}><Lbl>Notas</Lbl><textarea rows={2} value={ef.notes} onChange={e=>setEf(x=>({...x,notes:e.target.value}))} placeholder="Análisis, aspectos a mejorar…"/></div>
+            <div style={{display:"flex",gap:8}}><Btn onClick={saveEdit}>Guardar</Btn><Btn onClick={()=>setEd(null)} variant="ghost">Cancelar</Btn></div>
+          </div>
+        );
 
-        return <div key={m.id} className="card" style={{padding:"16px 20px",borderLeft:`4px solid ${c}`}}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
+        return <div key={m.id} className="card" style={{borderLeft:`4px solid ${c}`}}>
+          {/* Cabecera partido */}
+          <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:16,cursor:"pointer"}} onClick={()=>setExp(isExp?null:m.id)}>
             <div style={{minWidth:58,textAlign:"center",flexShrink:0}}>
               <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{m.date}</p>
               <Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge>
             </div>
             <div style={{flex:1}}>
               <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p>
-              <p style={{fontSize:11,color:th.muted}}>{m.location}{hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}</p>
+              <p style={{fontSize:11,color:th.muted}}>{m.location}{hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}
+                {convocados.length>0&&<span style={{color:th.sub}}> · {convocados.length} convocados</span>}
+              </p>
             </div>
             <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:c,lineHeight:1,flexShrink:0}}>
               {hasResult?<>{m.pts_us}<span style={{color:th.muted,fontSize:16}}>–</span>{m.pts_them}</>:<span style={{fontSize:16,color:th.muted}}>vs</span>}
             </p>
-            <div style={{display:"flex",gap:8,flexShrink:0}}>
-              <button onClick={()=>startEdit(m)} title="Editar partido"
-                style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}>
-                <Edit2 size={13}/>
-              </button>
+            <div style={{display:"flex",gap:8,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>startEdit(m)} style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
               <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setMatches(prev=>prev.filter(x=>x.id!==m.id))}/>
+              <ChevronRight size={15} color={th.muted} style={{transform:isExp?"rotate(90deg)":"none",transition:"transform .2s"}}/>
             </div>
           </div>
-          {m.notes&&<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${th.border}`,fontSize:12,color:th.sub,lineHeight:1.6}}>
-            <span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:c,textTransform:"uppercase",marginRight:8}}>Notas</span>
-            {m.notes}
+
+          {/* Panel expandido */}
+          {isExp&&<div style={{borderTop:`1px solid ${th.border}`,padding:"0 20px 20px"}}>
+            {m.notes&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,padding:"12px 0",borderBottom:`1px solid ${th.border}`}}><span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:c,textTransform:"uppercase",marginRight:8}}>Notas</span>{m.notes}</p>}
+
+            {/* Tabs */}
+            <div style={{display:"flex",gap:6,marginTop:14,marginBottom:14}}>
+              {[["convocatoria","Convocatoria"],["valoracion","Valoración"]].map(([k,lbl])=>(
+                <button key={k} onClick={()=>setTab(t=>({...t,[m.id]:k}))}
+                  style={{padding:"5px 14px",borderRadius:7,border:`1px solid ${curTab===k?c:th.border2}`,background:curTab===k?c+"18":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:curTab===k?c:th.sub}}>
+                  {lbl}{k==="convocatoria"&&convocados.length>0?` (${convocados.length})`:""}
+                </button>
+              ))}
+              {convocados.length>0&&<button onClick={()=>exportConvPDF(m)} style={{marginLeft:"auto",padding:"5px 14px",borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,color:th.sub,display:"flex",alignItems:"center",gap:5}}><Printer size={12}/>PDF</button>}
+            </div>
+
+            {/* Convocatoria */}
+            {curTab==="convocatoria"&&<div>
+              <p style={{fontSize:11,color:th.muted,marginBottom:10}}>Selecciona los jugadores convocados para este partido (activos y no lesionados)</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+                {availablePlayers.map(p=>{
+                  const sel=convocados.includes(p.id);
+                  const equipoColor={A:"#f97316",B:"#3b82f6",Convocado:"#8b5cf6"}[p.equipo||"A"];
+                  return <div key={p.id} onClick={()=>toggleConv(m.id,p.id)}
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,border:`1px solid ${sel?c:th.border}`,background:sel?c+"10":th.card2,cursor:"pointer",transition:"all .15s"}}>
+                    <div style={{width:28,height:28,borderRadius:14,background:sel?c:th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontSize:11,color:th.text,fontWeight:sel?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name.split(" ")[0]}</p>
+                      <p style={{fontSize:10,color:equipoColor}}>{p.pos} · {p.equipo||"A"}</p>
+                    </div>
+                    {sel&&<Check size={12} color={c}/>}
+                  </div>;
+                })}
+              </div>
+            </div>}
+
+            {/* Valoración */}
+            {curTab==="valoracion"&&<div>
+              {convPlayers.length===0?<p style={{fontSize:12,color:th.muted}}>Primero selecciona la convocatoria en la pestaña anterior.</p>:(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {convPlayers.map(p=>{
+                    const val=valoraciones[p.id]||{nota:5,notas:""};
+                    return <div key={p.id} style={{background:th.card2,borderRadius:10,padding:"12px 14px",border:`1px solid ${th.border}`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+                        <div style={{width:30,height:30,borderRadius:15,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
+                        <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text,flex:1}}>{p.name}</p>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <input type="range" min={1} max={10} value={val.nota||5}
+                            onChange={e=>setValoracion(m.id,p.id,"nota",+e.target.value)}
+                            style={{width:100,accentColor:"#f97316"}}/>
+                          <div style={{width:36,height:36,borderRadius:8,background:val.nota>=8?"rgba(16,185,129,.15)":val.nota>=6?"rgba(249,115,22,.15)":"rgba(239,68,68,.15)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <span style={{fontFamily:"DM Mono",fontSize:16,fontWeight:700,color:val.nota>=8?"#10b981":val.nota>=6?"#f97316":"#ef4444"}}>{val.nota||5}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <input value={val.notas||""} onChange={e=>setValoracion(m.id,p.id,"notas",e.target.value)}
+                        placeholder="Notas individuales…" style={{fontSize:12}}/>
+                    </div>;
+                  })}
+                </div>
+              )}
+            </div>}
           </div>}
         </div>;
       })}
@@ -1005,15 +1103,58 @@ function Estadisticas(){
    6. ENTRENAMIENTOS — con notas y exportar PDF
 ══════════════════════════════════════════════════════════ */
 function Entrenamientos(){
-  const{th}=useTheme();const{sessions,setSessions}=useData();
+  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates}=useData();
   const[exp,setExp]=useState(null);const[add,setAdd]=useState(false);
   const[editNotes,setEditNotes]=useState(null);const[notesVal,setNotesVal]=useState("");
+  const[showTemplates,setShowTemplates]=useState(false);
+  const[saveAsTemplate,setSaveAsTemplate]=useState(null);const[tplName,setTplName]=useState("");
   const[f,setF]=useState({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});
-  const save=()=>{if(!f.title||!f.date)return;const id=sessions.length?Math.max(...sessions.map(s=>s.id))+1:1;setSessions(p=>[...p,{id,...f,dur:+f.dur,exs:f.exs.split("\n").filter(Boolean)}]);setAdd(false);setF({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});};
+
+  const save=()=>{
+    if(!f.title||!f.date)return;
+    const id=sessions.length?Math.max(...sessions.map(s=>s.id))+1:1;
+    setSessions(p=>[...p,{id,...f,dur:+f.dur,exs:f.exs.split("\n").filter(Boolean)}]);
+    setAdd(false);setF({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});
+  };
   const saveNotes=sid=>{setSessions(prev=>prev.map(s=>s.id===sid?{...s,notes:notesVal}:s));setEditNotes(null);};
 
+  const loadTemplate=tpl=>{
+    setF(prev=>({...prev,type:tpl.type,dur:tpl.dur,title:tpl.title,exs:tpl.exs,notes:tpl.notes||""}));
+    setShowTemplates(false);setAdd(true);
+  };
+  const doSaveTemplate=sid=>{
+    if(!tplName.trim())return;
+    const s=sessions.find(x=>x.id===sid);if(!s)return;
+    const id=Date.now();
+    setSesionTemplates(prev=>[...prev,{id,name:tplName.trim(),type:s.type,dur:s.dur,title:s.title,exs:Array.isArray(s.exs)?s.exs.join("\n"):s.exs||"",notes:s.notes||""}]);
+    setSaveAsTemplate(null);setTplName("");
+  };
+  const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
+
   return <div>
-    <SH title="Entrenamientos" sub="Mar · Mié · Jue · Vie — desde el 7 de abril" right={<Btn onClick={()=>setAdd(true)} icon={<Plus size={14}/>}>Nueva Sesión</Btn>}/>
+    <SH title="Entrenamientos" sub="Sesiones · Plantillas · Notas" right={<div style={{display:"flex",gap:8}}>
+      <Btn onClick={()=>setShowTemplates(!showTemplates)} variant="ghost" icon={<Copy size={14}/>} sm>Plantillas {sesionTemplates.length>0&&`(${sesionTemplates.length})`}</Btn>
+      <Btn onClick={()=>{setAdd(true);setShowTemplates(false);}} icon={<Plus size={14}/>}>Nueva Sesión</Btn>
+    </div>}/>
+
+    {/* Panel plantillas */}
+    {showTemplates&&<div className="card" style={{padding:18,marginBottom:14,borderColor:"rgba(139,92,246,.3)"}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#8b5cf6",marginBottom:12,textTransform:"uppercase"}}>Plantillas guardadas</p>
+      {sesionTemplates.length===0?<p style={{fontSize:12,color:th.muted}}>Aún no tienes plantillas. Crea una sesión y guárdala como plantilla para reutilizarla.</p>:(
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {sesionTemplates.map(t=>{const c=TC[t.type]||"#f97316";return <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:th.card2,borderRadius:8,border:`1px solid ${th.border}`}}>
+            <div style={{flex:1}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text}}>{t.name}</p>
+              <p style={{fontSize:11,color:th.muted}}><Badge color={c} sm>{t.type}</Badge> · {t.dur}' · {t.title}</p>
+            </div>
+            <Btn onClick={()=>loadTemplate(t)} sm>Usar</Btn>
+            <Trash2 size={13} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>delTemplate(t.id)}/>
+          </div>;})}
+        </div>
+      )}
+    </div>}
+
+    {/* Formulario nueva sesión */}
     {add&&<div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>Nueva Sesión</p>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
@@ -1026,38 +1167,52 @@ function Entrenamientos(){
       <div style={{marginBottom:16}}><Lbl>Notas previas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones previas…"/></div>
       <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={()=>setAdd(false)} variant="ghost">Cancelar</Btn></div>
     </div>}
+
+    {/* Lista sesiones */}
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
       {sessions.map(s=>{const c=TC[s.type]||"#f97316";const op=exp===s.id;return <div key={s.id} style={{background:th.card,border:`1px solid ${th.border}`,borderLeft:`4px solid ${c}`,borderRadius:12,padding:"16px 20px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setExp(op?null:s.id)}>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
             <div style={{minWidth:52,textAlign:"center"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted}}>{s.date}</p><p style={{fontFamily:"DM Mono",fontSize:13,color:c,fontWeight:700}}>{s.dur}'</p></div>
-            <div><h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4}}>{s.title}</h4><div style={{display:"flex",gap:6,alignItems:"center"}}><Badge color={c}>{s.type}</Badge>{s.notes&&<span style={{fontSize:10,color:th.muted}}>📝 con notas</span>}</div></div>
+            <div><h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4}}>{s.title}</h4>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}><Badge color={c}>{s.type}</Badge>{s.notes&&<span style={{fontSize:10,color:th.muted}}>📝</span>}</div>
+            </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button title="Guardar como plantilla" onClick={e=>{e.stopPropagation();setSaveAsTemplate(s.id);setTplName(s.title);}}
+              style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}} title="Guardar como plantilla">
+              <Copy size={13}/>
+            </button>
             <button title="Exportar PDF" onClick={e=>{e.stopPropagation();exportSessionPDF(s);}} style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
             <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={e=>{e.stopPropagation();setSessions(p=>p.filter(x=>x.id!==s.id));}}/>
             <ChevronRight size={15} color={th.muted} style={{transform:op?"rotate(90deg)":"none",transition:"transform .2s"}}/>
           </div>
         </div>
+
+        {/* Diálogo guardar plantilla */}
+        {saveAsTemplate===s.id&&<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${th.border}`,display:"flex",gap:8,alignItems:"center"}}>
+          <input value={tplName} onChange={e=>setTplName(e.target.value)} placeholder="Nombre de la plantilla…" style={{flex:1}}/>
+          <Btn onClick={()=>doSaveTemplate(s.id)} sm>Guardar plantilla</Btn>
+          <Btn onClick={()=>setSaveAsTemplate(null)} variant="ghost" sm>Cancelar</Btn>
+        </div>}
+
         {op&&<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${th.border}`}}>
-          {/* Notas */}
           {editNotes===s.id?(
             <div style={{marginBottom:14}}>
-              <Lbl>Notas del entrenador</Lbl>
-              <textarea rows={4} value={notesVal} onChange={e=>setNotesVal(e.target.value)} placeholder="Observaciones, incidencias, ajustes tácticos, rendimiento del equipo…" style={{marginBottom:8}}/>
-              <div style={{display:"flex",gap:8}}><Btn onClick={()=>saveNotes(s.id)} sm>Guardar notas</Btn><Btn onClick={()=>setEditNotes(null)} variant="ghost" sm>Cancelar</Btn></div>
+              <Lbl>Notas post-entreno</Lbl>
+              <textarea rows={4} value={notesVal} onChange={e=>setNotesVal(e.target.value)} placeholder="Observaciones, rendimiento, ajustes…" style={{marginBottom:8}}/>
+              <div style={{display:"flex",gap:8}}><Btn onClick={()=>saveNotes(s.id)} sm>Guardar</Btn><Btn onClick={()=>setEditNotes(null)} variant="ghost" sm>Cancelar</Btn></div>
             </div>
           ):(
             <div style={{marginBottom:12}}>
-              {s.notes?<div style={{background:c+"0f",borderLeft:`3px solid ${c}`,padding:"8px 12px",borderRadius:4,marginBottom:8,fontSize:12,color:th.sub,lineHeight:1.6}}>
+              {s.notes&&<div style={{background:c+"0f",borderLeft:`3px solid ${c}`,padding:"8px 12px",borderRadius:4,marginBottom:8,fontSize:12,color:th.sub,lineHeight:1.6}}>
                 <strong style={{color:c,fontFamily:"Barlow Condensed",fontSize:13}}>NOTAS</strong><br/>{s.notes}
-              </div>:null}
+              </div>}
               <button onClick={()=>{setEditNotes(s.id);setNotesVal(s.notes||"");}} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:11,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Edit2 size={11}/>{s.notes?"Editar notas":"Añadir notas post-entreno"}
               </button>
             </div>
           )}
-          {/* Ejercicios */}
           {(s.exs||[]).map((ex,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
             <div style={{width:22,height:22,borderRadius:11,background:c+"18",border:`1px solid ${c}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:"DM Mono",fontSize:9,color:c}}>{i+1}</span></div>
             <span style={{fontSize:13,color:th.sub}}>{ex}</span>
@@ -1826,9 +1981,10 @@ export default function App(){
   const[savedDrawings,setSavedDrawingsRaw]=useState([]);
   const[planMesos, setPlanMesosRaw]=useState(null);
   const[planMicro, setPlanMicroRaw]=useState(null);
+  const[sesionTemplates,setSesionTemplatesRaw]=useState([]);
   const[apiKey,    setApiKeyRaw]   = useState(()=>localStorage.getItem("cb_apikey")||"");
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -1854,6 +2010,7 @@ export default function App(){
   const setPlays    =useCallback(fn=>setPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({plays:n});return n;}),[persist]);
   const setEjercicios=useCallback(fn=>setEjerciciosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({ejercicios:n});return n;}),[persist]);
   const setSavedDrawings=useCallback(fn=>setSavedDrawingsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({savedDrawings:n});return n;}),[persist]);
+  const setSesionTemplates=useCallback(fn=>setSesionTemplatesRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({sesionTemplates:n});return n;}),[persist]);
   const setPlanMesos=useCallback(fn=>setPlanMesosRaw(prev=>{const cur=prev||DEFAULT_MESOS_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMesos:n});return n;}),[persist]);
   const setPlanMicro=useCallback(fn=>setPlanMicroRaw(prev=>{const cur=prev||DEFAULT_MICRO_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMicro:n});return n;}),[persist]);
   const setApiKey   =useCallback(v=>{setApiKeyRaw(v);try{localStorage.setItem("cb_apikey",v);}catch{};},[]);
@@ -1874,6 +2031,7 @@ export default function App(){
           if(d.ejercicios){setEjerciciosRaw(d.ejercicios);stRef.current.ejercicios=d.ejercicios;}
           if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
           if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
+          if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
           if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
           if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
           if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
@@ -1897,6 +2055,7 @@ export default function App(){
         if(d.ejercicios) setEjerciciosRaw(d.ejercicios);
         if(d.customEx)   setCustomExRaw(d.customEx);
         if(d.savedDrawings)setSavedDrawingsRaw(d.savedDrawings);
+        if(d.sesionTemplates)setSesionTemplatesRaw(d.sesionTemplates);
         if(d.planMesos) setPlanMesosRaw(d.planMesos);
         if(d.planMicro) setPlanMicroRaw(d.planMicro);
         if(d.dark!==undefined)setDarkRaw(d.dark);
@@ -1923,7 +2082,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
