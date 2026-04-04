@@ -1667,9 +1667,13 @@ function rEl(ctx,el,pv){
 function Pizarra(){
   const{th}=useTheme();const{savedDrawings,setSavedDrawings}=useData();
   const cr=useRef(null);
-  const[tool,setTool]=useState("arrow");const[color,setColor]=useState("#f97316");const[pNum,setPNum]=useState(1);
-  const[step,setStep]=useState(0); // 0-3 = 4 pasos
-  const[steps,setSteps]=useState([[],[],[],[]]); // elements per step
+  const[tool,setTool]=useState("arrow");
+  const[color,setColor]=useState("#f97316");
+  const[playerMode,setPlayerMode]=useState("atk"); // "atk" | "def"
+  const[atkNum,setAtkNum]=useState(1);
+  const[defNum,setDefNum]=useState(1);
+  const[step,setStep]=useState(0);
+  const[steps,setSteps]=useState([[],[],[],[]]);
   const[hist,setHist]=useState([[],[],[],[]]);
   const dr=useRef(false),or=useRef(null);
   const[showSave,setShowSave]=useState(false);const[saveName,setSaveName]=useState("");
@@ -1678,11 +1682,54 @@ function Pizarra(){
   const els=steps[step];
   const setEls=fn=>setSteps(prev=>{const n=[...prev];n[step]=typeof fn==="function"?fn(prev[step]):fn;return n;});
 
+  // Render a player element — attacker (orange filled) or defender (blue, X mark)
+  const rElCustom=(ctx,el,pv=false)=>{
+    ctx.globalAlpha=pv?.45:1;ctx.lineCap="round";ctx.lineJoin="round";
+    if(el.type==="player_atk"){
+      ctx.beginPath();ctx.arc(el.x,el.y,15,0,Math.PI*2);
+      ctx.fillStyle="#f97316";ctx.fill();
+      ctx.strokeStyle="rgba(255,255,255,.9)";ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle="#fff";ctx.font="bold 13px 'Barlow Condensed',sans-serif";
+      ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(el.num),el.x,el.y+.5);
+    } else if(el.type==="player_def"){
+      ctx.beginPath();ctx.arc(el.x,el.y,15,0,Math.PI*2);
+      ctx.fillStyle=th.mode==="dark"?"#1e293b":"#f1f5f9";
+      ctx.fill();ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;ctx.stroke();
+      // X mark
+      const s=7;
+      ctx.strokeStyle="#3b82f6";ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(el.x-s+3,el.y-s+3);ctx.lineTo(el.x+s-3,el.y+s-3);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(el.x+s-3,el.y-s+3);ctx.lineTo(el.x-s+3,el.y+s-3);ctx.stroke();
+      // Number below X
+      ctx.fillStyle="#3b82f6";ctx.font="bold 9px 'Barlow Condensed',sans-serif";
+      ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(el.num),el.x,el.y+6);
+    } else if(el.type==="line"||el.type==="dash"||el.type==="arrow"){
+      if(el.type==="dash")ctx.setLineDash([14,9]);
+      ctx.strokeStyle=el.color;ctx.lineWidth=2.8;ctx.beginPath();ctx.moveTo(el.x1,el.y1);ctx.lineTo(el.x2,el.y2);ctx.stroke();ctx.setLineDash([]);
+      if(el.type==="arrow"){const a=Math.atan2(el.y2-el.y1,el.x2-el.x1);ctx.beginPath();ctx.moveTo(el.x2,el.y2);ctx.lineTo(el.x2-16*Math.cos(a-Math.PI/6),el.y2-16*Math.sin(a-Math.PI/6));ctx.lineTo(el.x2-16*Math.cos(a+Math.PI/6),el.y2-16*Math.sin(a+Math.PI/6));ctx.closePath();ctx.fillStyle=el.color;ctx.fill();}
+    } else {
+      rEl(ctx,el,false);
+    }
+    ctx.globalAlpha=1;
+  };
+
   const gp=e=>{const r=cr.current.getBoundingClientRect();return{x:(e.clientX-r.left)*(CW/r.width),y:(e.clientY-r.top)*(CH/r.height)};};
-  const rd=useCallback((es,pv=null)=>{const ctx=cr.current?.getContext("2d");if(!ctx)return;ctx.clearRect(0,0,CW,CH);dCourt(ctx);es.forEach(el=>rEl(ctx,el,false));if(pv)rEl(ctx,pv,true);},[]);
+  const rd=useCallback((es,pv=null)=>{const ctx=cr.current?.getContext("2d");if(!ctx)return;ctx.clearRect(0,0,CW,CH);dCourt(ctx);es.forEach(el=>rElCustom(ctx,el,false));if(pv)rElCustom(ctx,pv,true);},[th.mode]);
   useEffect(()=>rd(els),[els,rd,step]);
 
-  const oD=e=>{const p=gp(e);if(tool==="player"){const el={type:"player",x:p.x,y:p.y,color,num:pNum};setHist(h=>{const n=[...h];n[step]=[...n[step],els];return n;});setEls(ps=>[...ps,el]);setPNum(n=>n<15?n+1:1);return;}or.current=p;dr.current=true;};
+  const oD=e=>{
+    const p=gp(e);
+    if(tool==="player"){
+      const isAtk=playerMode==="atk";
+      const el={type:isAtk?"player_atk":"player_def",x:p.x,y:p.y,num:isAtk?atkNum:defNum};
+      setHist(h=>{const n=[...h];n[step]=[...n[step],els];return n;});
+      setEls(ps=>[...ps,el]);
+      if(isAtk)setAtkNum(n=>n<5?n+1:1);
+      else setDefNum(n=>n<5?n+1:1);
+      return;
+    }
+    or.current=p;dr.current=true;
+  };
   const oM=e=>{if(!dr.current||!or.current)return;const p=gp(e);rd(els,{type:tool,x1:or.current.x,y1:or.current.y,x2:p.x,y2:p.y,color});};
   const oU=e=>{if(!dr.current||!or.current)return;const p=gp(e);if(Math.abs(p.x-or.current.x)>5||Math.abs(p.y-or.current.y)>5){const el={type:tool,x1:or.current.x,y1:or.current.y,x2:p.x,y2:p.y,color};setHist(h=>{const n=[...h];n[step]=[...n[step],els];return n;});setEls(ps=>[...ps,el]);}dr.current=false;or.current=null;};
   const undo=()=>{const h=hist[step];if(!h||!h.length)return;const prev=h[h.length-1];setHist(hh=>{const n=[...hh];n[step]=n[step].slice(0,-1);return n;});setEls(prev);};
@@ -1691,66 +1738,124 @@ function Pizarra(){
   const savePlay=()=>{if(!saveName)return;const id=Date.now();setSavedDrawings(prev=>[...prev,{id,name:saveName,steps:steps.map(s=>[...s])}]);setSaveName("");setShowSave(false);};
   const loadPlay=play=>{setSteps(play.steps.map(s=>[...s]));setHist([[],[],[],[]]);setSelPlay(null);};
 
-  const tools=[{id:"line",icon:"—",label:"Línea",sub:"Continua"},{id:"arrow",icon:"→",label:"Flecha",sub:"Movimiento"},{id:"dash",icon:"╌╌",label:"Pase",sub:"Discontinua"},{id:"player",icon:"①",label:"Jugador",sub:"Numerado"}];
+  const lineTools=[{id:"arrow",label:"Flecha",icon:"→"},{id:"line",label:"Línea",icon:"—"},{id:"dash",label:"Pase",icon:"╌╌"}];
 
   return <div>
-    <SH title="Pizarra" sub="4 pasos por jugada · Guarda jugadas para reutilizarlas"/>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 220px",gap:16}}>
+    <SH title="Pizarra" sub="Atacantes · Defensores · 4 pasos por jugada"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 200px",gap:16}}>
       <div className="card" style={{padding:16}}>
-        {/* Step tabs */}
+        {/* Pasos */}
         <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
           <span style={{fontSize:11,color:th.muted,fontFamily:"Barlow Condensed,sans-serif",textTransform:"uppercase",marginRight:4}}>Paso:</span>
-          {[0,1,2,3].map(i=><button key={i} onClick={()=>setStep(i)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${step===i?"#f97316":th.border2}`,background:step===i?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,fontSize:14,color:step===i?"#f97316":th.sub,transition:"all .15s",position:"relative"}}>
-            {i+1}
-            {steps[i].length>0&&<span style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:4,background:"#f97316"}}/>}
+          {[0,1,2,3].map(i=><button key={i} onClick={()=>setStep(i)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${step===i?"#f97316":th.border2}`,background:step===i?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,fontSize:14,color:step===i?"#f97316":th.sub,position:"relative"}}>
+            {i+1}{steps[i].length>0&&<span style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:4,background:"#f97316"}}/>}
           </button>)}
           <div style={{flex:1}}/>
-          <button onClick={()=>{setSaveName("");setShowSave(!showSave);}} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.07)",cursor:"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}><Save size={12}/>Guardar jugada</button>
+          <button onClick={()=>{setSaveName("");setShowSave(!showSave);}} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.07)",cursor:"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}><Save size={12}/>Guardar</button>
         </div>
         {showSave&&<div style={{display:"flex",gap:8,marginBottom:12}}>
           <input value={saveName} onChange={e=>setSaveName(e.target.value)} placeholder="Nombre de la jugada…" style={{flex:1}}/>
-          <Btn onClick={savePlay} sm>Guardar</Btn>
-          <Btn onClick={()=>setShowSave(false)} variant="ghost" sm>✗</Btn>
+          <Btn onClick={savePlay} sm>Guardar</Btn><Btn onClick={()=>setShowSave(false)} variant="ghost" sm>✗</Btn>
         </div>}
-        {/* Toolbar */}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-          <div style={{display:"flex",gap:5}}>{tools.map(t=><button key={t.id} onClick={()=>setTool(t.id)} title={t.label} style={{height:34,padding:"0 10px",borderRadius:8,border:`1px solid ${tool===t.id?"#f97316":th.border2}`,background:tool===t.id?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontSize:14,color:tool===t.id?"#f97316":th.sub,transition:"all .15s",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>{t.icon}</button>)}</div>
+
+        {/* Toolbar principal */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+
+          {/* Atacante / Defensor */}
+          <div style={{display:"flex",gap:0,borderRadius:8,overflow:"hidden",border:`1px solid ${th.border2}`}}>
+            <button onClick={()=>{setTool("player");setPlayerMode("atk");}} style={{padding:"6px 12px",border:"none",background:tool==="player"&&playerMode==="atk"?"rgba(249,115,22,.2)":th.card2,cursor:"pointer",display:"flex",alignItems:"center",gap:5,borderRight:`1px solid ${th.border2}`}}>
+              <div style={{width:18,height:18,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:10,fontWeight:700,color:"#fff"}}>{atkNum}</div>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,color:tool==="player"&&playerMode==="atk"?"#f97316":th.sub}}>ATK</span>
+            </button>
+            <button onClick={()=>{setTool("player");setPlayerMode("def");}} style={{padding:"6px 12px",border:"none",background:tool==="player"&&playerMode==="def"?"rgba(59,130,246,.2)":th.card2,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+              <div style={{width:18,height:18,borderRadius:9,background:"transparent",border:"2px solid #3b82f6",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:9,fontWeight:700,color:"#3b82f6"}}>✕</div>
+              <span style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:12,fontWeight:700,color:tool==="player"&&playerMode==="def"?"#3b82f6":th.sub}}>DEF</span>
+            </button>
+          </div>
+
+          {/* Reset counters */}
+          {tool==="player"&&<button onClick={()=>{setAtkNum(1);setDefNum(1);}} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:10,color:th.muted,fontFamily:"Barlow Condensed,sans-serif"}}>Reset 1-5</button>}
+
           <div style={{width:1,height:26,background:th.border2}}/>
-          <div style={{display:"flex",gap:4,alignItems:"center"}}>{DC2.map(c=><div key={c} onClick={()=>setColor(c)} style={{width:20,height:20,borderRadius:10,background:c,cursor:"pointer",border:`2px solid ${color===c?"#fff":"transparent"}`,outline:color===c?`2px solid ${c}`:"none",outlineOffset:1}}/>)}</div>
-          {tool==="player"&&<><div style={{width:1,height:26,background:th.border2}}/><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:10,color:th.muted,fontFamily:"Barlow Condensed,sans-serif",textTransform:"uppercase"}}>Nº</span><button onClick={()=>setPNum(n=>Math.max(1,n-1))} style={{width:24,height:24,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>-</button><span style={{fontFamily:"DM Mono",fontSize:14,color:"#f97316",minWidth:20,textAlign:"center",fontWeight:700}}>{pNum}</span><button onClick={()=>setPNum(n=>Math.min(15,n+1))} style={{width:24,height:24,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button></div></>}
+
+          {/* Líneas */}
+          {lineTools.map(t=><button key={t.id} onClick={()=>setTool(t.id)} title={t.label} style={{height:32,padding:"0 10px",borderRadius:8,border:`1px solid ${tool===t.id?"#f97316":th.border2}`,background:tool===t.id?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontSize:14,color:tool===t.id?"#f97316":th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>{t.icon}</button>)}
+
+          {/* Colores (solo para líneas) */}
+          {tool!=="player"&&<>
+            <div style={{width:1,height:26,background:th.border2}}/>
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>{DC2.map(c=><div key={c} onClick={()=>setColor(c)} style={{width:20,height:20,borderRadius:10,background:c,cursor:"pointer",border:`2px solid ${color===c?"#fff":"transparent"}`,outline:color===c?`2px solid ${c}`:"none",outlineOffset:1}}/>)}</div>
+          </>}
+
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
             <button onClick={undo} disabled={!(hist[step]||[]).length} style={{width:32,height:32,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub,opacity:(hist[step]||[]).length?1:.35}}><RotateCcw size={13}/></button>
             <button onClick={clr} style={{width:32,height:32,borderRadius:7,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={13}/></button>
           </div>
         </div>
-        <div style={{borderRadius:8,overflow:"hidden",lineHeight:0,border:`1px solid ${th.border}`}}>
-          <canvas ref={cr} width={CW} height={CH} style={{width:"100%",height:"auto",display:"block",cursor:"crosshair",touchAction:"none"}} onMouseDown={oD} onMouseMove={oM} onMouseUp={oU} onMouseLeave={()=>{if(dr.current){dr.current=false;or.current=null;rd(els);}}}/>
+
+        {/* Leyenda rápida ATK/DEF */}
+        <div style={{display:"flex",gap:16,marginBottom:8}}>
+          {[1,2,3,4,5].map(n=><div key={n} style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:18,height:18,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:10,fontWeight:700,color:"#fff"}}>{n}</div>
+            <div style={{width:18,height:18,borderRadius:9,background:"transparent",border:"2px solid #3b82f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#3b82f6",fontWeight:700}}>✕</div>
+          </div>)}
+          <span style={{fontSize:10,color:th.muted,marginLeft:4}}>🟠 Atacantes · 🔵 Defensores</span>
         </div>
-        <p style={{fontSize:11,color:th.muted,marginTop:8}}>Paso {step+1}/4 · {els.length} elementos · Navega entre pasos para mostrar secuencias de movimiento</p>
+
+        <div style={{borderRadius:8,overflow:"hidden",lineHeight:0,border:`1px solid ${th.border}`}}>
+          <canvas ref={cr} width={CW} height={CH} style={{width:"100%",height:"auto",display:"block",cursor:tool==="player"?"crosshair":"crosshair",touchAction:"none"}}
+            onMouseDown={oD} onMouseMove={oM} onMouseUp={oU}
+            onMouseLeave={()=>{if(dr.current){dr.current=false;or.current=null;rd(els);}}}/>
+        </div>
+        <p style={{fontSize:11,color:th.muted,marginTop:8}}>Paso {step+1}/4 · {els.length} elementos · Haz clic para colocar jugadores, arrastra para trazar líneas</p>
       </div>
 
       {/* Sidebar */}
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div className="card" style={{padding:16}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Herramientas</p>
-          {tools.map(t=><div key={t.id} onClick={()=>setTool(t.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:tool===t.id?"rgba(249,115,22,.1)":th.card2,border:`1px solid ${tool===t.id?"#f97316":th.border}`,marginBottom:6,transition:"all .15s"}}>
-            <span style={{fontSize:16,color:tool===t.id?"#f97316":th.sub,minWidth:22,textAlign:"center"}}>{t.icon}</span>
-            <div><p style={{fontSize:13,fontFamily:"Barlow Condensed",fontWeight:700,color:tool===t.id?"#f97316":th.text}}>{t.label}</p><p style={{fontSize:10,color:th.muted}}>{t.sub}</p></div>
+        {/* Info jugadores */}
+        <div className="card" style={{padding:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Posiciones</p>
+          <div style={{marginBottom:10}}>
+            <p style={{fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed",fontWeight:700,textTransform:"uppercase",marginBottom:5}}>Atacantes</p>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {[1,2,3,4,5].map(n=><button key={n} onClick={()=>{setTool("player");setPlayerMode("atk");setAtkNum(n);}}
+                style={{width:30,height:30,borderRadius:15,background:atkNum===n&&tool==="player"&&playerMode==="atk"?"#f97316":"#f9731630",border:`2px solid ${atkNum===n&&tool==="player"&&playerMode==="atk"?"#f97316":"transparent"}`,cursor:"pointer",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:atkNum===n&&tool==="player"&&playerMode==="atk"?"#fff":"#f97316"}}>
+                {n}
+              </button>)}
+            </div>
+          </div>
+          <div>
+            <p style={{fontSize:11,color:"#3b82f6",fontFamily:"Barlow Condensed",fontWeight:700,textTransform:"uppercase",marginBottom:5}}>Defensores</p>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {[1,2,3,4,5].map(n=><button key={n} onClick={()=>{setTool("player");setPlayerMode("def");setDefNum(n);}}
+                style={{width:30,height:30,borderRadius:15,background:"transparent",border:`2px solid ${defNum===n&&tool==="player"&&playerMode==="def"?"#3b82f6":th.border2}`,cursor:"pointer",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:defNum===n&&tool==="player"&&playerMode==="def"?"#3b82f6":th.muted}}>
+                {n}
+              </button>)}
+            </div>
+          </div>
+        </div>
+
+        {/* Herramientas */}
+        <div className="card" style={{padding:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Herramientas</p>
+          {lineTools.map(t=><div key={t.id} onClick={()=>setTool(t.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:7,cursor:"pointer",background:tool===t.id?"rgba(249,115,22,.1)":th.card2,border:`1px solid ${tool===t.id?"#f97316":th.border}`,marginBottom:5}}>
+            <span style={{fontSize:15,minWidth:22,textAlign:"center",color:tool===t.id?"#f97316":th.sub}}>{t.icon}</span>
+            <p style={{fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700,color:tool===t.id?"#f97316":th.text}}>{t.label}</p>
           </div>)}
         </div>
 
-        {/* Saved plays */}
-        <div className="card" style={{padding:16,flex:1}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Jugadas Guardadas</p>
-          {savedDrawings.length===0?<p style={{fontSize:11,color:th.muted}}>No hay jugadas guardadas aún</p>:
-          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:250,overflowY:"auto"}}>
-            {savedDrawings.map(play=><div key={play.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`}}>
+        {/* Jugadas guardadas */}
+        <div className="card" style={{padding:14,flex:1}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Guardadas</p>
+          {savedDrawings.length===0?<p style={{fontSize:11,color:th.muted}}>Sin jugadas guardadas</p>:
+          <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:200,overflowY:"auto"}}>
+            {savedDrawings.map(play=><div key={play.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 8px",borderRadius:7,background:th.card2,border:`1px solid ${th.border}`}}>
               <div style={{flex:1}}>
-                <p style={{fontSize:12,color:th.text,fontFamily:"Barlow Condensed",fontWeight:700}}>{play.name}</p>
-                <p style={{fontSize:10,color:th.muted}}>{play.steps.filter(s=>s.length>0).length} pasos</p>
+                <p style={{fontSize:11,color:th.text,fontFamily:"Barlow Condensed",fontWeight:700}}>{play.name}</p>
+                <p style={{fontSize:9,color:th.muted}}>{play.steps.filter(s=>s.length>0).length} pasos</p>
               </div>
-              <button onClick={()=>loadPlay(play)} title="Cargar" style={{width:26,height:26,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Copy size={11}/></button>
-              <button onClick={()=>setSavedDrawings(prev=>prev.filter(p=>p.id!==play.id))} style={{width:26,height:26,borderRadius:6,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>
+              <button onClick={()=>loadPlay(play)} style={{width:24,height:24,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Copy size={10}/></button>
+              <button onClick={()=>setSavedDrawings(prev=>prev.filter(p=>p.id!==play.id))} style={{width:24,height:24,borderRadius:6,border:"none",background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={10}/></button>
             </div>)}
           </div>}
         </div>
@@ -1978,6 +2083,133 @@ function Calendario(){
     </div>
   </div>;
 }
+
+/* ══════════════════════════════════════════════════════════
+   14. IA ASISTENTE
+══════════════════════════════════════════════════════════ */
+function IAAsistente(){
+  const{th}=useTheme();
+  const{players,matches,sessions,apiKey}=useData();
+  const[tab,setTab]=useState("rival");
+  const[rivalText,setRivalText]=useState("");const[rivalResult,setRivalResult]=useState(null);const[rivalLoading,setRivalLoading]=useState(false);
+  const[sesObj,setSesObj]=useState("");const[sesDur,setSesDur]=useState("90");const[sesFocus,setSesFocus]=useState("Técnico-Táctico");const[sesResult,setSesResult]=useState(null);const[sesLoading,setSesLoading]=useState(false);
+  const[resResult,setResResult]=useState(null);const[resLoading,setResLoading]=useState(false);
+  const rivalFileRef=useRef();
+  const noKey=!apiKey;
+
+  const analyzeRival=async()=>{
+    if(noKey){setRivalResult({error:"Configura tu API Key en ⚙️ Ajustes del sidebar."});return;}
+    if(!rivalText.trim()&&!rivalFileRef.current?.files?.[0]){setRivalResult({error:"Introduce información del rival o sube un PDF."});return;}
+    setRivalLoading(true);setRivalResult(null);
+    try{
+      const content=[];
+      if(rivalFileRef.current?.files?.[0]){
+        const f=rivalFileRef.current.files[0];
+        const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
+        content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}});
+      }
+      content.push({type:"text",text:`Eres un analista táctico de baloncesto experto. ${rivalText?`Información del rival:\n${rivalText}\n\n`:""}Genera un informe táctico completo en español con:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR\n5. JUGADAS CLAVE a preparar\n\nSé específico, práctico y directo.`});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1200,messages:[{role:"user",content}]});
+      setRivalResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
+    }catch(e){setRivalResult({error:e.message});}
+    setRivalLoading(false);
+    if(rivalFileRef.current)rivalFileRef.current.value="";
+  };
+
+  const generateSession=async()=>{
+    if(noKey){setSesResult({error:"Configura tu API Key en ⚙️ Ajustes."});return;}
+    if(!sesObj.trim()){setSesResult({error:"Describe el objetivo del entrenamiento."});return;}
+    setSesLoading(true);setSesResult(null);
+    try{
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`Eres entrenador de baloncesto. Genera una sesión de entrenamiento completa:\n- Duración: ${sesDur} min\n- Tipo: ${sesFocus}\n- Objetivo: ${sesObj}\n- Nivel: Sénior amateur\n\nIncluye:\n1. TÍTULO\n2. CALENTAMIENTO (duración + descripción)\n3. PARTE PRINCIPAL: 3-4 ejercicios con nombre, duración y descripción\n4. VUELTA A LA CALMA\n5. PUNTOS CLAVE para el equipo\n\nFormato práctico y directamente aplicable.`}]});
+      setSesResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
+    }catch(e){setSesResult({error:e.message});}
+    setSesLoading(false);
+  };
+
+  const generateResumen=async()=>{
+    if(noKey){setResResult({error:"Configura tu API Key en ⚙️ Ajustes."});return;}
+    setResLoading(true);setResResult(null);
+    try{
+      const played=matches.filter(m=>m.pts_us!=null);
+      const wins=played.filter(m=>m.pts_us>m.pts_them).length;
+      const active=players.filter(p=>p.active);
+      const statsStr=active.map(p=>{const c=calcStats(p);return `${p.name}: PJ ${p.pj}, PTS/P ${c.pts_p}, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, TL% ${c.tl_pct}%`;}).join("\n");
+      const matchStr=played.slice(-10).map(m=>`${m.date} vs ${m.rival}: ${m.pts_us}-${m.pts_them} (${m.pts_us>m.pts_them?"V":"D"})`).join("\n");
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1400,messages:[{role:"user",content:`Eres el analista del CB Binissalem Sénior A. Genera un informe narrativo de temporada con estos datos reales:\n\nRESULTADOS (${wins}V-${played.length-wins}D en ${played.length} partidos):\n${matchStr}\n\nESTADÍSTICAS:\n${statsStr}\n\nSESIONES ENTRENAMIENTO: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO (narrativo)\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS con datos\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN motivadora\n\nTono profesional y honesto basado en datos reales.`}]});
+      setResResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
+    }catch(e){setResResult({error:e.message});}
+    setResLoading(false);
+  };
+
+  const ResultBox=({result,loading})=>{
+    if(loading)return <div style={{textAlign:"center",padding:"40px 0"}}><Loader size={28} color="#f97316" style={{animation:"spin 1s linear infinite",margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:13}}>La IA está analizando…</p></div>;
+    if(!result)return null;
+    if(result.error)return <div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{result.error}</div>;
+    return <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:520,overflowY:"auto"}}>{result.text}</div>;
+  };
+
+  return <div>
+    <SH title="IA Asistente" sub="Análisis táctico · Sesiones · Resumen de temporada"/>
+    {noKey&&<div style={{background:"rgba(245,158,11,.07)",border:"1px solid rgba(245,158,11,.3)",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#f59e0b"}}>
+      ⚙️ Para usar la IA necesitas configurar tu API Key de Anthropic en el botón <strong>⚙️ API Key</strong> del sidebar.
+    </div>}
+    <TB tabs={[["rival","🏀 Análisis Rival"],["sesion","📋 Generador de Sesión"],["resumen","📊 Resumen Temporada"]]} active={tab} onChange={setTab}/>
+
+    {tab==="rival"&&<div>
+      <div className="card" style={{padding:20,marginBottom:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:4}}>Información sobre el rival</p>
+        <p style={{fontSize:12,color:th.muted,marginBottom:12}}>Pega texto con datos del rival o sube un PDF de scouting. La IA generará un informe táctico completo.</p>
+        <textarea rows={5} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Ej: El CB Inca usa un 2-3 en zona, su #14 anota 18 pts/P, son débiles en el bloqueo directo, su base gira siempre a derecha..."/>
+        <div style={{display:"flex",gap:10,marginTop:12,alignItems:"center",flexWrap:"wrap"}}>
+          <input ref={rivalFileRef} type="file" accept=".pdf" style={{display:"none"}}/>
+          <button onClick={()=>rivalFileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <FileText size={13}/>PDF de scouting
+          </button>
+          <Btn onClick={analyzeRival} disabled={rivalLoading} icon={rivalLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
+            {rivalLoading?"Analizando…":"Generar informe táctico"}
+          </Btn>
+        </div>
+      </div>
+      <ResultBox result={rivalResult} loading={rivalLoading}/>
+    </div>}
+
+    {tab==="sesion"&&<div>
+      <div className="card" style={{padding:20,marginBottom:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:14}}>Describe el entrenamiento que necesitas</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 110px 180px",gap:12,marginBottom:14}}>
+          <div><Lbl>Objetivo principal</Lbl><input value={sesObj} onChange={e=>setSesObj(e.target.value)} placeholder="Ej: defensa press y contraataque…"/></div>
+          <div><Lbl>Duración (min)</Lbl><input type="number" value={sesDur} onChange={e=>setSesDur(e.target.value)}/></div>
+          <div><Lbl>Tipo de sesión</Lbl><select value={sesFocus} onChange={e=>setSesFocus(e.target.value)}>{["Técnico-Táctico","Físico","Técnico","Táctico","Recuperación","Pre-partido"].map(t=><option key={t}>{t}</option>)}</select></div>
+        </div>
+        <Btn onClick={generateSession} disabled={sesLoading} icon={sesLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
+          {sesLoading?"Generando…":"Generar sesión completa"}
+        </Btn>
+      </div>
+      <ResultBox result={sesResult} loading={sesLoading}/>
+    </div>}
+
+    {tab==="resumen"&&<div>
+      <div className="card" style={{padding:20,marginBottom:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:4}}>Resumen narrativo de temporada</p>
+        <p style={{fontSize:12,color:th.muted,marginBottom:14}}>La IA analiza todos tus datos (partidos, estadísticas, sesiones) y genera un informe completo del estado de la temporada.</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+          {[["Partidos jugados",matches.filter(m=>m.pts_us!=null).length],["Victorias",matches.filter(m=>m.pts_us!=null&&m.pts_us>m.pts_them).length],["Jugadores activos",players.filter(p=>p.active).length],["Sesiones",sessions.length]].map(([l,v])=>(
+            <div key={l} style={{textAlign:"center",padding:"12px 8px",background:th.card2,borderRadius:8,border:`1px solid ${th.border}`}}>
+              <p style={{fontFamily:"DM Mono",fontSize:24,fontWeight:700,color:"#f97316",marginBottom:4}}>{v}</p>
+              <p style={{fontSize:10,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase"}}>{l}</p>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={generateResumen} disabled={resLoading} icon={resLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
+          {resLoading?"Analizando temporada…":"Generar resumen de temporada"}
+        </Btn>
+      </div>
+      <ResultBox result={resResult} loading={resLoading}/>
+    </div>}
+  </div>;
+}
+
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
@@ -1991,9 +2223,10 @@ const NAV=[
   {id:"playbook", label:"Playbook",      icon:BookOpen},
   {id:"exercises",label:"Ejercicios",    icon:Zap},
   {id:"pizarra",  label:"Pizarra",       icon:PenTool},
+  {id:"ia",       label:"IA Asistente",  icon:Brain},
   {id:"recursos", label:"Recursos",      icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,train:Entrenamientos,attend:Asistencia,lineup:Quinteto,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,train:Entrenamientos,attend:Asistencia,lineup:Quinteto,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
