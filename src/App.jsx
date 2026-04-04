@@ -44,18 +44,18 @@ const calcStats=p=>{
   };
 };
 const DP = [
-  {id:1, name:"Joan Mir Crespí",      num:4,  pos:"Base",      active:true,  pj:18,pt:223,min:486,tl_i:42,tl_m:34,t2_i:78,t2_m:52,t3_i:38,t3_m:14,fc:32},
-  {id:2, name:"Toni Alcover Pons",    num:7,  pos:"Escolta",   active:true,  pj:17,pt:173,min:425,tl_i:28,tl_m:20,t2_i:64,t2_m:40,t3_i:45,t3_m:17,fc:28},
-  {id:3, name:"Marc Rosselló Vich",   num:11, pos:"Alero",     active:true,  pj:18,pt:157,min:392,tl_i:22,tl_m:16,t2_i:55,t2_m:34,t3_i:32,t3_m:11,fc:35},
-  {id:4, name:"Pau Vicens Fiol",      num:14, pos:"Ala-Pívot", active:true,  pj:16,pt:120,min:368,tl_i:38,tl_m:28,t2_i:72,t2_m:48,t3_i:8, t3_m:2, fc:42},
-  {id:5, name:"Biel Moyà Llull",      num:21, pos:"Pívot",     active:true,  pj:18,pt:113,min:340,tl_i:52,tl_m:38,t2_i:68,t2_m:48,t3_i:2, t3_m:0, fc:48},
-  {id:6, name:"Andreu Pons Amengual", num:8,  pos:"Base",      active:true,  pj:17,pt:155,min:408,tl_i:30,tl_m:22,t2_i:58,t2_m:36,t3_i:42,t3_m:15,fc:30},
-  {id:7, name:"Miquel Bestard Sans",  num:15, pos:"Escolta",   active:true,  pj:16,pt:138,min:372,tl_i:24,tl_m:18,t2_i:62,t2_m:40,t3_i:36,t3_m:13,fc:26},
-  {id:8, name:"Rafel Perelló Reus",   num:3,  pos:"Alero",     active:true,  pj:15,pt:102,min:318,tl_i:18,tl_m:13,t2_i:48,t2_m:30,t3_i:28,t3_m:9, fc:22},
-  {id:9, name:"Arnau Sastre Munar",   num:23, pos:"Ala-Pívot", active:true,  pj:14,pt:76, min:280,tl_i:16,tl_m:11,t2_i:44,t2_m:28,t3_i:10,t3_m:3, fc:30},
-  {id:10,name:"Tomeu Ramis Fiol",     num:33, pos:"Pívot",     active:true,  pj:15,pt:63, min:255,tl_i:24,tl_m:16,t2_i:40,t2_m:26,t3_i:0, t3_m:0, fc:38},
-  {id:11,name:"Xavi Colom Ferrer",    num:9,  pos:"Escolta",   active:false, pj:8, pt:46, min:182,tl_i:10,tl_m:7, t2_i:22,t2_m:13,t3_i:18,t3_m:6, fc:12},
-  {id:12,name:"Jaume Morro Pujol",    num:17, pos:"Alero",     active:true,  pj:16,pt:126,min:348,tl_i:20,tl_m:14,t2_i:52,t2_m:32,t3_i:30,t3_m:10,fc:24},
+  {id:1, name:"Joan Mir Crespí",      num:4,  pos:"Base",      active:true,  lesionado:false,equipo:"A",pj:18,pt:223,min:486,tl_i:42,tl_m:34,t2_i:78,t2_m:52,t3_i:38,t3_m:14,fc:32},
+  {id:2, name:"Toni Alcover Pons",    num:7,  pos:"Escolta",   active:true,  lesionado:false,equipo:"A",pj:17,pt:173,min:425,tl_i:28,tl_m:20,t2_i:64,t2_m:40,t3_i:45,t3_m:17,fc:28},
+  {id:3, name:"Marc Rosselló Vich",   num:11, pos:"Alero",     active:true,  lesionado:false,equipo:"A",pj:18,pt:157,min:392,tl_i:22,tl_m:16,t2_i:55,t2_m:34,t3_i:32,t3_m:11,fc:35},
+  {id:4, name:"Pau Vicens Fiol",      num:14, pos:"Ala-Pívot", active:true,  lesionado:false,equipo:"A",pj:16,pt:120,min:368,tl_i:38,tl_m:28,t2_i:72,t2_m:48,t3_i:8, t3_m:2, fc:42},
+  {id:5, name:"Biel Moyà Llull",      num:21, pos:"Pívot",     active:true,  lesionado:false,equipo:"A",pj:18,pt:113,min:340,tl_i:52,tl_m:38,t2_i:68,t2_m:48,t3_i:2, t3_m:0, fc:48},
+  {id:6, name:"Andreu Pons Amengual", num:8,  pos:"Base",      active:true,  lesionado:false,equipo:"A",pj:17,pt:155,min:408,tl_i:30,tl_m:22,t2_i:58,t2_m:36,t3_i:42,t3_m:15,fc:30},
+  {id:7, name:"Miquel Bestard Sans",  num:15, pos:"Escolta",   active:true,  lesionado:false,equipo:"A",pj:16,pt:138,min:372,tl_i:24,tl_m:18,t2_i:62,t2_m:40,t3_i:36,t3_m:13,fc:26},
+  {id:8, name:"Rafel Perelló Reus",   num:3,  pos:"Alero",     active:true,  lesionado:false,equipo:"A",pj:15,pt:102,min:318,tl_i:18,tl_m:13,t2_i:48,t2_m:30,t3_i:28,t3_m:9, fc:22},
+  {id:9, name:"Arnau Sastre Munar",   num:23, pos:"Ala-Pívot", active:true,  lesionado:false,equipo:"A",pj:14,pt:76, min:280,tl_i:16,tl_m:11,t2_i:44,t2_m:28,t3_i:10,t3_m:3, fc:30},
+  {id:10,name:"Tomeu Ramis Fiol",     num:33, pos:"Pívot",     active:true,  lesionado:false,equipo:"A",pj:15,pt:63, min:255,tl_i:24,tl_m:16,t2_i:40,t2_m:26,t3_i:0, t3_m:0, fc:38},
+  {id:11,name:"Xavi Colom Ferrer",    num:9,  pos:"Escolta",   active:false, lesionado:false,equipo:"A",pj:8, pt:46, min:182,tl_i:10,tl_m:7, t2_i:22,t2_m:13,t3_i:18,t3_m:6, fc:12},
+  {id:12,name:"Jaume Morro Pujol",    num:17, pos:"Alero",     active:true,  lesionado:false,equipo:"A",pj:16,pt:126,min:348,tl_i:20,tl_m:14,t2_i:52,t2_m:32,t3_i:30,t3_m:10,fc:24},
 ];
 const DS = [
   {id:1,date:"2025-04-08",type:"Técnico-Táctico",dur:90,title:"Presentación + Ataque posicional",notes:"",exs:["Calentamiento 15'","Sistemas ofensivos 40'","5v5 restringido 25'","Vuelta calma 10'"]},
@@ -278,8 +278,8 @@ function exportSessionPDF(session){
 function Dashboard(){
   const{th}=useTheme();const{players,matches,sessions,attDates}=useData();
   const active=players.filter(p=>p.active);
-  const wins=matches.filter(m=>m.pts_us>m.pts_them).length;
-  const losses=matches.filter(m=>m.pts_us<=m.pts_them).length;
+  const wins=matches.filter(m=>m.pts_us!=null&&m.pts_us>m.pts_them).length;
+  const losses=matches.filter(m=>m.pts_us!=null&&m.pts_us<=m.pts_them).length;
   const avgPts=active.length?(active.reduce((a,p)=>a+calcStats(p).pts_p,0)/active.length).toFixed(1):"—";
   const avgMin=active.length?(active.reduce((a,p)=>a+calcStats(p).min_p,0)/active.length).toFixed(1):"—";
 
@@ -374,16 +374,15 @@ function Plantilla(){
   const{th}=useTheme();const{players,setPlayers}=useData();
   const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
   const[sa,setSa]=useState(false);const[xlsxMsg,setXlsxMsg]=useState(null);
-  const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,...emptyStats()});
+  const[af,setAf]=useState({name:"",num:"",pos:"Base",active:true,lesionado:false,equipo:"A",...emptyStats()});
   const pos=["Base","Escolta","Alero","Ala-Pívot","Pívot"];
   const rawFields=["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"];
   const xlsxRef=useRef();
 
-  const se=p=>{setEd(p.id);setEf({name:p.name,num:p.num,pos:p.pos,active:p.active,...Object.fromEntries(rawFields.map(k=>[k,p[k]??0]))});};
+  const se=p=>{setEd(p.id);setEf({name:p.name,num:p.num,pos:p.pos,active:p.active??true,lesionado:p.lesionado??false,equipo:p.equipo||"A",...Object.fromEntries(rawFields.map(k=>[k,p[k]??0]))});};
   const sv=()=>{setPlayers(prev=>prev.map(p=>p.id===ed?{...p,...ef,num:+ef.num,...Object.fromEntries(rawFields.map(k=>[k,+ef[k]]))}:p));setEd(null);};
   const dl=id=>setPlayers(prev=>prev.filter(p=>p.id!==id));
-  const tg=id=>setPlayers(prev=>prev.map(p=>p.id===id?{...p,active:!p.active}:p));
-  const add=()=>{if(!af.name||!af.num)return;const id=Math.max(0,...players.map(p=>p.id))+1;setPlayers(prev=>[...prev,{id,...af,num:+af.num,...Object.fromEntries(rawFields.map(k=>[k,+af[k]]))}]);setAf({name:"",num:"",pos:"Base",active:true,...emptyStats()});setSa(false);};
+  const add=()=>{if(!af.name||!af.num)return;const id=Math.max(0,...players.map(p=>p.id))+1;setPlayers(prev=>[...prev,{id,...af,num:+af.num,...Object.fromEntries(rawFields.map(k=>[k,+af[k]]))}]);setAf({name:"",num:"",pos:"Base",active:true,lesionado:false,equipo:"A",...emptyStats()});setSa(false);};
 
   // Excel import — columnas esperadas: Nombre, Dorsal, Posicion, PJ, PT, Min, TL_i, TL_m, T2_i, T2_m, T3_i, T3_m, FC
   const handleXLSX=e=>{
@@ -422,10 +421,24 @@ function Plantilla(){
   </div>;
 
   const EditPanel=({state,setState})=><>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:14}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 90px 150px",gap:12,marginBottom:12}}>
       <div><Lbl>Nombre completo</Lbl><input value={state.name} onChange={e=>setState(f=>({...f,name:e.target.value}))}/></div>
       <div><Lbl>Dorsal</Lbl><input type="number" value={state.num} onChange={e=>setState(f=>({...f,num:e.target.value}))}/></div>
       <div><Lbl>Posición</Lbl><select value={state.pos} onChange={e=>setState(f=>({...f,pos:e.target.value}))}>{pos.map(p=><option key={p}>{p}</option>)}</select></div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+      <div>
+        <Lbl>Estado</Lbl>
+        <div style={{display:"flex",gap:6}}>
+          {[["activo","#10b981"],["lesionado","#f59e0b"],["baja","#ef4444"]].map(([v,c])=><button key={v} type="button" onClick={()=>setState(f=>({...f,active:v==="activo",lesionado:v==="lesionado"}))} style={{flex:1,padding:"6px 4px",borderRadius:6,border:`1px solid ${(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado)?c:th.border2}`,background:(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado)?c+"18":"transparent",cursor:"pointer",fontSize:10,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,color:(v==="activo"&&state.active&&!state.lesionado)||(v==="lesionado"&&state.lesionado)||(v==="baja"&&!state.active&&!state.lesionado)?c:th.muted,textTransform:"uppercase"}}>{v}</button>)}
+        </div>
+      </div>
+      <div>
+        <Lbl>Equipo</Lbl>
+        <div style={{display:"flex",gap:6}}>
+          {[["A","#f97316"],["B","#3b82f6"],["Convocado","#8b5cf6"]].map(([v,c])=><button key={v} type="button" onClick={()=>setState(f=>({...f,equipo:v}))} style={{flex:1,padding:"6px 4px",borderRadius:6,border:`1px solid ${state.equipo===v?c:th.border2}`,background:state.equipo===v?c+"18":"transparent",cursor:"pointer",fontSize:10,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,color:state.equipo===v?c:th.muted,textTransform:"uppercase"}}>{v}</button>)}
+        </div>
+      </div>
     </div>
     <div style={{background:th.card2,borderRadius:10,padding:14,marginBottom:4}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Datos acumulados de temporada</p>
@@ -492,9 +505,6 @@ function Plantilla(){
       <div style={{display:"flex",gap:8,alignItems:"center",marginTop:12}}>
         <Btn onClick={sv}>Guardar cambios</Btn>
         <Btn onClick={()=>setEd(null)} variant="ghost">Cancelar</Btn>
-        <div onClick={()=>tg(ed)} style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",padding:"5px 14px",borderRadius:6,background:ef.active?"rgba(239,68,68,.1)":"rgba(16,185,129,.1)",border:`1px solid ${ef.active?"rgba(239,68,68,.3)":"rgba(16,185,129,.3)"}`}}>
-          <span style={{fontFamily:"DM Mono",fontSize:11,color:ef.active?"#ef4444":"#10b981",fontWeight:600}}>{ef.active?"Dar de baja":"Activar"}</span>
-        </div>
       </div>
     </div>}
 
@@ -504,9 +514,13 @@ function Plantilla(){
           {["#","Jugador","Pos","PJ","Min/P","PTS/P","TL%","T2%","T3%","FC/P","Estado",""].map((h,i)=><th key={i} style={{padding:"10px 12px",textAlign:i>2?"right":"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{h}</th>)}
         </tr></thead>
         <tbody>
-          {players.map(p=>{const c=calcStats(p);return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:ed===p.id?"rgba(249,115,22,.05)":"transparent"}}>
-            <td style={{padding:"10px 12px"}}><div style={{width:30,height:30,borderRadius:15,background:p.active?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff"}}>{p.num}</div></td>
-            <td style={{padding:"10px 12px",fontSize:13,color:p.active?th.text:th.muted,whiteSpace:"nowrap"}}>{p.name}</td>
+          {players.map(p=>{const c=calcStats(p);
+          const estadoColor=p.lesionado?"#f59e0b":p.active?"#10b981":"#ef4444";
+          const estadoLabel=p.lesionado?"Lesión":p.active?"Activo":"Baja";
+          const equipoColor={A:"#f97316",B:"#3b82f6",Convocado:"#8b5cf6"}[p.equipo||"A"]||"#f97316";
+          return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:ed===p.id?"rgba(249,115,22,.05)":p.lesionado?"rgba(245,158,11,.03)":"transparent"}}>
+            <td style={{padding:"10px 12px"}}><div style={{width:30,height:30,borderRadius:15,background:p.lesionado?"#f59e0b":p.active?"#f97316":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:"#fff"}}>{p.num}</div></td>
+            <td style={{padding:"10px 12px",fontSize:13,color:p.active&&!p.lesionado?th.text:th.muted,whiteSpace:"nowrap"}}>{p.name}</td>
             <td style={{padding:"10px 12px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
             <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.sub}}>{p.pj??0}</td>
             <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{c.min_p}'</td>
@@ -515,7 +529,12 @@ function Plantilla(){
             <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:"#3b82f6"}}>{c.t2_pct}%</td>
             <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:"#8b5cf6"}}>{c.t3_pct}%</td>
             <td style={{padding:"10px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{c.fc_p}</td>
-            <td style={{padding:"10px 12px"}}><span style={{fontFamily:"DM Mono",fontSize:11,color:p.active?"#10b981":"#ef4444",fontWeight:600}}>{p.active?"Activo":"Baja"}</span></td>
+            <td style={{padding:"10px 10px"}}>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                <Badge color={estadoColor} sm>{estadoLabel}</Badge>
+                <Badge color={equipoColor} sm>{p.equipo||"A"}</Badge>
+              </div>
+            </td>
             <td style={{padding:"10px 12px"}}>
               <div style={{display:"flex",gap:10,alignItems:"center"}}>
                 <button onClick={()=>ed===p.id?setEd(null):se(p)} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:6,border:`1px solid ${ed===p.id?"#f97316":th.border2}`,background:ed===p.id?"rgba(249,115,22,.1)":th.card2,cursor:"pointer",color:ed===p.id?"#f97316":th.sub,fontSize:11,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
@@ -537,11 +556,12 @@ function Plantilla(){
 function Partidos(){
   const{th}=useTheme();const{matches,setMatches}=useData();
   const[sa,setSa]=useState(false);const[f,setF]=useState({date:"",rival:"",location:"Casa",pts_us:"",pts_them:""});
-  const w=matches.filter(m=>m.pts_us>m.pts_them).length;const l=matches.filter(m=>m.pts_us<=m.pts_them).length;
-  const af=matches.length?(matches.reduce((a,m)=>a+m.pts_us,0)/matches.length).toFixed(1):"—";
-  const aa=matches.length?(matches.reduce((a,m)=>a+m.pts_them,0)/matches.length).toFixed(1):"—";
+  const played=matches.filter(m=>m.pts_us!=null);
+  const w=played.filter(m=>m.pts_us>m.pts_them).length;const l=played.filter(m=>m.pts_us<=m.pts_them).length;
+  const af=played.length?(played.reduce((a,m)=>a+(m.pts_us||0),0)/played.length).toFixed(1):"—";
+  const aa=played.length?(played.reduce((a,m)=>a+(m.pts_them||0),0)/played.length).toFixed(1):"—";
   const add=()=>{if(!f.date||!f.rival||f.pts_us===""||f.pts_them==="")return;const id=matches.length?Math.max(...matches.map(m=>m.id))+1:1;setMatches(prev=>[...prev,{id,...f,pts_us:+f.pts_us,pts_them:+f.pts_them}]);setF({date:"",rival:"",location:"Casa",pts_us:"",pts_them:""});setSa(false);};
-  const ks=[{label:"Record",value:`${w}–${l}`,color:"#f97316"},{label:"Pts a favor",value:af,color:"#10b981"},{label:"Pts en contra",value:aa,color:"#ef4444"},{label:"Partidos",value:matches.length,color:"#3b82f6"}];
+  const ks=[{label:"Record",value:`${w}–${l}`,color:"#f97316"},{label:"Pts a favor",value:af,color:"#10b981"},{label:"Pts en contra",value:aa,color:"#ef4444"},{label:"Jugados/Total",value:`${played.length}/${matches.length}`,color:"#3b82f6"}];
   return <div>
     <SH title="Partidos" sub="Resultados y estadísticas" right={<Btn onClick={()=>setSa(!sa)} icon={<Plus size={14}/>}>Añadir Partido</Btn>}/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>{ks.map(k=><div key={k.label} className="card" style={{padding:"18px 20px"}}><p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{k.label}</p><p style={{fontFamily:"DM Mono",fontSize:32,color:k.color,fontWeight:700,lineHeight:1}}>{k.value}</p></div>)}</div>
@@ -558,10 +578,15 @@ function Partidos(){
     </div>}
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
       {matches.length===0&&<div className="card" style={{padding:48,textAlign:"center"}}><Trophy size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:14}}>No hay partidos registrados</p></div>}
-      {[...matches].reverse().map(m=>{const win=m.pts_us>m.pts_them;const c=win?"#10b981":"#ef4444";const d=m.pts_us-m.pts_them;return <div key={m.id} className="card" style={{padding:"16px 20px",borderLeft:`4px solid ${c}`,display:"flex",alignItems:"center",gap:20}}>
-        <div style={{minWidth:58,textAlign:"center"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{m.date}</p><Badge color={c} sm>{win?"VICTORIA":"DERROTA"}</Badge></div>
-        <div style={{flex:1}}><p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p><p style={{fontSize:11,color:th.muted}}>{m.location} · {d>0?"+":""}{d} pts diferencia</p></div>
-        <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:c,lineHeight:1}}>{m.pts_us}<span style={{color:th.muted,fontSize:16}}>–</span>{m.pts_them}</p>
+      {[...matches].reverse().map(m=>{
+        const hasResult=m.pts_us!=null&&m.pts_them!=null;
+        const win=hasResult&&m.pts_us>m.pts_them;
+        const c=hasResult?(win?"#10b981":"#ef4444"):"#6366f1";
+        const d=hasResult?m.pts_us-m.pts_them:null;
+        return <div key={m.id} className="card" style={{padding:"16px 20px",borderLeft:`4px solid ${c}`,display:"flex",alignItems:"center",gap:20}}>
+        <div style={{minWidth:58,textAlign:"center"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{m.date}</p><Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge></div>
+        <div style={{flex:1}}><p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p><p style={{fontSize:11,color:th.muted}}>{m.location}{hasResult?` · ${d>0?"+":""}${d} pts`:" · Pendiente"}</p></div>
+        <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:c,lineHeight:1}}>{hasResult?<>{m.pts_us}<span style={{color:th.muted,fontSize:16}}>–</span>{m.pts_them}</>:<span style={{fontSize:16,color:th.muted}}>vs</span>}</p>
         <Trash2 size={14} color="#ef4444" style={{cursor:"pointer",flexShrink:0}} onClick={()=>setMatches(prev=>prev.filter(x=>x.id!==m.id))}/>
       </div>;})}
     </div>
@@ -1037,7 +1062,7 @@ function Quinteto(){
   const generateAIQuintets=async()=>{
     if(!apiKey){setAiResult({error:"Introduce tu API Key de Anthropic en ⚙️ Ajustes (sidebar inferior)."});return;}
     setAiLoading(true);setAiResult(null);
-    const activePl=players.filter(p=>p.active&&(p.pj||0)>0);
+    const activePl=players.filter(p=>p.active&&!p.lesionado&&(p.equipo||"A")!=="B"&&(p.pj||0)>0);
     if(activePl.length<5){setAiResult({error:"Necesitas al menos 5 jugadores con PJ > 0 para generar quintetos."});setAiLoading(false);return;}
     const statsStr=activePl.map(p=>{const c=calcStats(p);return `${p.name} (${p.pos}): PJ ${p.pj}, PTS/P ${c.pts_p}, Min/P ${c.min_p}', TL% ${c.tl_pct}%, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, FC/P ${c.fc_p}`;}).join("\n");
     try{
@@ -1106,13 +1131,21 @@ function Quinteto(){
           {Object.keys(lineup).length>0&&<button onClick={()=>setLineup({})} style={{marginTop:8,width:"100%",padding:"5px",borderRadius:6,border:`1px solid ${th.border2}`,background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:11,fontFamily:"Barlow Condensed"}}>Limpiar quinteto</button>}
         </div>
         <div className="card" style={{padding:16,flex:1}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Plantilla</p>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Plantilla disponible</p>
           <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:280,overflowY:"auto"}}>
-            {players.filter(p=>p.active).map(p=>{const a2=Object.values(lineup).some(l=>l?.id===p.id);return <div key={p.id} onClick={()=>!a2&&selected&&assign(p)} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",borderRadius:8,background:a2?"rgba(16,185,129,.07)":th.card2,border:`1px solid ${a2?"rgba(16,185,129,.3)":th.border}`,cursor:selected&&!a2?"pointer":"default",opacity:a2?.65:1,transition:"all .15s"}}>
-              <div style={{width:24,height:24,borderRadius:12,background:th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,color:th.sub,fontWeight:700,flexShrink:0}}>{p.num}</div>
-              <div style={{flex:1}}><p style={{fontSize:12,color:th.text}}>{p.name}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
-              {a2&&<Check size={12} color="#10b981"/>}
-            </div>;})}
+            {players.filter(p=>p.active).map(p=>{
+              const a2=Object.values(lineup).some(l=>l?.id===p.id);
+              const isLes=p.lesionado;
+              const equipoColor={A:"#f97316",B:"#3b82f6",Convocado:"#8b5cf6"}[p.equipo||"A"];
+              return <div key={p.id} onClick={()=>!a2&&!isLes&&selected&&assign(p)} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",borderRadius:8,background:a2?"rgba(16,185,129,.07)":isLes?"rgba(245,158,11,.05)":th.card2,border:`1px solid ${a2?"rgba(16,185,129,.3)":isLes?"rgba(245,158,11,.3)":th.border}`,cursor:selected&&!a2&&!isLes?"pointer":"default",opacity:a2||isLes?.5:1,transition:"all .15s"}}>
+                <div style={{width:24,height:24,borderRadius:12,background:isLes?"#f59e0b":th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,color:"#fff",fontWeight:700,flexShrink:0}}>{p.num}</div>
+                <div style={{flex:1}}>
+                  <p style={{fontSize:12,color:isLes?th.muted:th.text}}>{p.name}</p>
+                  <p style={{fontSize:10,color:th.muted}}>{p.pos} · <span style={{color:equipoColor,fontWeight:700}}>{p.equipo||"A"}</span>{isLes&&<span style={{color:"#f59e0b"}}> · Lesión</span>}</p>
+                </div>
+                {a2&&<Check size={12} color="#10b981"/>}
+              </div>;
+            })}
           </div>
         </div>
       </div>
@@ -1229,14 +1262,60 @@ Si no hay jugadas reconocibles devuelve: {"jugadas":[]}`}
 /* ══════════════════════════════════════════════════════════
    10. EJERCICIOS — con añadir ejercicios + imágenes
 ══════════════════════════════════════════════════════════ */
-function EjercicioForm({onSave,onCancel}){
+/* EjercicioEditForm is defined inside the Ejercicios section below */
+
+function Ejercicios(){
+  const{th}=useTheme();const{ejercicios,setEjercicios}=useData();
+  const[filter,setFilter]=useState("Todos");const[editEx,setEditEx]=useState(null);const[showAdd,setShowAdd]=useState(false);const[viewImg,setViewImg]=useState(null);
+  const cats=["Todos","Técnico","Táctico","Físico","Recuperación","Mental"];
+  const filtered=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
+
+  const saveEx=ex=>{
+    if(editEx==="new"){setEjercicios(prev=>[...prev,{...ex,id:Date.now()}]);}
+    else{setEjercicios(prev=>prev.map(x=>x.id===editEx.id?{...x,...ex}:x));}
+    setEditEx(null);setShowAdd(false);
+  };
+  const delEx=id=>setEjercicios(prev=>prev.filter(e=>e.id!==id));
+
+  return <div>
+    <SH title="Ejercicios" sub="Biblioteca por categoría · Todos editables" right={<Btn onClick={()=>{setShowAdd(true);setEditEx("new");}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn>}/>
+    {(showAdd||editEx)&&<EjercicioEditForm ex={editEx==="new"?null:editEx} onSave={saveEx} onCancel={()=>{setShowAdd(false);setEditEx(null);}}/>}
+    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+      {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
+    </div>
+    {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+      {filtered.map(ex=>{const c=CC[ex.cat]||"#f97316";const dc=DC[ex.diff]||"#10b981";return <div key={ex.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+          <div style={{flex:1,marginRight:8}}>
+            <h3 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:6}}>{ex.name}</h3>
+            <div style={{display:"flex",gap:5}}><Badge color={c} sm>{ex.cat}</Badge><Badge color={dc} sm>{ex.diff}</Badge></div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+            {ex.dur&&<div style={{background:th.card2,borderRadius:7,padding:"4px 8px",border:`1px solid ${th.border}`}}><p style={{fontFamily:"DM Mono",fontSize:12,color:c,fontWeight:700}}>{ex.dur}</p></div>}
+            <div style={{display:"flex",gap:4}}>
+              <button onClick={()=>setEditEx(ex)} style={{width:24,height:24,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={11}/></button>
+              <button onClick={()=>delEx(ex.id)} style={{width:24,height:24,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>
+            </div>
+          </div>
+        </div>
+        {ex.desc&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,marginBottom:8}}>{ex.desc}</p>}
+        {(ex.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {ex.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
+        </div>}
+      </div>;})}
+    </div>
+  </div>;
+}
+
+function EjercicioEditForm({ex,onSave,onCancel}){
   const{th}=useTheme();
-  const[f,setF]=useState({name:"",cat:"Técnico",dur:"",diff:"Básico",desc:"",images:[]});
   const cats=["Técnico","Táctico","Físico","Recuperación","Mental"];
   const diffs=["Básico","Medio","Alto"];
-  const save=()=>{if(!f.name)return;onSave({...f,id:Date.now()});};
+  const[f,setF]=useState({name:ex?.name||"",cat:ex?.cat||"Técnico",dur:ex?.dur||"",diff:ex?.diff||"Básico",desc:ex?.desc||"",images:ex?.images||[]});
+  const save=()=>{if(!f.name)return;onSave({...(ex||{}),id:ex?.id||Date.now(),...f});};
   return <div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
-    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Ejercicio</p>
+    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>{ex?"Editar Ejercicio":"Nuevo Ejercicio"}</p>
     <div style={{display:"grid",gridTemplateColumns:"1fr 130px 100px 80px",gap:12,marginBottom:12}}>
       <div><Lbl>Nombre</Lbl><input value={f.name} onChange={e=>setF(x=>({...x,name:e.target.value}))} placeholder="Nombre del ejercicio"/></div>
       <div><Lbl>Categoría</Lbl><select value={f.cat} onChange={e=>setF(x=>({...x,cat:e.target.value}))}>{cats.map(c=><option key={c}>{c}</option>)}</select></div>
@@ -1246,43 +1325,6 @@ function EjercicioForm({onSave,onCancel}){
     <div style={{marginBottom:12}}><Lbl>Descripción</Lbl><textarea rows={3} value={f.desc} onChange={e=>setF(x=>({...x,desc:e.target.value}))} placeholder="Describe el ejercicio…"/></div>
     <div style={{marginBottom:16}}><Lbl>Imágenes (hasta 4)</Lbl><ImageUploader images={f.images} setImages={imgs=>setF(x=>({...x,images:imgs}))}/></div>
     <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
-  </div>;
-}
-
-function Ejercicios(){
-  const{th}=useTheme();const{customEx,setCustomEx}=useData();
-  const[filter,setFilter]=useState("Todos");const[sel,setSel]=useState(null);const[showAdd,setShowAdd]=useState(false);const[viewImg,setViewImg]=useState(null);
-  const cats=["Todos","Técnico","Táctico","Físico","Recuperación","Mental"];
-  const allEx=[...DEFAULT_EJS,...customEx];
-  const filtered=filter==="Todos"?allEx:allEx.filter(e=>e.cat===filter);
-
-  return <div>
-    <SH title="Ejercicios" sub="Biblioteca por categoría · Clic para ver descripción" right={<Btn onClick={()=>setShowAdd(true)} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn>}/>
-    {showAdd&&<EjercicioForm onSave={e=>{setCustomEx(prev=>[...prev,e]);setShowAdd(false);}} onCancel={()=>setShowAdd(false)}/>}
-    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-      {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
-    </div>
-    {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-      {filtered.map(ex=>{const c=CC[ex.cat]||"#f97316";const dc=DC[ex.diff]||"#10b981";const is=sel===ex.id;const isCustom=ex.id>100;return <div key={ex.id} className="card cl" onClick={()=>setSel(is?null:ex.id)} style={{padding:20,borderTop:`3px solid ${c}`,outline:is?`2px solid ${c}`:"none",outlineOffset:2}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-          <div style={{flex:1,marginRight:10}}>
-            <h3 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:6}}>{ex.name}</h3>
-            <div style={{display:"flex",gap:5}}><Badge color={c} sm>{ex.cat}</Badge><Badge color={dc} sm>{ex.diff}</Badge></div>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-            {ex.dur&&<div style={{background:th.card2,borderRadius:7,padding:"4px 8px",border:`1px solid ${th.border}`}}><p style={{fontFamily:"DM Mono",fontSize:12,color:c,fontWeight:700}}>{ex.dur}</p></div>}
-            {isCustom&&<Trash2 size={12} color="#ef4444" style={{cursor:"pointer"}} onClick={e=>{e.stopPropagation();setCustomEx(prev=>prev.filter(x=>x.id!==ex.id));}}/>}
-          </div>
-        </div>
-        {is&&<>
-          <p style={{fontSize:12,color:th.sub,lineHeight:1.6,marginBottom:10,paddingTop:10,borderTop:`1px solid ${th.border}`}}>{ex.desc}</p>
-          {(ex.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {ex.images.map((img,i)=><img key={i} src={img} alt="" onClick={e=>{e.stopPropagation();setViewImg(img);}} style={{width:70,height:70,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
-          </div>}
-        </>}
-      </div>;})}
-    </div>
   </div>;
 }
 
@@ -1501,23 +1543,152 @@ function Recursos(){
 }
 
 /* ══════════════════════════════════════════════════════════
-   NAV + APP ROOT
+   13. CALENDARIO — Vista mensual con entrenos y partidos
 ══════════════════════════════════════════════════════════ */
+function Calendario(){
+  const{th}=useTheme();const{sessions,setSessions,matches,setMatches}=useData();
+  const today=new Date();
+  const[year,setYear]=useState(today.getFullYear());
+  const[month,setMonth]=useState(today.getMonth());
+  const[showAdd,setShowAdd]=useState(false);
+  const[addDate,setAddDate]=useState("");
+  const[addType,setAddType]=useState("partido");
+  const[pf,setPf]=useState({rival:"",location:"Casa",pts_us:"",pts_them:""});
+  const[gcalMsg,setGcalMsg]=useState(null);
+
+  const monthDate=new Date(year,month,1);
+  const monthName=monthDate.toLocaleDateString("es",{month:"long",year:"numeric"});
+  const firstDay=(monthDate.getDay()+6)%7; // 0=Mon
+  const daysInMonth=new Date(year,month+1,0).getDate();
+
+  const prev=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
+  const next=()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);};
+
+  // Eventos del mes
+  const yymm=`${year}-${String(month+1).padStart(2,"0")}`;
+  const monthSessions=sessions.filter(s=>s.date?.startsWith(yymm));
+  const monthMatches=matches.filter(m=>m.date?.startsWith(yymm));
+
+  const eventsForDay=day=>{
+    const d=`${yymm}-${String(day).padStart(2,"0")}`;
+    return{
+      sessions:monthSessions.filter(s=>s.date===d),
+      matches:monthMatches.filter(m=>m.date===d),
+    };
+  };
+
+  // Añadir partido sin resultado (planificado)
+  const addMatch=()=>{
+    if(!pf.rival||!addDate)return;
+    const id=matches.length?Math.max(...matches.map(m=>m.id))+1:1;
+    const newM={id,date:addDate,rival:pf.rival,location:pf.location,pts_us:pf.pts_us!==""?+pf.pts_us:null,pts_them:pf.pts_them!==""?+pf.pts_them:null};
+    setMatches(prev=>[...prev,newM]);
+    setPf({rival:"",location:"Casa",pts_us:"",pts_them:""});setShowAdd(false);
+  };
+
+  // Google Calendar export
+  const gcalUrl=(title,date,desc="")=>{
+    const dt=date.replace(/-/g,"");
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dt}/${dt}&details=${encodeURIComponent(desc)}&sf=true`;
+  };
+  const exportAll=()=>{
+    const events=[
+      ...monthSessions.map(s=>({title:`Entreno: ${s.title}`,date:s.date,desc:`${s.type} · ${s.dur}'`})),
+      ...monthMatches.map(m=>({title:`${m.rival} (${m.location})`,date:m.date,desc:m.pts_us!=null?`Resultado: ${m.pts_us}-${m.pts_them}`:"Partido planificado"})),
+    ];
+    if(!events.length){setGcalMsg("No hay eventos en este mes");setTimeout(()=>setGcalMsg(null),3000);return;}
+    // Open first event, notify user to repeat for others
+    events.forEach((ev,i)=>setTimeout(()=>window.open(gcalUrl(ev.title,ev.date,ev.desc),"_blank"),i*600));
+    setGcalMsg(`✅ Abriendo ${events.length} evento${events.length>1?"s":""} en Google Calendar…`);
+    setTimeout(()=>setGcalMsg(null),5000);
+  };
+
+  const DAYS_HEADER=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  const TC_COLOR={"Técnico-Táctico":"#f97316","Físico":"#3b82f6","Técnico":"#f59e0b","Táctico":"#8b5cf6","Recuperación":"#10b981","Partido":"#ef4444","Mental":"#06b6d4","Libre":"#4b5563"};
+
+  return <div>
+    <SH title="Calendario" sub="Entrenamientos y partidos · Vista mensual"
+      right={<div style={{display:"flex",gap:8}}>
+        <Btn onClick={()=>{setShowAdd(true);setAddDate(yymm+"-01");}} icon={<Plus size={14}/>} sm>Añadir Partido</Btn>
+        <Btn onClick={exportAll} variant="ghost" icon={<ExternalLink size={14}/>} sm>→ Google Calendar</Btn>
+      </div>}/>
+
+    {gcalMsg&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:13,color:"#10b981"}}>{gcalMsg}</div>}
+
+    {/* Nav mensual */}
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+      <button onClick={prev} style={{width:34,height:34,borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><ChevronLeft size={16}/></button>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:22,fontWeight:700,color:th.text,textTransform:"capitalize",flex:1,textAlign:"center"}}>{monthName}</p>
+      <button onClick={next} style={{width:34,height:34,borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><ChevronRight size={16}/></button>
+    </div>
+
+    {/* Formulario añadir partido */}
+    {showAdd&&<div className="card" style={{padding:18,marginBottom:14,borderColor:"#f9731640"}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:12,textTransform:"uppercase"}}>Añadir Partido al Calendario</p>
+      <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:10,marginBottom:12}}>
+        <div><Lbl>Fecha</Lbl><input type="date" value={addDate} onChange={e=>setAddDate(e.target.value)}/></div>
+        <div><Lbl>Rival</Lbl><input value={pf.rival} onChange={e=>setPf(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
+        <div><Lbl>Lugar</Lbl><select value={pf.location} onChange={e=>setPf(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
+        <div><Lbl>Nos. (opt.)</Lbl><input type="number" value={pf.pts_us} onChange={e=>setPf(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
+        <div><Lbl>Riv. (opt.)</Lbl><input type="number" value={pf.pts_them} onChange={e=>setPf(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
+      </div>
+      <p style={{fontSize:11,color:th.muted,marginBottom:10}}>💡 El resultado es opcional — puedes añadirlo después desde la sección Partidos</p>
+      <div style={{display:"flex",gap:8}}><Btn onClick={addMatch}>Guardar</Btn><Btn onClick={()=>setShowAdd(false)} variant="ghost">Cancelar</Btn></div>
+    </div>}
+
+    {/* Calendario grid */}
+    <div className="card" style={{padding:16,overflow:"hidden"}}>
+      {/* Headers días semana */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+        {DAYS_HEADER.map(d=><div key={d} style={{textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,padding:"6px 0"}}>{d}</div>)}
+      </div>
+      {/* Días */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+        {/* Espacios vacíos al inicio */}
+        {Array.from({length:firstDay}).map((_,i)=><div key={`e${i}`} style={{minHeight:70}}/>)}
+        {/* Días del mes */}
+        {Array.from({length:daysInMonth}).map((_,i)=>{
+          const day=i+1;
+          const dateStr=`${yymm}-${String(day).padStart(2,"0")}`;
+          const isToday=today.getFullYear()===year&&today.getMonth()===month&&today.getDate()===day;
+          const evs=eventsForDay(day);
+          const hasEvents=evs.sessions.length>0||evs.matches.length>0;
+          return <div key={day} style={{minHeight:70,padding:4,borderRadius:8,background:isToday?"rgba(249,115,22,.08)":hasEvents?th.card2+"80":"transparent",border:`1px solid ${isToday?"rgba(249,115,22,.4)":hasEvents?th.border:th.border+"40"}`,position:"relative"}}>
+            <p style={{fontFamily:"DM Mono",fontSize:11,fontWeight:isToday?700:400,color:isToday?"#f97316":th.muted,marginBottom:3}}>{day}</p>
+            {evs.sessions.map(s=><div key={s.id} style={{fontSize:10,background:(TC_COLOR[s.type]||"#f97316")+"22",color:TC_COLOR[s.type]||"#f97316",borderRadius:4,padding:"2px 5px",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} title={s.title}>
+              🏀 {s.title.slice(0,16)}{s.title.length>16?"…":""}
+            </div>)}
+            {evs.matches.map(m=>{const res=m.pts_us!=null;const win=res&&m.pts_us>m.pts_them;return <div key={m.id} style={{fontSize:10,background:res?(win?"rgba(16,185,129,.15)":"rgba(239,68,68,.15)"):"rgba(99,102,241,.15)",color:res?(win?"#10b981":"#ef4444"):"#6366f1",borderRadius:4,padding:"2px 5px",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer",display:"flex",alignItems:"center",gap:3}} title={`${m.rival} · ${m.location}`}>
+              <Trophy size={8}/> {m.rival.slice(0,12)}{!res&&" (pl.)"}
+              {res&&<span style={{marginLeft:"auto",fontFamily:"DM Mono",fontSize:9}}>{m.pts_us}-{m.pts_them}</span>}
+            </div>;})}
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {/* Leyenda */}
+    <div style={{display:"flex",gap:16,marginTop:12,flexWrap:"wrap"}}>
+      {[["🏀 Entrenamiento","#f97316"],["🏆 Partido jugado","#10b981"],["📅 Partido planificado","#6366f1"],["⚡ Hoy","#f97316"]].map(([l,c])=><div key={l} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:10,height:10,borderRadius:2,background:c+"40",border:`1px solid ${c}60`}}/><span style={{fontSize:11,color:th.muted}}>{l}</span></div>)}
+    </div>
+  </div>;
+}
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
   {id:"partidos", label:"Partidos",      icon:Trophy},
-  {id:"plan",     label:"Planificación", icon:Calendar},
+  {id:"calendario",label:"Calendario",   icon:Calendar},
+  {id:"plan",     label:"Planificación", icon:Target},
   {id:"stats",    label:"Estadísticas",  icon:BarChart2},
   {id:"train",    label:"Entrenamientos",icon:Dumbbell},
   {id:"attend",   label:"Asistencia",    icon:Check},
   {id:"lineup",   label:"Quinteto",      icon:Shield},
   {id:"playbook", label:"Playbook",      icon:BookOpen},
-  {id:"exercises",label:"Ejercicios",    icon:Target},
+  {id:"exercises",label:"Ejercicios",    icon:Zap},
   {id:"pizarra",  label:"Pizarra",       icon:PenTool},
   {id:"recursos", label:"Recursos",      icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,plan:Planificacion,stats:Estadisticas,train:Entrenamientos,attend:Asistencia,lineup:Quinteto,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,train:Entrenamientos,attend:Asistencia,lineup:Quinteto,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
@@ -1530,13 +1701,14 @@ export default function App(){
   const[quintets,  setQuintetsRaw] = useState(DEFAULT_QUINTETS);
   const[recursos,  setRecursosRaw] = useState(DEFAULT_RECURSOS);
   const[plays,     setPlaysRaw]    = useState(DEFAULT_PLAYS);
+  const[ejercicios,setEjerciciosRaw]=useState(DEFAULT_EJS);
   const[customEx,  setCustomExRaw] = useState([]);
   const[savedDrawings,setSavedDrawingsRaw]=useState([]);
   const[planMesos, setPlanMesosRaw]=useState(null);
   const[planMicro, setPlanMicroRaw]=useState(null);
   const[apiKey,    setApiKeyRaw]   = useState(()=>localStorage.getItem("cb_apikey")||"");
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -1560,6 +1732,7 @@ export default function App(){
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
   const setPlays    =useCallback(fn=>setPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({plays:n});return n;}),[persist]);
+  const setEjercicios=useCallback(fn=>setEjerciciosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({ejercicios:n});return n;}),[persist]);
   const setSavedDrawings=useCallback(fn=>setSavedDrawingsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({savedDrawings:n});return n;}),[persist]);
   const setPlanMesos=useCallback(fn=>setPlanMesosRaw(prev=>{const cur=prev||DEFAULT_MESOS_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMesos:n});return n;}),[persist]);
   const setPlanMicro=useCallback(fn=>setPlanMicroRaw(prev=>{const cur=prev||DEFAULT_MICRO_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMicro:n});return n;}),[persist]);
@@ -1578,6 +1751,7 @@ export default function App(){
           if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
           if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
           if(d.plays)     {setPlaysRaw(d.plays);         stRef.current.plays=d.plays;}
+          if(d.ejercicios){setEjerciciosRaw(d.ejercicios);stRef.current.ejercicios=d.ejercicios;}
           if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
           if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
           if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
@@ -1600,6 +1774,7 @@ export default function App(){
         if(d.quintets)   setQuintetsRaw(d.quintets);
         if(d.recursos)   setRecursosRaw(d.recursos);
         if(d.plays)      setPlaysRaw(d.plays);
+        if(d.ejercicios) setEjerciciosRaw(d.ejercicios);
         if(d.customEx)   setCustomExRaw(d.customEx);
         if(d.savedDrawings)setSavedDrawingsRaw(d.savedDrawings);
         if(d.planMesos) setPlanMesosRaw(d.planMesos);
@@ -1628,7 +1803,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
