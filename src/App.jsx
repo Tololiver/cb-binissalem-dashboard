@@ -1610,6 +1610,10 @@ export default function App(){
     return()=>sb.removeChannel(sub);
   },[]);
 
+  const[menuOpen,setMenuOpen]=useState(false);
+  const[showSettings,setShowSettings]=useState(false);
+  const[apiKeyInput,setApiKeyInput]=useState(apiKey);
+
   const th=dark?DARK:LIGHT;
   const AV=VIEWS[view]||Dashboard;
 
@@ -1621,10 +1625,6 @@ export default function App(){
       <Loader size={20} color="#f97316" style={{animation:"spin 1s linear infinite"}}/>
     </div>
   </>;
-
-  const[menuOpen,setMenuOpen]=useState(false);
-  const[showSettings,setShowSettings]=useState(false);
-  const[apiKeyInput,setApiKeyInput]=useState(apiKey);
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
