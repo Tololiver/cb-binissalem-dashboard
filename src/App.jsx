@@ -183,30 +183,55 @@ function GS({th}){return <style>{`
   /* ── RESPONSIVE ── */
   .close-sidebar{display:none}
   .mobile-topbar{display:none!important}
-  /* Tablet */
+
+  /* Tablet ≤900px */
   @media(max-width:900px){
-    .sidebar{position:fixed!important;left:0;top:0;height:100dvh!important;
-      transform:translateX(-100%);transition:transform .25s ease;}
+    .sidebar{
+      position:fixed!important;left:0;top:0;width:240px!important;
+      height:100dvh!important;z-index:50;
+      transform:translateX(-100%);transition:transform .25s ease;
+    }
     .sidebar.open{transform:translateX(0)!important;}
     .mobile-topbar{display:flex!important;}
     .close-sidebar{display:block!important;}
+    /* Ajustes generales de layout en tablet */
+    main{padding:16px 14px!important;}
+    .card{border-radius:10px!important;}
+    /* Grids inline reducidos */
+    [style*="repeat(4,1fr)"]{grid-template-columns:1fr 1fr!important;}
+    [style*="repeat(3,1fr)"]{grid-template-columns:1fr 1fr!important;}
+    [style*="repeat(7,1fr)"]{grid-template-columns:repeat(4,1fr)!important;}
   }
-  /* Grids responsivos */
+
+  /* Móvil ≤600px */
+  @media(max-width:600px){
+    .sidebar{width:85vw!important;}
+    main{padding:12px 10px!important;}
+    /* Texto y cabeceras */
+    h2{font-size:20px!important;}
+    /* Cards de KPI — siempre 2 columnas en móvil */
+    [style*="repeat(4,1fr)"]{grid-template-columns:1fr 1fr!important;}
+    [style*="repeat(3,1fr)"]{grid-template-columns:1fr!important;}
+    [style*="repeat(7,1fr)"]{grid-template-columns:repeat(2,1fr)!important;}
+    /* Grids de 2 col → 1 col en móvil */
+    [style*="gridTemplateColumns:\"1fr 1fr\""]{grid-template-columns:1fr!important;}
+    /* Tablas con scroll horizontal */
+    .card{overflow-x:auto;}
+    /* Tipografía de stats grande → más pequeña */
+    [style*="fontSize:32"]{font-size:24px!important;}
+    [style*="fontSize:28"]{font-size:20px!important;}
+  }
+
+  /* Clases de ayuda para grids responsive */
   @media(max-width:900px){
-    .g4{grid-template-columns:1fr 1fr!important;}
-    .g3{grid-template-columns:1fr 1fr!important;}
-    .g7{grid-template-columns:repeat(4,1fr)!important;}
-    .g5{grid-template-columns:repeat(3,1fr)!important;}
-    .g21{grid-template-columns:1fr!important;}
+    .rg4{grid-template-columns:1fr 1fr!important;}
+    .rg3{grid-template-columns:1fr 1fr!important;}
+    .rg2{grid-template-columns:1fr!important;}
   }
   @media(max-width:600px){
-    .g4{grid-template-columns:1fr 1fr!important;}
-    .g3{grid-template-columns:1fr!important;}
-    .g7{grid-template-columns:repeat(2,1fr)!important;}
-    .g5{grid-template-columns:1fr 1fr!important;}
-    .g21{grid-template-columns:1fr!important;}
-    .g2r{grid-template-columns:1fr!important;}
-    h2{font-size:22px!important;}
+    .rg4{grid-template-columns:1fr 1fr!important;}
+    .rg3{grid-template-columns:1fr!important;}
+    .rg2{grid-template-columns:1fr!important;}
   }
 `}</style>;}
 
@@ -313,7 +338,7 @@ function Dashboard(){
   })).sort((a,b)=>b.rate-a.rate).slice(0,5);
 
   return <div>
-    <SH title="Panel Principal" sub="CB Binissalem Senior A · Temporada 2024/25"/>
+    <SH title="Panel Principal" sub="CB Binissalem Sénior A · Temporada 2025/26"/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
       {kpis.map(k=><div key={k.label} className="card" style={{padding:"20px 22px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -2117,6 +2142,17 @@ function IAAsistente(){
   const[rivalName,setRivalName]=useState("");
   const[rivalText,setRivalText]=useState("");const[rivalResult,setRivalResult]=useState(null);const[rivalLoading,setRivalLoading]=useState(false);
   const rivalFileRef=useRef();
+  // Stats de jugadores del rival para scouting
+  const[rivalPlayers,setRivalPlayers]=useState([
+    {id:1,num:"4", name:"Jugador 1",pos:"Base",   pts:"",reb:"",ast:"",fg:"",notas:""},
+    {id:2,num:"7", name:"Jugador 2",pos:"Escolta", pts:"",reb:"",ast:"",fg:"",notas:""},
+    {id:3,num:"11",name:"Jugador 3",pos:"Alero",   pts:"",reb:"",ast:"",fg:"",notas:""},
+    {id:4,num:"14",name:"Jugador 4",pos:"Ala-Pív.",pts:"",reb:"",ast:"",fg:"",notas:""},
+    {id:5,num:"21",name:"Jugador 5",pos:"Pívot",   pts:"",reb:"",ast:"",fg:"",notas:""},
+  ]);
+  const setRP=(id,field,val)=>setRivalPlayers(prev=>prev.map(p=>p.id===id?{...p,[field]:val}:p));
+  const addRP=()=>setRivalPlayers(prev=>[...prev,{id:Date.now(),num:"",name:`Jugador ${prev.length+1}`,pos:"Base",pts:"",reb:"",ast:"",fg:"",notas:""}]);
+  const delRP=id=>setRivalPlayers(prev=>prev.filter(p=>p.id!==id));
 
   // Generador sesión
   const[sesObj,setSesObj]=useState("");const[sesDur,setSesDur]=useState("90");const[sesFocus,setSesFocus]=useState("Técnico-Táctico");
@@ -2140,7 +2176,8 @@ function IAAsistente(){
         const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
         content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}});
       }
-      content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}. `:""}${rivalText?`Información:\n${rivalText}\n\n`:""}Genera informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR\n5. JUGADAS CLAVE a preparar\n\nSé específico y práctico.`});
+      const rpStr=rivalPlayers.filter(p=>p.name.trim()&&p.name!==`Jugador ${rivalPlayers.indexOf(p)+1}`||p.pts||p.reb||p.ast).map(p=>`  #${p.num} ${p.name} (${p.pos})${p.pts?` - PTS/P: ${p.pts}`:""}${p.reb?` - REB: ${p.reb}`:""}${p.ast?` - AST: ${p.ast}`:""}${p.fg?` - TC%: ${p.fg}%`:""}${p.notas?` - Notas: ${p.notas}`:""}`).join("\n");
+      content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}.\n`:""}${rivalText?`Información general:\n${rivalText}\n\n`:""}${rpStr?`Jugadores clave del rival:\n${rpStr}\n\n`:""}Genera informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR (menciona los datos concretos de los jugadores si los hay)\n5. JUGADAS CLAVE a preparar\n\nSé específico y usa los datos de los jugadores para el análisis.`});
       const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1200,messages:[{role:"user",content}]});
       setRivalResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.",rival:rivalName||"Sin nombre",saved:false});
     }catch(e){setRivalResult({error:e.message});}
@@ -2150,7 +2187,7 @@ function IAAsistente(){
 
   const saveScoutReport=()=>{
     if(!rivalResult||rivalResult.error||rivalResult.saved)return;
-    setScouting(prev=>[{id:Date.now(),rival:rivalResult.rival||"Sin nombre",date:new Date().toISOString().split("T")[0],text:rivalResult.text},...prev]);
+    setScouting(prev=>[{id:Date.now(),rival:rivalResult.rival||"Sin nombre",date:new Date().toISOString().split("T")[0],text:rivalResult.text,players:rivalPlayers},...prev]);
     setRivalResult(r=>({...r,saved:true}));
   };
   const delScout=id=>setScouting(prev=>prev.filter(s=>s.id!==id));
@@ -2226,8 +2263,40 @@ function IAAsistente(){
         <div className="card" style={{padding:20,marginBottom:14}}>
           <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:12}}>Scouting del rival</p>
           <div style={{marginBottom:10}}><Lbl>Nombre del rival</Lbl><input value={rivalName} onChange={e=>setRivalName(e.target.value)} placeholder="Ej: CB Inca A"/></div>
-          <div style={{marginBottom:12}}><Lbl>Información sobre el rival</Lbl>
-            <textarea rows={5} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Sistema defensivo, jugadores clave, estadísticas, tendencias, puntos débiles conocidos..."/>
+          <div style={{marginBottom:14}}><Lbl>Información general (sistema, estilo, puntos débiles…)</Lbl>
+            <textarea rows={3} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Sistema defensivo, jugadores clave, estadísticas, tendencias..."/>
+          </div>
+
+          {/* Tabla jugadores rival */}
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <Lbl>Jugadores del rival (opcional — enriquece el análisis)</Lbl>
+              <button onClick={addRP} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:11,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <Plus size={11}/>Añadir
+              </button>
+            </div>
+            <div style={{overflow:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>
+                <thead><tr style={{background:th.tableHead}}>
+                  {["#","Nombre","Pos","PTS/P","REB/P","AST/P","TC%","Notas",""].map((h,i)=><th key={i} style={{padding:"6px 8px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5,whiteSpace:"nowrap"}}>{h}</th>)}
+                </tr></thead>
+                <tbody>{rivalPlayers.map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
+                  <td style={{padding:"5px 6px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} style={{width:34,textAlign:"center",padding:"4px 2px",fontSize:12}}/></td>
+                  <td style={{padding:"5px 6px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:110,fontSize:12}}/></td>
+                  <td style={{padding:"5px 6px"}}>
+                    <select value={p.pos} onChange={e=>setRP(p.id,"pos",e.target.value)} style={{fontSize:11,padding:"4px 4px"}}>
+                      {["Base","Escolta","Alero","Ala-Pív.","Pívot"].map(po=><option key={po}>{po}</option>)}
+                    </select>
+                  </td>
+                  <td style={{padding:"5px 4px"}}><input type="number" value={p.pts} onChange={e=>setRP(p.id,"pts",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
+                  <td style={{padding:"5px 4px"}}><input type="number" value={p.reb} onChange={e=>setRP(p.id,"reb",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
+                  <td style={{padding:"5px 4px"}}><input type="number" value={p.ast} onChange={e=>setRP(p.id,"ast",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
+                  <td style={{padding:"5px 4px"}}><input type="number" value={p.fg} onChange={e=>setRP(p.id,"fg",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
+                  <td style={{padding:"5px 4px"}}><input value={p.notas} onChange={e=>setRP(p.id,"notas",e.target.value)} placeholder="Observaciones…" style={{width:120,fontSize:11}}/></td>
+                  <td style={{padding:"5px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2}}><Trash2 size={11}/></button></td>
+                </tr>)}</tbody>
+              </table>
+            </div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
             <input ref={rivalFileRef} type="file" accept=".pdf" style={{display:"none"}}/>
@@ -2265,9 +2334,9 @@ function IAAsistente(){
 
         {/* Informe guardado seleccionado */}
         {selScout&&!rivalResult&&<div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text}}>{selScout.rival}</p>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text}}>{selScout.rival}</p>
               <p style={{fontSize:11,color:th.muted}}>{selScout.date}</p>
             </div>
             <div style={{display:"flex",gap:8}}>
@@ -2281,7 +2350,24 @@ function IAAsistente(){
               </button>
             </div>
           </div>
-          <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{selScout.text}</div>
+          {/* Jugadores guardados */}
+          {selScout.players&&selScout.players.some(p=>p.pts||p.reb||p.ast||p.name!==`Jugador ${selScout.players.indexOf(p)+1}`)&&
+            <div style={{marginBottom:14,overflow:"auto"}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Jugadores analizados</p>
+              <table style={{width:"100%",borderCollapse:"collapse",minWidth:480,fontSize:12}}>
+                <thead><tr style={{background:th.tableHead}}>
+                  {["#","Nombre","Pos","PTS/P","REB/P","AST/P","TC%","Notas"].map((h,i)=><th key={i} style={{padding:"6px 8px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>)}
+                </tr></thead>
+                <tbody>{selScout.players.filter(p=>p.name).map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
+                  <td style={{padding:"6px 8px",fontFamily:"DM Mono",color:th.muted}}>{p.num}</td>
+                  <td style={{padding:"6px 8px",fontWeight:600,color:th.text}}>{p.name}</td>
+                  <td style={{padding:"6px 8px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
+                  {["pts","reb","ast","fg"].map(f=><td key={f} style={{padding:"6px 8px",fontFamily:"DM Mono",color:"#f97316",fontWeight:p[f]?600:300}}>{p[f]||"—"}{f==="fg"&&p[f]?"%":""}</td>)}
+                  <td style={{padding:"6px 8px",color:th.sub,fontSize:11}}>{p.notas||""}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>}
+          <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:400,overflowY:"auto"}}>{selScout.text}</div>
         </div>}
       </div>
 
@@ -2782,6 +2868,7 @@ function InformeSemanal(){
 }
 
 const NAV=[
+  {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
   {id:"partidos", label:"Partidos",      icon:Trophy},
   {id:"calendario",label:"Calendario",   icon:Calendar},
@@ -2935,7 +3022,7 @@ export default function App(){
             <div style={{padding:"18px 18px 10px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:34,height:34,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:900,color:"#fff",letterSpacing:-.5,flexShrink:0}}>CB</div>
-                <div><p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 24/25</p></div>
+                <div><p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 25/26</p></div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
               </div>
               <div style={{marginTop:10}}><SyncBadge status={sync}/></div>
