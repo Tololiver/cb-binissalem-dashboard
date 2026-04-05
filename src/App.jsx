@@ -274,27 +274,74 @@ function ImageUploader({images,setImages,max=4}){
   </div>;
 }
 
+/* ── LOGO + SHARED PDF STYLES ────────────────────────────── */
+const LOGO_B64="data:image/png;base64,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";
+
+const PDF_CSS=`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+*{box-sizing:border-box}
+body{font-family:'Montserrat',Arial,sans-serif;color:#1e293b;font-size:13px;line-height:1.6;background:#fff;margin:0;padding:0}
+.page{max-width:740px;margin:0 auto;padding:32px 36px}
+.pdf-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:3px solid #1d4ed8;margin-bottom:22px}
+.pdf-header-left{display:flex;flex-direction:column;gap:2px}
+.pdf-club{font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:1.5px}
+.pdf-title{font-size:21px;font-weight:800;color:#1e293b;line-height:1.1;margin-top:4px}
+.pdf-subtitle{font-size:11px;color:#64748b;margin-top:4px}
+.pdf-logo{width:60px;height:60px;object-fit:contain;flex-shrink:0}
+.section{margin-bottom:16px}
+.section-title{font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;padding-bottom:3px;border-bottom:1.5px solid #dbeafe}
+.section-body{font-size:13px;color:#334155;line-height:1.65}
+.section-body p{margin-bottom:3px}
+.item{display:flex;gap:8px;align-items:flex-start;margin-bottom:4px}
+.item-dot{width:6px;height:6px;border-radius:50%;background:#f97316;flex-shrink:0;margin-top:6px}
+.item-text{flex:1;font-size:13px;color:#334155}
+.item-text strong,.section-body strong{color:#1e293b;font-weight:700}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+thead tr{background:#1d4ed8}
+thead th{padding:7px 8px;text-align:center;color:#fff;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+tbody tr:nth-child(even){background:#f8fafc}
+td{padding:6px 8px;border-bottom:1px solid #e2e8f0;color:#334155;text-align:center}
+td.left{text-align:left;font-weight:600;color:#1e293b}
+td.note{text-align:left;font-size:11px;color:#64748b}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 16px}
+.kpi{background:#f8fafc;border:1px solid #dbeafe;border-radius:7px;padding:10px;text-align:center}
+.kpi-val{font-size:22px;font-weight:800;color:#1d4ed8;line-height:1;margin-bottom:2px}
+.kpi-lbl{font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.pdf-footer{margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between}
+.pdf-footer span{font-size:10px;color:#94a3b8}
+@media print{body{padding:0}.page{padding:18px 22px}}`;
+
+function pdfOpen(title){return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>${PDF_CSS}</style></head><body><div class="page">`;}
+function pdfClose(){return `<div class="pdf-footer"><span>C.B. Binissalem · Sénior A · Temp. 25/26</span><span>${new Date().toLocaleDateString("es")}</span></div></div></body></html>`;}
+function pdfHeader(title,subtitle){return `<div class="pdf-header"><div class="pdf-header-left"><div class="pdf-club">C.B. Binissalem · Sénior A</div><div class="pdf-title">${title}</div><div class="pdf-subtitle">${subtitle}</div></div><img class="pdf-logo" src="${LOGO_B64}" alt="Logo"/></div>`;}
+function mdToHtml(text){
+  if(!text)return"";
+  const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const fmt=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+  let html="";let inSec=false;
+  const lines=text.split("\n");
+  for(const line of lines){
+    const hm=line.match(/^#+\s*(.+)/);
+    if(hm){if(inSec){html+="</div></div>";inSec=false;}html+=`<div class="section"><div class="section-title">${fmt(hm[1])}</div><div class="section-body">`;inSec=true;continue;}
+    const bm=line.match(/^[-*]\s+(.+)/)||line.match(/^\d+\.\s+(.+)/);
+    if(bm){if(!inSec){html+='<div class="section"><div class="section-body">';inSec=true;}html+=`<div class="item"><div class="item-dot"></div><div class="item-text">${fmt(bm[1])}</div></div>`;continue;}
+    if(line.trim()){if(!inSec){html+='<div class="section"><div class="section-body">';inSec=true;}html+=`<p>${fmt(line)}</p>`;}
+    else{if(inSec){html+="</div></div>";inSec=false;}}
+  }
+  if(inSec)html+="</div></div>";
+  return html;
+}
+
 /* ── PDF EXPORT FOR TRAINING ─────────────────────────────── */
 function exportSessionPDF(session){
   const w=window.open("","_blank");
-  w.document.write(`<!DOCTYPE html><html><head><title>${session.title}</title><style>
-    body{font-family:sans-serif;padding:30px;max-width:700px;margin:0 auto;color:#1e293b}
-    h1{color:#f97316;font-size:24px;margin-bottom:4px}
-    .meta{color:#64748b;font-size:13px;margin-bottom:20px}
-    h2{font-size:16px;color:#334155;margin:16px 0 8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
-    li{margin:6px 0;font-size:14px}
-    .notes{background:#f8fafc;border-left:4px solid #f97316;padding:10px 14px;border-radius:4px;font-size:13px;color:#475569}
-    @media print{body{padding:15px}}
-  </style></head><body>
-    <h1>${session.title}</h1>
-    <div class="meta">📅 ${session.date} &nbsp;·&nbsp; ⏱ ${session.dur} min &nbsp;·&nbsp; 🏷 ${session.type}</div>
-    ${session.notes?`<h2>Notas</h2><div class="notes">${session.notes.replace(/\n/g,"<br>")}</div>`:""}
-    <h2>Contenido de la sesión</h2>
-    <ol>${(session.exs||[]).map(e=>`<li>${e}</li>`).join("")}</ol>
-    <div style="margin-top:40px;color:#94a3b8;font-size:11px">CB Binissalem Senior A · Generado ${new Date().toLocaleDateString("es")}</div>
-  </body></html>`);
-  w.document.close();
-  setTimeout(()=>w.print(),300);
+  const exsHtml=(session.exs||[]).map((e,i)=>`<div class="item"><div class="item-dot"></div><div class="item-text"><strong>${i+1}.</strong> ${e}</div></div>`).join("");
+  w.document.write(pdfOpen(`Sesión: ${session.title}`)
+    +pdfHeader(session.title,`${session.date} · ${session.dur} min · ${session.type}`)
+    +(session.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body">${mdToHtml(session.notes)}</div></div>`:"")
+    +(exsHtml?`<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">${exsHtml}</div></div>`:"")
+    +pdfClose()
+  );
+  w.document.close();setTimeout(()=>w.print(),400);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -663,22 +710,15 @@ function Partidos(){
   const exportConvPDF=m=>{
     const conv=(m.convocados||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
     const w=window.open("","_blank");
-    w.document.write(`<html><head><title>Convocatoria ${m.rival}</title><style>
-      body{font-family:Arial,sans-serif;padding:30px;max-width:500px;margin:0 auto}
-      h1{color:#f97316;font-size:24px;margin-bottom:4px}
-      h2{color:#64748b;font-size:14px;font-weight:normal;margin-bottom:24px}
-      .player{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #e2e8f0}
-      .num{width:36px;height:36px;border-radius:50%;background:#f97316;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
-      .name{font-size:15px;font-weight:600}
-      .pos{font-size:12px;color:#64748b}
-      .footer{margin-top:24px;font-size:11px;color:#94a3b8;text-align:center}
-    </style></head><body>
-      <h1>CONVOCATORIA</h1>
-      <h2>${m.date} · vs ${m.rival} · ${m.location}</h2>
-      ${conv.map(p=>`<div class="player"><div class="num">${p.num}</div><div><div class="name">${p.name}</div><div class="pos">${p.pos}</div></div></div>`).join("")}
-      <div class="footer">CB Binissalem Sénior A · ${conv.length} jugadores convocados</div>
-    </body></html>`);
-    w.document.close();setTimeout(()=>w.print(),300);
+    const rows=conv.map((p,i)=>`<tr><td>${i+1}</td><td class="left">#${p.num} ${p.name}</td><td>${p.pos}</td><td>${p.equipo||"A"}</td></tr>`).join("");
+    w.document.write(pdfOpen(`Convocatoria vs ${m.rival}`)
+      +pdfHeader(`Convocatoria vs ${m.rival}`,`${m.date} · ${m.location} · ${conv.length} jugadores`)
+      +`<div class="section"><div class="section-title">Jugadores convocados</div>
+        <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>Posición</th><th>Equipo</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`
+      +pdfClose()
+    );
+    w.document.close();setTimeout(()=>w.print(),400);
   };
 
   const ks=[{label:"Record",value:`${w}–${l}`,color:"#f97316"},{label:"Pts a favor",value:af,color:"#10b981"},{label:"Pts en contra",value:aa,color:"#ef4444"},{label:"Jugados/Total",value:`${played.length}/${matches.length}`,color:"#3b82f6"}];
@@ -2113,22 +2153,25 @@ function Calendario(){
    14. IA ASISTENTE
 ══════════════════════════════════════════════════════════ */
 /* ── PDF export helper ── */
-function exportToPDF(title,content){
+function exportToPDF(title,content,subtitle,playersTable){
   const w=window.open("","_blank");
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>
-    body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#1e293b;line-height:1.7}
-    h1{color:#f97316;font-size:26px;margin-bottom:4px;border-bottom:3px solid #f97316;padding-bottom:8px}
-    h2{color:#f97316;font-size:18px;margin-top:24px}
-    .meta{color:#64748b;font-size:13px;margin-bottom:24px}
-    pre{white-space:pre-wrap;font-family:Arial,sans-serif;font-size:14px;line-height:1.75}
-    .footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}
-    @media print{body{margin:20px}}
-  </style></head><body>
-    <h1>${title}</h1>
-    <div class="meta">CB Binissalem Sénior A · ${new Date().toLocaleDateString("es")}</div>
-    <pre>${content.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>
-    <div class="footer">Generado por CB Binissalem Dashboard · IA Asistente</div>
-  </body></html>`);
+  const pTable=playersTable&&playersTable.length>0?`
+    <div class="section"><div class="section-title">Estadísticas de jugadores</div>
+    <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL int</th><th>TL met</th><th>T2 int</th><th>T2 met</th><th>T3 int</th><th>T3 met</th><th>FC</th><th style="text-align:left">Mejor partido</th></tr></thead>
+    <tbody>${playersTable.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>`<tr>
+      <td>${p.num||""}</td><td class="left">${p.name||""}</td>
+      <td>${p.pj||"—"}</td><td>${p.pt||"—"}</td><td>${p.min||"—"}</td>
+      <td>${p.tl_i||"—"}</td><td>${p.tl_m||"—"}</td>
+      <td>${p.t2_i||"—"}</td><td>${p.t2_m||"—"}</td>
+      <td>${p.t3_i||"—"}</td><td>${p.t3_m||"—"}</td>
+      <td>${p.fc||"—"}</td><td class="note">${p.best||""}</td>
+    </tr>`).join("")}</tbody></table></div>`:"";
+  w.document.write(pdfOpen(title)
+    +pdfHeader(title,subtitle||new Date().toLocaleDateString("es"))
+    +pTable
+    +mdToHtml(content)
+    +pdfClose()
+  );
   w.document.close();setTimeout(()=>w.print(),400);
 }
 
@@ -2143,15 +2186,16 @@ function IAAsistente(){
   const[rivalText,setRivalText]=useState("");const[rivalResult,setRivalResult]=useState(null);const[rivalLoading,setRivalLoading]=useState(false);
   const rivalFileRef=useRef();
   // Stats de jugadores del rival para scouting
+  const emptyRP=()=>({pj:"",pt:"",min:"",tl_i:"",tl_m:"",t2_i:"",t2_m:"",t3_i:"",t3_m:"",fc:"",best:""});
   const[rivalPlayers,setRivalPlayers]=useState([
-    {id:1,num:"4", name:"Jugador 1",pos:"Base",   pts:"",reb:"",ast:"",fg:"",notas:""},
-    {id:2,num:"7", name:"Jugador 2",pos:"Escolta", pts:"",reb:"",ast:"",fg:"",notas:""},
-    {id:3,num:"11",name:"Jugador 3",pos:"Alero",   pts:"",reb:"",ast:"",fg:"",notas:""},
-    {id:4,num:"14",name:"Jugador 4",pos:"Ala-Pív.",pts:"",reb:"",ast:"",fg:"",notas:""},
-    {id:5,num:"21",name:"Jugador 5",pos:"Pívot",   pts:"",reb:"",ast:"",fg:"",notas:""},
+    {id:1,num:"4", name:"Jugador 1",...emptyRP()},
+    {id:2,num:"7", name:"Jugador 2",...emptyRP()},
+    {id:3,num:"11",name:"Jugador 3",...emptyRP()},
+    {id:4,num:"14",name:"Jugador 4",...emptyRP()},
+    {id:5,num:"21",name:"Jugador 5",...emptyRP()},
   ]);
   const setRP=(id,field,val)=>setRivalPlayers(prev=>prev.map(p=>p.id===id?{...p,[field]:val}:p));
-  const addRP=()=>setRivalPlayers(prev=>[...prev,{id:Date.now(),num:"",name:`Jugador ${prev.length+1}`,pos:"Base",pts:"",reb:"",ast:"",fg:"",notas:""}]);
+  const addRP=()=>setRivalPlayers(prev=>[...prev,{id:Date.now(),num:"",name:`Jugador ${prev.length+1}`,...emptyRP()}]);
   const delRP=id=>setRivalPlayers(prev=>prev.filter(p=>p.id!==id));
 
   // Generador sesión
@@ -2172,7 +2216,7 @@ function IAAsistente(){
 
     // ¿El usuario ya rellenó jugadores manualmente?
     const hasManualPlayers=rivalPlayers.some(p=>
-      (p.name.trim()&&!p.name.match(/^Jugador \d+$/))||p.pts||p.reb||p.ast||p.fg
+      (p.name.trim()&&!p.name.match(/^Jugador \d+$/))||p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i
     );
 
     try{
@@ -2183,7 +2227,12 @@ function IAAsistente(){
         content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}});
       }
       const rpStr=hasManualPlayers
-        ?rivalPlayers.filter(p=>p.name.trim()&&(!p.name.match(/^Jugador \d+$/)||p.pts||p.reb||p.ast)).map(p=>`  #${p.num} ${p.name} (${p.pos})${p.pts?` PTS/P:${p.pts}`:""}${p.reb?` REB:${p.reb}`:""}${p.ast?` AST:${p.ast}`:""}${p.fg?` TC%:${p.fg}%`:""}${p.notas?` (${p.notas})`:""}`).join("\n")
+        ?rivalPlayers.filter(p=>p.name.trim()&&(!p.name.match(/^Jugador \d+$/)||p.pt||p.pj)).map(p=>{
+            const pj=p.pj?` PJ:${p.pj}`:"";const pt=p.pt?` PT:${p.pt}`:"";const min=p.min?` Min:${p.min}`:"";
+            const tl=p.tl_m&&p.tl_i?` TL:${p.tl_m}/${p.tl_i}`:"";const t2=p.t2_m&&p.t2_i?` T2:${p.t2_m}/${p.t2_i}`:"";const t3=p.t3_m&&p.t3_i?` T3:${p.t3_m}/${p.t3_i}`:"";
+            const fc=p.fc?` FC:${p.fc}`:"";const best=p.best?` Mejor partido: ${p.best}`:"";
+            return `  #${p.num} ${p.name}${pj}${pt}${min}${tl}${t2}${t3}${fc}${best}`;
+          }).join("\n")
         :"";
 
       content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}.\n`:""}${rivalText?`Información general:\n${rivalText}\n\n`:""}${rpStr?`Jugadores conocidos:\n${rpStr}\n\n`:""}
@@ -2196,8 +2245,8 @@ Genera el informe táctico en español con estas secciones:
 5. JUGADAS CLAVE a preparar
 
 ${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al final del informe en este bloque JSON exacto (no uses markdown):
-PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pos":"Base","pts":"12.5","reb":"3.2","ast":"5.1","fg":"45","notas":"Anotador principal"}]
-Si no hay datos de jugadores suficientes, omite el bloque PLAYERS_JSON.`:""}
+PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"180","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25","best":"vs CB Inca: 24pts, 10/15 T2"}]
+Si no hay datos suficientes de jugadores, omite el bloque PLAYERS_JSON.`:""}
 
 Sé específico y práctico.`});
 
@@ -2216,21 +2265,18 @@ Sé específico y práctico.`});
                 id:Date.now()+i,
                 num:p.num||String(i+1),
                 name:p.name||`Jugador ${i+1}`,
-                pos:p.pos||"Base",
-                pts:p.pts||"",
-                reb:p.reb||"",
-                ast:p.ast||"",
-                fg:p.fg||"",
-                notas:p.notas||"",
+                pj:p.pj||"",pt:p.pt||"",min:p.min||"",
+                tl_i:p.tl_i||"",tl_m:p.tl_m||"",
+                t2_i:p.t2_i||"",t2_m:p.t2_m||"",
+                t3_i:p.t3_i||"",t3_m:p.t3_m||"",
+                fc:p.fc||"",best:p.best||"",
               }));
-              // Eliminar el bloque JSON del texto visible
               fullText=fullText.replace(/PLAYERS_JSON:\s*\[[\s\S]*?\]/,"").trim();
             }
           }catch{}
         }
       }
 
-      // Actualizar tabla de jugadores si se extrajeron
       if(extractedPlayers&&extractedPlayers.length>0){
         setRivalPlayers(extractedPlayers);
       }
@@ -2298,7 +2344,7 @@ Sé específico y práctico.`});
     if(result.error)return <div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{result.error}</div>;
     return <div>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-        <button onClick={()=>exportToPDF(pdfTitle,result.text)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+        <button onClick={()=>exportToPDF(pdfTitle,result.text,pdfTitle)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
           <Printer size={13}/>Descargar PDF
         </button>
       </div>
@@ -2326,31 +2372,50 @@ Sé específico y práctico.`});
           {/* Tabla jugadores rival */}
           <div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <Lbl>Jugadores del rival (opcional — enriquece el análisis)</Lbl>
+              <Lbl>Estadísticas de jugadores del rival (opcional — enriquece el análisis y el PDF)</Lbl>
               <button onClick={addRP} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:11,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-                <Plus size={11}/>Añadir
+                <Plus size={11}/>Añadir jugador
               </button>
             </div>
             <div style={{overflow:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>
-                <thead><tr style={{background:th.tableHead}}>
-                  {["#","Nombre","Pos","PTS/P","REB/P","AST/P","TC%","Notas",""].map((h,i)=><th key={i} style={{padding:"6px 8px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5,whiteSpace:"nowrap"}}>{h}</th>)}
-                </tr></thead>
-                <tbody>{rivalPlayers.map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
-                  <td style={{padding:"5px 6px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} style={{width:34,textAlign:"center",padding:"4px 2px",fontSize:12}}/></td>
-                  <td style={{padding:"5px 6px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:110,fontSize:12}}/></td>
-                  <td style={{padding:"5px 6px"}}>
-                    <select value={p.pos} onChange={e=>setRP(p.id,"pos",e.target.value)} style={{fontSize:11,padding:"4px 4px"}}>
-                      {["Base","Escolta","Alero","Ala-Pív.","Pívot"].map(po=><option key={po}>{po}</option>)}
-                    </select>
-                  </td>
-                  <td style={{padding:"5px 4px"}}><input type="number" value={p.pts} onChange={e=>setRP(p.id,"pts",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
-                  <td style={{padding:"5px 4px"}}><input type="number" value={p.reb} onChange={e=>setRP(p.id,"reb",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
-                  <td style={{padding:"5px 4px"}}><input type="number" value={p.ast} onChange={e=>setRP(p.id,"ast",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
-                  <td style={{padding:"5px 4px"}}><input type="number" value={p.fg} onChange={e=>setRP(p.id,"fg",e.target.value)} style={{width:44,textAlign:"center",fontSize:12}}/></td>
-                  <td style={{padding:"5px 4px"}}><input value={p.notas} onChange={e=>setRP(p.id,"notas",e.target.value)} placeholder="Observaciones…" style={{width:120,fontSize:11}}/></td>
-                  <td style={{padding:"5px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2}}><Trash2 size={11}/></button></td>
-                </tr>)}</tbody>
+              <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
+                <thead>
+                  <tr style={{background:th.tableHead}}>
+                    <th style={{padding:"6px 6px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",whiteSpace:"nowrap"}}>#</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>Nombre</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>PJ</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>PT</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>Min</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",textTransform:"uppercase"}}>TL-I</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",textTransform:"uppercase"}}>TL-M</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",textTransform:"uppercase"}}>T2-I</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",textTransform:"uppercase"}}>T2-M</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase"}}>T3-I</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase"}}>T3-M</th>
+                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#ef4444",textTransform:"uppercase"}}>FC</th>
+                    <th style={{padding:"6px 6px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:"#f97316",textTransform:"uppercase"}}>⭐ Mejor partido</th>
+                    <th/>
+                  </tr>
+                </thead>
+                <tbody>{rivalPlayers.map(p=>{
+                  const ni={type:"number",style:{width:38,textAlign:"center",fontSize:11,padding:"3px 2px"}};
+                  return <tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
+                    <td style={{padding:"4px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} style={{width:32,textAlign:"center",fontSize:12,padding:"3px 2px"}}/></td>
+                    <td style={{padding:"4px 6px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:120,fontSize:12}}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.pj} onChange={e=>setRP(p.id,"pj",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.pt} onChange={e=>setRP(p.id,"pt",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.min} onChange={e=>setRP(p.id,"min",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.tl_i} onChange={e=>setRP(p.id,"tl_i",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.tl_m} onChange={e=>setRP(p.id,"tl_m",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t2_i} onChange={e=>setRP(p.id,"t2_i",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t2_m} onChange={e=>setRP(p.id,"t2_m",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t3_i} onChange={e=>setRP(p.id,"t3_i",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t3_m} onChange={e=>setRP(p.id,"t3_m",e.target.value)}/></td>
+                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.fc} onChange={e=>setRP(p.id,"fc",e.target.value)}/></td>
+                    <td style={{padding:"4px 4px"}}><input value={p.best||""} onChange={e=>setRP(p.id,"best",e.target.value)} placeholder="vs CB Inca: 24pts…" style={{width:150,fontSize:11}}/></td>
+                    <td style={{padding:"4px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2}}><Trash2 size={11}/></button></td>
+                  </tr>;
+                })}</tbody>
               </table>
             </div>
           </div>
@@ -2376,7 +2441,7 @@ Sé específico y práctico.`});
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:rivalResult.saved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:rivalResult.saved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Save size={12}/>{rivalResult.saved?"✓ Guardado en historial":"Guardar informe"}
               </button>
-              <button onClick={()=>exportToPDF(`Scouting — ${rivalResult.rival}`,rivalResult.text)}
+              <button onClick={()=>exportToPDF(`Scouting — ${rivalResult.rival}`,rivalResult.text,rivalResult.rival,rivalPlayers)}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Printer size={12}/>Descargar PDF
               </button>
@@ -2399,7 +2464,7 @@ Sé específico y práctico.`});
               <p style={{fontSize:11,color:th.muted}}>{selScout.date}</p>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>exportToPDF(`Scouting — ${selScout.rival}`,selScout.text)}
+              <button onClick={()=>exportToPDF(`Scouting — ${selScout.rival}`,selScout.text,selScout.rival,selScout.players||[])}
                 style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Printer size={12}/>PDF
               </button>
@@ -2410,19 +2475,22 @@ Sé específico y práctico.`});
             </div>
           </div>
           {/* Jugadores guardados */}
-          {selScout.players&&selScout.players.some(p=>p.pts||p.reb||p.ast||p.name!==`Jugador ${selScout.players.indexOf(p)+1}`)&&
+          {selScout.players&&selScout.players.some(p=>p.pt||p.pj||p.tl_i||p.t2_i||(p.name&&!p.name.match(/^Jugador \d+$/)))&&
             <div style={{marginBottom:14,overflow:"auto"}}>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Jugadores analizados</p>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:480,fontSize:12}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas de jugadores</p>
+              <table style={{width:"100%",borderCollapse:"collapse",minWidth:600,fontSize:12}}>
                 <thead><tr style={{background:th.tableHead}}>
-                  {["#","Nombre","Pos","PTS/P","REB/P","AST/P","TC%","Notas"].map((h,i)=><th key={i} style={{padding:"6px 8px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>)}
+                  {["#","Nombre","PJ","PT","Min","TL-I","TL-M","T2-I","T2-M","T3-I","T3-M","FC","⭐ Mejor partido"].map((h,i)=>(
+                    <th key={i} style={{padding:"6px 8px",textAlign:i<2?"left":"center",fontFamily:"Barlow Condensed",fontSize:10,color:i===12?"#f97316":th.muted,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>
+                  ))}
                 </tr></thead>
-                <tbody>{selScout.players.filter(p=>p.name).map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
-                  <td style={{padding:"6px 8px",fontFamily:"DM Mono",color:th.muted}}>{p.num}</td>
-                  <td style={{padding:"6px 8px",fontWeight:600,color:th.text}}>{p.name}</td>
-                  <td style={{padding:"6px 8px"}}><Badge color={POC[p.pos]||"#64748b"} sm>{p.pos}</Badge></td>
-                  {["pts","reb","ast","fg"].map(f=><td key={f} style={{padding:"6px 8px",fontFamily:"DM Mono",color:"#f97316",fontWeight:p[f]?600:300}}>{p[f]||"—"}{f==="fg"&&p[f]?"%":""}</td>)}
-                  <td style={{padding:"6px 8px",color:th.sub,fontSize:11}}>{p.notas||""}</td>
+                <tbody>{selScout.players.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)||p.pt||p.pj).map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
+                  <td style={{padding:"6px 8px",fontFamily:"DM Mono",color:th.muted,textAlign:"center"}}>{p.num||"—"}</td>
+                  <td style={{padding:"6px 8px",fontWeight:600,color:th.text}}>{p.name||"—"}</td>
+                  {["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"].map(f=>(
+                    <td key={f} style={{padding:"6px 8px",fontFamily:"DM Mono",color:p[f]?"#f97316":th.muted,textAlign:"center"}}>{p[f]||"—"}</td>
+                  ))}
+                  <td style={{padding:"6px 8px",color:th.sub,fontSize:11,textAlign:"left"}}>{p.best||"—"}</td>
                 </tr>)}</tbody>
               </table>
             </div>}
@@ -2491,7 +2559,7 @@ Sé específico y práctico.`});
             style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(139,92,246,.4)",background:"rgba(139,92,246,.07)",cursor:"pointer",color:"#8b5cf6",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
             <Copy size={13}/>Guardar como plantilla
           </button>
-          <button onClick={()=>exportToPDF(`Sesión: ${sesResult.title}`,sesResult.text)}
+          <button onClick={()=>exportToPDF(`Sesión: ${sesResult.title}`,sesResult.text,`${sesResult.date} · ${sesResult.dur} min · ${sesResult.type}`)}
             style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
             <Printer size={13}/>Descargar PDF
           </button>
@@ -2895,15 +2963,38 @@ function InformeSemanal(){
   const generatePDF=()=>{
     const top5=[...active].map(p=>({...p,...calcStats(p)})).sort((a,b)=>b.pts_p-a.pts_p).slice(0,5);
     const avgPts=played.length?(played.reduce((a,m)=>a+m.pts_us,0)/played.length).toFixed(1):"—";
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Informe Semanal CB Binissalem</title><style>body{font-family:Arial,sans-serif;max-width:720px;margin:30px auto;padding:0 20px;color:#1e293b;font-size:14px}h1{color:#f97316;font-size:28px;margin:0 0 4px}h2{color:#f97316;font-size:16px;border-bottom:2px solid #f97316;padding-bottom:4px;margin:20px 0 10px}.meta{color:#64748b;font-size:12px;margin-bottom:24px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}.kpi-val{font-size:26px;font-weight:700;color:#f97316;line-height:1;margin-bottom:4px}.kpi-lbl{font-size:10px;color:#94a3b8;text-transform:uppercase}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{background:#f8fafc;padding:8px 10px;text-align:left;font-size:11px;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0}td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:13px}.win{color:#10b981;font-weight:700}.los{color:#ef4444;font-weight:700}.footer{margin-top:36px;border-top:1px solid #e2e8f0;padding-top:12px;font-size:11px;color:#94a3b8;text-align:center}@media print{body{margin:10px}}</style></head><body>
-    <h1>CB Binissalem Sénior A</h1><div class="meta">Informe semanal · ${fmt(monday)} – ${fmt(sunday)} · ${today.toLocaleDateString("es")}</div>
-    <h2>Temporada</h2><div class="grid"><div class="kpi"><div class="kpi-val">${wins}–${played.length-wins}</div><div class="kpi-lbl">Record</div></div><div class="kpi"><div class="kpi-val">${played.length}</div><div class="kpi-lbl">Partidos</div></div><div class="kpi"><div class="kpi-val">${avgPts}</div><div class="kpi-lbl">PTS/P</div></div><div class="kpi"><div class="kpi-val">${sessions.length}</div><div class="kpi-lbl">Sesiones</div></div></div>
-    <h2>Esta semana</h2>${weekSessions.length?`<table><tr><th>Fecha</th><th>Sesión</th><th>Tipo</th><th>Dur.</th></tr>${weekSessions.map(s=>`<tr><td>${s.date}</td><td>${s.title}</td><td>${s.type}</td><td>${s.dur}'</td></tr>`).join("")}</table>`:"<p style='color:#94a3b8'>Sin sesiones</p>"}
-    ${weekMatches.length?`<table><tr><th>Rival</th><th>Lugar</th><th>Resultado</th></tr>${weekMatches.map(m=>`<tr><td>${m.rival}</td><td>${m.location}</td><td>${m.pts_us!=null?`<span class="${m.pts_us>m.pts_them?"win":"los"}">${m.pts_us}–${m.pts_them}</span>`:"—"}</td></tr>`).join("")}</table>`:""}
-    <h2>Próximos partidos</h2>${nextMatches.length?`<table><tr><th>Fecha</th><th>Rival</th><th>Lugar</th></tr>${nextMatches.map(m=>`<tr><td>${m.date}</td><td>${m.rival}</td><td>${m.location}</td></tr>`).join("")}</table>`:"<p style='color:#94a3b8'>Sin partidos próximos</p>"}
-    <h2>Top anotadores</h2><table><tr><th>#</th><th>Jugador</th><th>Pos.</th><th>PJ</th><th>PTS/P</th><th>T2%</th><th>T3%</th><th>TL%</th></tr>${top5.map((pl,i)=>`<tr><td>${i+1}</td><td><strong>${pl.name}</strong></td><td>${pl.pos}</td><td>${pl.pj}</td><td>${pl.pts_p}</td><td>${pl.t2_pct}%</td><td>${pl.t3_pct}%</td><td>${pl.tl_pct}%</td></tr>`).join("")}</table>
-    <div class="footer">CB Binissalem Dashboard</div></body></html>`;
-    const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
+    const w=window.open("","_blank");
+    w.document.write(pdfOpen("Informe Semanal")
+      +pdfHeader("Informe Semanal",`Semana ${fmt(monday)} – ${fmt(sunday)}`)
+      +`<div class="kpi-grid">
+          <div class="kpi"><div class="kpi-val">${wins}–${played.length-wins}</div><div class="kpi-lbl">Record</div></div>
+          <div class="kpi"><div class="kpi-val">${played.length}</div><div class="kpi-lbl">Partidos</div></div>
+          <div class="kpi"><div class="kpi-val">${avgPts}</div><div class="kpi-lbl">PTS/P</div></div>
+          <div class="kpi"><div class="kpi-val">${sessions.length}</div><div class="kpi-lbl">Sesiones</div></div>
+        </div>`
+      +`<div class="section"><div class="section-title">Entrenamientos esta semana</div>
+        ${weekSessions.length
+          ?`<table><thead><tr><th style="text-align:left">Fecha</th><th style="text-align:left">Sesión</th><th>Tipo</th><th>Min</th></tr></thead><tbody>
+            ${weekSessions.map(s=>`<tr><td class="left">${s.date}</td><td class="left">${s.title}</td><td>${s.type}</td><td>${s.dur}</td></tr>`).join("")}
+            </tbody></table>`
+          :"<p class='section-body' style='color:#94a3b8'>Sin sesiones registradas esta semana</p>"}</div>`
+      +(weekMatches.length?`<div class="section"><div class="section-title">Partidos esta semana</div>
+        <table><thead><tr><th style="text-align:left">Rival</th><th>Lugar</th><th>Resultado</th></tr></thead><tbody>
+        ${weekMatches.map(m=>`<tr><td class="left">${m.rival}</td><td>${m.location}</td><td style="color:${m.pts_us!=null?(m.pts_us>m.pts_them?"#10b981":"#ef4444"):"#64748b"};font-weight:700">${m.pts_us!=null?`${m.pts_us}–${m.pts_them}`:"—"}</td></tr>`).join("")}
+        </tbody></table></div>`:"")
+      +`<div class="section"><div class="section-title">Próximos partidos</div>
+        ${nextMatches.length
+          ?`<table><thead><tr><th style="text-align:left">Fecha</th><th style="text-align:left">Rival</th><th>Lugar</th></tr></thead><tbody>
+            ${nextMatches.map(m=>`<tr><td class="left">${m.date}</td><td class="left">${m.rival}</td><td>${m.location}</td></tr>`).join("")}
+            </tbody></table>`
+          :"<p class='section-body' style='color:#94a3b8'>Sin partidos próximos planificados</p>"}</div>`
+      +`<div class="section"><div class="section-title">Top anotadores</div>
+        <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>Pos.</th><th>PJ</th><th>PTS/P</th><th>T2%</th><th>T3%</th><th>TL%</th></tr></thead><tbody>
+        ${top5.map((pl,i)=>`<tr><td>${i+1}</td><td class="left">${pl.name}</td><td>${pl.pos}</td><td>${pl.pj}</td><td><strong>${pl.pts_p}</strong></td><td>${pl.t2_pct}%</td><td>${pl.t3_pct}%</td><td>${pl.tl_pct}%</td></tr>`).join("")}
+        </tbody></table></div>`
+      +pdfClose()
+    );
+    w.document.close();setTimeout(()=>w.print(),400);
   };
 
   return <div>
