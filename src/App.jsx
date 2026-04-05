@@ -2157,14 +2157,14 @@ function exportToPDF(title,content,subtitle,playersTable){
   const w=window.open("","_blank");
   const pTable=playersTable&&playersTable.length>0?`
     <div class="section"><div class="section-title">Estadísticas de jugadores</div>
-    <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL int</th><th>TL met</th><th>T2 int</th><th>T2 met</th><th>T3 int</th><th>T3 met</th><th>FC</th><th style="text-align:left">Mejor partido</th></tr></thead>
+    <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL int</th><th>TL met</th><th>T2 int</th><th>T2 met</th><th>T3 int</th><th>T3 met</th><th>FC</th></tr></thead>
     <tbody>${playersTable.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>`<tr>
       <td>${p.num||""}</td><td class="left">${p.name||""}</td>
       <td>${p.pj||"—"}</td><td>${p.pt||"—"}</td><td>${p.min||"—"}</td>
       <td>${p.tl_i||"—"}</td><td>${p.tl_m||"—"}</td>
       <td>${p.t2_i||"—"}</td><td>${p.t2_m||"—"}</td>
       <td>${p.t3_i||"—"}</td><td>${p.t3_m||"—"}</td>
-      <td>${p.fc||"—"}</td><td class="note">${p.best||""}</td>
+      <td>${p.fc||"—"}</td>
     </tr>`).join("")}</tbody></table></div>`:"";
   w.document.write(pdfOpen(title)
     +pdfHeader(title,subtitle||new Date().toLocaleDateString("es"))
@@ -2186,17 +2186,19 @@ function IAAsistente(){
   const[rivalText,setRivalText]=useState("");const[rivalResult,setRivalResult]=useState(null);const[rivalLoading,setRivalLoading]=useState(false);
   const rivalFileRef=useRef();
   // Stats de jugadores del rival para scouting
-  const emptyRP=()=>({pj:"",pt:"",min:"",tl_i:"",tl_m:"",t2_i:"",t2_m:"",t3_i:"",t3_m:"",fc:"",best:""});
-  const[rivalPlayers,setRivalPlayers]=useState([
+  const emptyRP=()=>({pj:"",pt:"",min:"",tl_i:"",tl_m:"",t2_i:"",t2_m:"",t3_i:"",t3_m:"",fc:""});
+  const defaultRP=()=>[
     {id:1,num:"4", name:"Jugador 1",...emptyRP()},
     {id:2,num:"7", name:"Jugador 2",...emptyRP()},
     {id:3,num:"11",name:"Jugador 3",...emptyRP()},
     {id:4,num:"14",name:"Jugador 4",...emptyRP()},
     {id:5,num:"21",name:"Jugador 5",...emptyRP()},
-  ]);
+  ];
+  const[rivalPlayers,setRivalPlayers]=useState(defaultRP());
   const setRP=(id,field,val)=>setRivalPlayers(prev=>prev.map(p=>p.id===id?{...p,[field]:val}:p));
   const addRP=()=>setRivalPlayers(prev=>[...prev,{id:Date.now(),num:"",name:`Jugador ${prev.length+1}`,...emptyRP()}]);
   const delRP=id=>setRivalPlayers(prev=>prev.filter(p=>p.id!==id));
+  const resetRival=()=>{setRivalName("");setRivalText("");setRivalResult(null);setRivalPlayers(defaultRP());setSelScout(null);if(rivalFileRef.current)rivalFileRef.current.value="";};
 
   // Generador sesión
   const[sesObj,setSesObj]=useState("");const[sesDur,setSesDur]=useState("90");const[sesFocus,setSesFocus]=useState("Técnico-Táctico");
@@ -2230,8 +2232,8 @@ function IAAsistente(){
         ?rivalPlayers.filter(p=>p.name.trim()&&(!p.name.match(/^Jugador \d+$/)||p.pt||p.pj)).map(p=>{
             const pj=p.pj?` PJ:${p.pj}`:"";const pt=p.pt?` PT:${p.pt}`:"";const min=p.min?` Min:${p.min}`:"";
             const tl=p.tl_m&&p.tl_i?` TL:${p.tl_m}/${p.tl_i}`:"";const t2=p.t2_m&&p.t2_i?` T2:${p.t2_m}/${p.t2_i}`:"";const t3=p.t3_m&&p.t3_i?` T3:${p.t3_m}/${p.t3_i}`:"";
-            const fc=p.fc?` FC:${p.fc}`:"";const best=p.best?` Mejor partido: ${p.best}`:"";
-            return `  #${p.num} ${p.name}${pj}${pt}${min}${tl}${t2}${t3}${fc}${best}`;
+            const fc=p.fc?` FC:${p.fc}`:"";
+            return `  #${p.num} ${p.name}${pj}${pt}${min}${tl}${t2}${t3}${fc}`;
           }).join("\n")
         :"";
 
@@ -2245,7 +2247,7 @@ Genera el informe táctico en español con estas secciones:
 5. JUGADAS CLAVE a preparar
 
 ${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al final del informe en este bloque JSON exacto (no uses markdown):
-PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"180","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25","best":"vs CB Inca: 24pts, 10/15 T2"}]
+PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"180","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25"}]
 Si no hay datos suficientes de jugadores, omite el bloque PLAYERS_JSON.`:""}
 
 Sé específico y práctico.`});
@@ -2269,7 +2271,7 @@ Sé específico y práctico.`});
                 tl_i:p.tl_i||"",tl_m:p.tl_m||"",
                 t2_i:p.t2_i||"",t2_m:p.t2_m||"",
                 t3_i:p.t3_i||"",t3_m:p.t3_m||"",
-                fc:p.fc||"",best:p.best||"",
+                fc:p.fc||"",
               }));
               fullText=fullText.replace(/PLAYERS_JSON:\s*\[[\s\S]*?\]/,"").trim();
             }
@@ -2364,6 +2366,13 @@ Sé específico y práctico.`});
       <div>
         <div className="card" style={{padding:20,marginBottom:14}}>
           <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:12}}>Scouting del rival</p>
+          {/* Botón nuevo informe */}
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+            <button onClick={resetRival}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"5px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+              <RotateCcw size={12}/>Nuevo informe
+            </button>
+          </div>
           <div style={{marginBottom:10}}><Lbl>Nombre del rival</Lbl><input value={rivalName} onChange={e=>setRivalName(e.target.value)} placeholder="Ej: CB Inca A"/></div>
           <div style={{marginBottom:14}}><Lbl>Información general (sistema, estilo, puntos débiles…)</Lbl>
             <textarea rows={3} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Sistema defensivo, jugadores clave, estadísticas, tendencias..."/>
@@ -2393,7 +2402,6 @@ Sé específico y práctico.`});
                     <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase"}}>T3-I</th>
                     <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase"}}>T3-M</th>
                     <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#ef4444",textTransform:"uppercase"}}>FC</th>
-                    <th style={{padding:"6px 6px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:"#f97316",textTransform:"uppercase"}}>⭐ Mejor partido</th>
                     <th/>
                   </tr>
                 </thead>
@@ -2412,7 +2420,6 @@ Sé específico y práctico.`});
                     <td style={{padding:"4px 3px"}}><input {...ni} value={p.t3_i} onChange={e=>setRP(p.id,"t3_i",e.target.value)}/></td>
                     <td style={{padding:"4px 3px"}}><input {...ni} value={p.t3_m} onChange={e=>setRP(p.id,"t3_m",e.target.value)}/></td>
                     <td style={{padding:"4px 3px"}}><input {...ni} value={p.fc} onChange={e=>setRP(p.id,"fc",e.target.value)}/></td>
-                    <td style={{padding:"4px 4px"}}><input value={p.best||""} onChange={e=>setRP(p.id,"best",e.target.value)} placeholder="vs CB Inca: 24pts…" style={{width:150,fontSize:11}}/></td>
                     <td style={{padding:"4px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2}}><Trash2 size={11}/></button></td>
                   </tr>;
                 })}</tbody>
@@ -2478,10 +2485,10 @@ Sé específico y práctico.`});
           {selScout.players&&selScout.players.some(p=>p.pt||p.pj||p.tl_i||p.t2_i||(p.name&&!p.name.match(/^Jugador \d+$/)))&&
             <div style={{marginBottom:14,overflow:"auto"}}>
               <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas de jugadores</p>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:600,fontSize:12}}>
+              <table style={{width:"100%",borderCollapse:"collapse",minWidth:560,fontSize:12}}>
                 <thead><tr style={{background:th.tableHead}}>
-                  {["#","Nombre","PJ","PT","Min","TL-I","TL-M","T2-I","T2-M","T3-I","T3-M","FC","⭐ Mejor partido"].map((h,i)=>(
-                    <th key={i} style={{padding:"6px 8px",textAlign:i<2?"left":"center",fontFamily:"Barlow Condensed",fontSize:10,color:i===12?"#f97316":th.muted,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>
+                  {["#","Nombre","PJ","PT","Min","TL-I","TL-M","T2-I","T2-M","T3-I","T3-M","FC"].map((h,i)=>(
+                    <th key={i} style={{padding:"6px 8px",textAlign:i<2?"left":"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>{selScout.players.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)||p.pt||p.pj).map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
@@ -2490,7 +2497,6 @@ Sé específico y práctico.`});
                   {["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"].map(f=>(
                     <td key={f} style={{padding:"6px 8px",fontFamily:"DM Mono",color:p[f]?"#f97316":th.muted,textAlign:"center"}}>{p[f]||"—"}</td>
                   ))}
-                  <td style={{padding:"6px 8px",color:th.sub,fontSize:11,textAlign:"left"}}>{p.best||"—"}</td>
                 </tr>)}</tbody>
               </table>
             </div>}
