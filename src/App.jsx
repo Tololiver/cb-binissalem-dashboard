@@ -2246,36 +2246,59 @@ Genera el informe táctico en español con estas secciones:
 4. JUGADORES A VIGILAR (con datos concretos si los hay)
 5. JUGADAS CLAVE a preparar
 
-${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al final del informe en este bloque JSON exacto (no uses markdown):
-PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"180","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25"}]
-Si no hay datos suficientes de jugadores, omite el bloque PLAYERS_JSON.`:""}
+${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al FINAL del informe en este bloque JSON (una sola línea, sin saltos de línea, sin markdown):
+PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25"}]
+IMPORTANTE: El campo "name" debe ser en una sola línea sin saltos de línea. Si el nombre es largo, abrevia. Si no hay datos suficientes, omite el bloque PLAYERS_JSON.`:""}
 
 Sé específico y práctico.`});
 
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1600,messages:[{role:"user",content}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1800,messages:[{role:"user",content}]});
       let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
 
-      // Intentar extraer jugadores del JSON embebido
+      // Extracción robusta del JSON — limpia saltos de línea dentro del bloque antes de parsear
       let extractedPlayers=null;
       if(!hasManualPlayers){
-        const jsonMatch=fullText.match(/PLAYERS_JSON:\s*(\[[\s\S]*?\])/);
-        if(jsonMatch){
-          try{
-            const parsed=JSON.parse(jsonMatch[1]);
-            if(Array.isArray(parsed)&&parsed.length>0){
-              extractedPlayers=parsed.map((p,i)=>({
-                id:Date.now()+i,
-                num:p.num||String(i+1),
-                name:p.name||`Jugador ${i+1}`,
-                pj:p.pj||"",pt:p.pt||"",min:p.min||"",
-                tl_i:p.tl_i||"",tl_m:p.tl_m||"",
-                t2_i:p.t2_i||"",t2_m:p.t2_m||"",
-                t3_i:p.t3_i||"",t3_m:p.t3_m||"",
-                fc:p.fc||"",
-              }));
-              fullText=fullText.replace(/PLAYERS_JSON:\s*\[[\s\S]*?\]/,"").trim();
+        const pjIdx=fullText.indexOf("PLAYERS_JSON:");
+        if(pjIdx>=0){
+          // Tomar todo desde PLAYERS_JSON hasta el final y limpiar saltos de línea
+          let raw=fullText.slice(pjIdx+"PLAYERS_JSON:".length).trim();
+          // Eliminar todo lo que no sea el array JSON (texto posterior al bloque)
+          // Buscar el inicio del array
+          const arrStart=raw.indexOf("[");
+          if(arrStart>=0){
+            raw=raw.slice(arrStart);
+            // Limpiar saltos de línea dentro del fragmento (los nombres largos los generan)
+            raw=raw.replace(/\r?\n/g," ").replace(/\s+/g," ");
+            // Encontrar el ] de cierre del array (robusto: recorrer balanceando)
+            let depth=0,end=-1;
+            for(let i=0;i<raw.length;i++){
+              if(raw[i]==="[")depth++;
+              else if(raw[i]==="]"){depth--;if(depth===0){end=i;break;}}
             }
-          }catch{}
+            let jsonStr=end>=0?raw.slice(0,end+1):raw;
+            // Intentar reparar JSON truncado si falta el cierre
+            if(end<0){
+              const lastObj=jsonStr.lastIndexOf("}");
+              if(lastObj>=0)jsonStr=jsonStr.slice(0,lastObj+1)+"]";
+            }
+            try{
+              const parsed=JSON.parse(jsonStr);
+              if(Array.isArray(parsed)&&parsed.length>0){
+                extractedPlayers=parsed.map((p,i)=>({
+                  id:Date.now()+i,
+                  num:p.num||String(i+1),
+                  name:(p.name||`Jugador ${i+1}`).trim(),
+                  pj:p.pj||"",pt:p.pt||"",min:p.min||"",
+                  tl_i:p.tl_i||"",tl_m:p.tl_m||"",
+                  t2_i:p.t2_i||"",t2_m:p.t2_m||"",
+                  t3_i:p.t3_i||"",t3_m:p.t3_m||"",
+                  fc:p.fc||"",
+                }));
+                // Eliminar el bloque PLAYERS_JSON del texto visible
+                fullText=fullText.slice(0,pjIdx).trim();
+              }
+            }catch(e){console.warn("PLAYERS_JSON parse error:",e.message);}
+          }
         }
       }
 
@@ -2283,7 +2306,7 @@ Sé específico y práctico.`});
         setRivalPlayers(extractedPlayers);
       }
 
-      setRivalResult({text:fullText,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers});
+      setRivalResult({text:fullText,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers,players:extractedPlayers||null});
     }catch(e){setRivalResult({error:e.message});}
     setRivalLoading(false);
     if(rivalFileRef.current)rivalFileRef.current.value="";
@@ -2291,7 +2314,9 @@ Sé específico y práctico.`});
 
   const saveScoutReport=()=>{
     if(!rivalResult||rivalResult.error||rivalResult.saved)return;
-    setScouting(prev=>[{id:Date.now(),rival:rivalResult.rival||"Sin nombre",date:new Date().toISOString().split("T")[0],text:rivalResult.text,players:rivalPlayers},...prev]);
+    // Use players from rivalResult if auto-extracted, otherwise use current rivalPlayers state
+    const playersToSave=rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers;
+    setScouting(prev=>[{id:Date.now(),rival:rivalResult.rival||"Sin nombre",date:new Date().toISOString().split("T")[0],text:rivalResult.text,players:playersToSave},...prev]);
     setRivalResult(r=>({...r,saved:true}));
   };
   const delScout=id=>setScouting(prev=>prev.filter(s=>s.id!==id));
@@ -2448,7 +2473,7 @@ Sé específico y práctico.`});
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:rivalResult.saved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:rivalResult.saved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Save size={12}/>{rivalResult.saved?"✓ Guardado en historial":"Guardar informe"}
               </button>
-              <button onClick={()=>exportToPDF(`Scouting — ${rivalResult.rival}`,rivalResult.text,rivalResult.rival,rivalPlayers)}
+              <button onClick={()=>exportToPDF(`Scouting — ${rivalResult.rival}`,rivalResult.text,rivalResult.rival,rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Printer size={12}/>Descargar PDF
               </button>
