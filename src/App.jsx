@@ -2169,6 +2169,12 @@ function IAAsistente(){
     if(noKey){setRivalResult({error:"Configura tu API Key en ⚙️ Ajustes del sidebar."});return;}
     if(!rivalText.trim()&&!rivalFileRef.current?.files?.[0]){setRivalResult({error:"Introduce información del rival o sube un PDF."});return;}
     setRivalLoading(true);setRivalResult(null);setSelScout(null);
+
+    // ¿El usuario ya rellenó jugadores manualmente?
+    const hasManualPlayers=rivalPlayers.some(p=>
+      (p.name.trim()&&!p.name.match(/^Jugador \d+$/))||p.pts||p.reb||p.ast||p.fg
+    );
+
     try{
       const content=[];
       if(rivalFileRef.current?.files?.[0]){
@@ -2176,10 +2182,60 @@ function IAAsistente(){
         const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
         content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}});
       }
-      const rpStr=rivalPlayers.filter(p=>p.name.trim()&&p.name!==`Jugador ${rivalPlayers.indexOf(p)+1}`||p.pts||p.reb||p.ast).map(p=>`  #${p.num} ${p.name} (${p.pos})${p.pts?` - PTS/P: ${p.pts}`:""}${p.reb?` - REB: ${p.reb}`:""}${p.ast?` - AST: ${p.ast}`:""}${p.fg?` - TC%: ${p.fg}%`:""}${p.notas?` - Notas: ${p.notas}`:""}`).join("\n");
-      content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}.\n`:""}${rivalText?`Información general:\n${rivalText}\n\n`:""}${rpStr?`Jugadores clave del rival:\n${rpStr}\n\n`:""}Genera informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR (menciona los datos concretos de los jugadores si los hay)\n5. JUGADAS CLAVE a preparar\n\nSé específico y usa los datos de los jugadores para el análisis.`});
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1200,messages:[{role:"user",content}]});
-      setRivalResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.",rival:rivalName||"Sin nombre",saved:false});
+      const rpStr=hasManualPlayers
+        ?rivalPlayers.filter(p=>p.name.trim()&&(!p.name.match(/^Jugador \d+$/)||p.pts||p.reb||p.ast)).map(p=>`  #${p.num} ${p.name} (${p.pos})${p.pts?` PTS/P:${p.pts}`:""}${p.reb?` REB:${p.reb}`:""}${p.ast?` AST:${p.ast}`:""}${p.fg?` TC%:${p.fg}%`:""}${p.notas?` (${p.notas})`:""}`).join("\n")
+        :"";
+
+      content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}.\n`:""}${rivalText?`Información general:\n${rivalText}\n\n`:""}${rpStr?`Jugadores conocidos:\n${rpStr}\n\n`:""}
+
+Genera el informe táctico en español con estas secciones:
+1. PUNTOS FUERTES del rival
+2. PUNTOS DÉBILES a explotar
+3. PLAN DE PARTIDO (ataque y defensa)
+4. JUGADORES A VIGILAR (con datos concretos si los hay)
+5. JUGADAS CLAVE a preparar
+
+${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al final del informe en este bloque JSON exacto (no uses markdown):
+PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pos":"Base","pts":"12.5","reb":"3.2","ast":"5.1","fg":"45","notas":"Anotador principal"}]
+Si no hay datos de jugadores suficientes, omite el bloque PLAYERS_JSON.`:""}
+
+Sé específico y práctico.`});
+
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1600,messages:[{role:"user",content}]});
+      let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
+
+      // Intentar extraer jugadores del JSON embebido
+      let extractedPlayers=null;
+      if(!hasManualPlayers){
+        const jsonMatch=fullText.match(/PLAYERS_JSON:\s*(\[[\s\S]*?\])/);
+        if(jsonMatch){
+          try{
+            const parsed=JSON.parse(jsonMatch[1]);
+            if(Array.isArray(parsed)&&parsed.length>0){
+              extractedPlayers=parsed.map((p,i)=>({
+                id:Date.now()+i,
+                num:p.num||String(i+1),
+                name:p.name||`Jugador ${i+1}`,
+                pos:p.pos||"Base",
+                pts:p.pts||"",
+                reb:p.reb||"",
+                ast:p.ast||"",
+                fg:p.fg||"",
+                notas:p.notas||"",
+              }));
+              // Eliminar el bloque JSON del texto visible
+              fullText=fullText.replace(/PLAYERS_JSON:\s*\[[\s\S]*?\]/,"").trim();
+            }
+          }catch{}
+        }
+      }
+
+      // Actualizar tabla de jugadores si se extrajeron
+      if(extractedPlayers&&extractedPlayers.length>0){
+        setRivalPlayers(extractedPlayers);
+      }
+
+      setRivalResult({text:fullText,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers});
     }catch(e){setRivalResult({error:e.message});}
     setRivalLoading(false);
     if(rivalFileRef.current)rivalFileRef.current.value="";
@@ -2327,6 +2383,9 @@ function IAAsistente(){
             </div>
             {rivalResult.saved&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#10b981"}}>
               ✅ Informe guardado — visible en el historial de informes
+            </div>}
+            {rivalResult.playersExtracted&&<div style={{background:"rgba(139,92,246,.07)",border:"1px solid rgba(139,92,246,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#8b5cf6",display:"flex",alignItems:"center",gap:6}}>
+              <Users size={13}/>Jugadores detectados automáticamente por la IA — revisa la tabla y edita si es necesario
             </div>}
             <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{rivalResult.text}</div>
           </div>
