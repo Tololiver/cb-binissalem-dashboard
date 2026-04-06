@@ -672,7 +672,7 @@ function Partidos(){
   const[ed,setEd]=useState(null);const[ef,setEf]=useState({});
   const[exp,setExp]=useState(null); // expanded match id
   const[tab,setTab]=useState({}); // {matchId: "convocatoria"|"valoracion"}
-  const[f,setF]=useState({date:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});
+  const[f,setF]=useState({date:"",time:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});
 
   const availablePlayers=players.filter(p=>p.active&&!p.lesionado);
   const played=matches.filter(m=>m.pts_us!=null);
@@ -689,9 +689,9 @@ function Partidos(){
       pts_them:f.pts_them!==""?+f.pts_them:null,
       convocados:[],valoraciones:{},
     }]);
-    setF({date:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});setSa(false);
+    setF({date:"",time:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});setSa(false);
   };
-  const startEdit=m=>{setEd(m.id);setEf({date:m.date,rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
+  const startEdit=m=>{setEd(m.id);setEf({date:m.date,time:m.time||"",rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
   const saveEdit=()=>{
     setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,pts_us:ef.pts_us!==""?+ef.pts_us:null,pts_them:ef.pts_them!==""?+ef.pts_them:null}:m));
     setEd(null);
@@ -735,8 +735,9 @@ function Partidos(){
     {/* Formulario nuevo partido */}
     {sa&&<div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Nuevo Partido</p>
-      <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:12,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"130px 100px 1fr 120px 80px 80px",gap:12,marginBottom:12}}>
         <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(x=>({...x,date:e.target.value}))}/></div>
+        <div><Lbl>Hora</Lbl><input type="time" value={f.time||""} onChange={e=>setF(x=>({...x,time:e.target.value}))}/></div>
         <div><Lbl>Rival</Lbl><input value={f.rival} onChange={e=>setF(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
         <div><Lbl>Lugar</Lbl><select value={f.location} onChange={e=>setF(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
         <div><Lbl>Nos.</Lbl><input type="number" value={f.pts_us} onChange={e=>setF(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
@@ -768,8 +769,9 @@ function Partidos(){
         if(isEditing)return(
           <div key={m.id} className="card" style={{padding:20,borderColor:"#f9731640"}}>
             <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>Editar: {m.rival}</p>
-            <div style={{display:"grid",gridTemplateColumns:"150px 1fr 130px 80px 80px",gap:12,marginBottom:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"130px 100px 1fr 120px 80px 80px",gap:12,marginBottom:12}}>
               <div><Lbl>Fecha</Lbl><input type="date" value={ef.date} onChange={e=>setEf(x=>({...x,date:e.target.value}))}/></div>
+              <div><Lbl>Hora</Lbl><input type="time" value={ef.time||""} onChange={e=>setEf(x=>({...x,time:e.target.value}))}/></div>
               <div><Lbl>Rival</Lbl><input value={ef.rival} onChange={e=>setEf(x=>({...x,rival:e.target.value}))}/></div>
               <div><Lbl>Lugar</Lbl><select value={ef.location} onChange={e=>setEf(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
               <div><Lbl>Nos.</Lbl><input type="number" value={ef.pts_us} onChange={e=>setEf(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
@@ -789,7 +791,8 @@ function Partidos(){
             </div>
             <div style={{flex:1}}>
               <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p>
-              <p style={{fontSize:11,color:th.muted}}>{m.location}{hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}
+              <p style={{fontSize:11,color:th.muted}}>{m.location}{m.time?` · ${m.time}h`:""}
+                {hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}
                 {convocados.length>0&&<span style={{color:th.sub}}> · {convocados.length} convocados</span>}
               </p>
             </div>
@@ -1197,45 +1200,288 @@ function Estadisticas(){
 /* ══════════════════════════════════════════════════════════
    6. ENTRENAMIENTOS — con notas y exportar PDF
 ══════════════════════════════════════════════════════════ */
-function Entrenamientos(){
-  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates}=useData();
-  const[exp,setExp]=useState(null);const[add,setAdd]=useState(false);
-  const[editNotes,setEditNotes]=useState(null);const[notesVal,setNotesVal]=useState("");
-  const[showTemplates,setShowTemplates]=useState(false);
-  const[saveAsTemplate,setSaveAsTemplate]=useState(null);const[tplName,setTplName]=useState("");
-  const[f,setF]=useState({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});
+/* ── PDF para playbook ─────────────────────────────────────── */
+function exportPlaybookPDF(plays,filter){
+  const list=filter==="Todos"?plays:plays.filter(p=>p.cat===filter);
+  const w=window.open("","_blank");
+  const rows=list.map(p=>`
+    <div class="play">
+      <div class="play-header">
+        <span class="play-name">${p.name}</span>
+        <span class="play-cat" style="background:${PC[p.cat]||"#f97316"}20;color:${PC[p.cat]||"#f97316"};border:1px solid ${PC[p.cat]||"#f97316"}40">${p.cat}</span>
+      </div>
+      ${p.desc?`<p class="play-desc">${p.desc}</p>`:""}
+      ${(p.tags||[]).length?`<div class="tags">${p.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>`:""}
+      ${(p.images||[]).length?`<div class="imgs">${p.images.map(img=>`<img src="${img}" class="play-img"/>`).join("")}</div>`:""}
+    </div>`).join("");
+  w.document.write(pdfOpen("Playbook")
+    +pdfHeader("Playbook",`${filter!=="Todos"?filter+" · ":""}${list.length} jugadas`)
+    +`<style>.play{margin-bottom:18px;padding:14px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid}
+      .play-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+      .play-name{font-weight:700;font-size:15px;color:#1e293b}
+      .play-cat{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
+      .play-desc{font-size:13px;color:#475569;line-height:1.6;margin-bottom:6px}
+      .tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+      .tag{font-size:10px;background:#f8fafc;border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;color:#64748b}
+      .imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+      .play-img{width:100px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}</style>`
+    +rows+pdfClose());
+  w.document.close();setTimeout(()=>w.print(),400);
+}
+
+/* ── PDF para ejercicios ───────────────────────────────────── */
+function exportEjerciciosPDF(ejercicios,filter){
+  const list=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
+  const w=window.open("","_blank");
+  const rows=list.map(ex=>`
+    <div class="ex">
+      <div class="ex-header">
+        <span class="ex-name">${ex.name}</span>
+        ${ex.dur?`<span class="ex-dur">${ex.dur}</span>`:""}
+        <span class="ex-badge" style="background:${CC[ex.cat]||"#f97316"}20;color:${CC[ex.cat]||"#f97316"}">${ex.cat}</span>
+        <span class="ex-badge" style="background:#e0f2fe;color:#0284c7">${ex.diff||"Básico"}</span>
+      </div>
+      ${ex.desc?`<p class="ex-desc">${ex.desc}</p>`:""}
+      ${(ex.images||[]).length?`<div class="imgs">${ex.images.map(img=>`<img src="${img}" class="ex-img"/>`).join("")}</div>`:""}
+    </div>`).join("");
+  w.document.write(pdfOpen("Biblioteca de Ejercicios")
+    +pdfHeader("Biblioteca de Ejercicios",`${filter!=="Todos"?filter+" · ":""}${list.length} ejercicios`)
+    +`<style>.ex{margin-bottom:16px;padding:12px 14px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}
+      .ex-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+      .ex-name{font-weight:700;font-size:15px;color:#1e293b;flex:1}
+      .ex-dur{font-family:monospace;font-size:12px;color:#f97316;font-weight:700;background:#fff7ed;padding:2px 8px;border-radius:4px}
+      .ex-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}
+      .ex-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}
+      .imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px}
+      .ex-img{width:90px;height:70px;object-fit:cover;border-radius:5px;border:1px solid #e2e8f0}</style>`
+    +rows+pdfClose());
+  w.document.close();setTimeout(()=>w.print(),400);
+}
+
+/* ── Componente modal ejercicio ────────────────────────────── */
+function EjercicioModal({ex,onClose}){
+  const{th}=useTheme();
+  const c=CC[ex.cat]||"#f97316";const dc=DC[ex.diff]||"#10b981";
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:th.card,borderRadius:16,padding:28,maxWidth:580,width:"100%",maxHeight:"85vh",overflowY:"auto",border:`1px solid ${th.border}`,boxShadow:"0 24px 60px rgba(0,0,0,.4)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+        <div>
+          <h2 style={{fontFamily:"Barlow Condensed",fontSize:24,fontWeight:800,color:th.text,marginBottom:6}}>{ex.name}</h2>
+          <div style={{display:"flex",gap:6}}><Badge color={c}>{ex.cat}</Badge><Badge color={dc}>{ex.diff}</Badge>{ex.dur&&<Badge color="#3b82f6">{ex.dur}</Badge>}</div>
+        </div>
+        <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px",fontSize:16}}>✕</button>
+      </div>
+      {ex.desc&&<p style={{fontSize:14,color:th.sub,lineHeight:1.7,marginBottom:14,whiteSpace:"pre-wrap"}}>{ex.desc}</p>}
+      {(ex.images||[]).length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+        {ex.images.map((img,i)=><img key={i} src={img} alt="" style={{width:"100%",borderRadius:8,objectFit:"cover",border:`1px solid ${th.border}`}}/>)}
+      </div>}
+    </div>
+  </div>;
+}
+
+/* ── Selector de ejercicios para entrenos ──────────────────── */
+function EjercicioPicker({ejercicios,onAdd,onClose}){
+  const{th}=useTheme();
+  const[filter,setFilter]=useState("Todos");
+  const[sel,setSel]=useState([]);
+  const cats=["Todos","Técnico","Táctico","Físico","Recuperación","Mental"];
+  const filtered=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
+  const toggle=id=>setSel(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:th.card,borderRadius:16,padding:24,maxWidth:680,width:"100%",maxHeight:"85vh",display:"flex",flexDirection:"column",border:`1px solid ${th.border}`,boxShadow:"0 24px 60px rgba(0,0,0,.4)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text}}>Añadir ejercicios al entreno</p>
+        <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px",fontSize:16}}>✕</button>
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+        {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"4px 14px",borderRadius:7,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub}}>{c}</button>)}
+      </div>
+      <div style={{overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:6}}>
+        {filtered.length===0&&<p style={{color:th.muted,fontSize:12,textAlign:"center",padding:24}}>Sin ejercicios en esta categoría</p>}
+        {filtered.map(ex=>{
+          const c=CC[ex.cat]||"#f97316";const isSel=sel.includes(ex.id);
+          return <div key={ex.id} onClick={()=>toggle(ex.id)}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:8,border:`1px solid ${isSel?c:th.border}`,background:isSel?c+"10":th.card2,cursor:"pointer",transition:"all .15s"}}>
+            <div style={{width:22,height:22,borderRadius:4,border:`2px solid ${isSel?c:th.border2}`,background:isSel?c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              {isSel&&<Check size={12} color="#fff"/>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>{ex.name}</p>
+              <p style={{fontSize:11,color:th.muted}}>{ex.cat} · {ex.diff}{ex.dur?` · ${ex.dur}`:""}</p>
+            </div>
+            {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:40,height:40,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+          </div>;
+        })}
+      </div>
+      <div style={{marginTop:14,display:"flex",gap:8,justifyContent:"space-between",alignItems:"center"}}>
+        <p style={{fontSize:12,color:th.muted}}>{sel.length} ejercicio{sel.length!==1?"s":""} seleccionado{sel.length!==1?"s":""}</p>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={onClose} variant="ghost">Cancelar</Btn>
+          <Btn onClick={()=>{onAdd(sel);onClose();}} disabled={sel.length===0}>Añadir al entreno</Btn>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ── Formulario sesión (nuevo/editar) ──────────────────────── */
+function SesionForm({session,ejercicios,onSave,onCancel}){
+  const{th}=useTheme();
+  const isEdit=!!session;
+  const[f,setF]=useState({
+    date:session?.date||"",
+    time:session?.time||"",
+    type:session?.type||"Técnico",
+    dur:session?.dur||90,
+    title:session?.title||"",
+    exs:Array.isArray(session?.exs)?session.exs.join("\n"):session?.exs||"",
+    exObjs:session?.exObjs||[], // ejercicios del catálogo incluidos
+    notes:session?.notes||"",
+    images:session?.images||[],
+  });
+  const[showPicker,setShowPicker]=useState(false);
+  const[viewEx,setViewEx]=useState(null);
+
+  const addExFromCatalog=ids=>{
+    const toAdd=ids.map(id=>ejercicios.find(e=>e.id===id)).filter(Boolean);
+    setF(prev=>({...prev,exObjs:[...prev.exObjs,...toAdd.filter(e=>!prev.exObjs.some(o=>o.id===e.id))]}));
+  };
+  const removeExObj=id=>setF(prev=>({...prev,exObjs:prev.exObjs.filter(e=>e.id!==id)}));
 
   const save=()=>{
     if(!f.title||!f.date)return;
-    const id=sessions.length?Math.max(...sessions.map(s=>s.id))+1:1;
-    setSessions(p=>[...p,{id,...f,dur:+f.dur,exs:f.exs.split("\n").filter(Boolean)}]);
-    setAdd(false);setF({date:"",type:"Técnico",dur:90,title:"",exs:"",notes:""});
+    const exsList=f.exs.split("\n").filter(Boolean);
+    onSave({
+      ...(session||{}),
+      id:session?.id||Date.now(),
+      date:f.date,time:f.time,type:f.type,dur:+f.dur,
+      title:f.title,exs:exsList,exObjs:f.exObjs,
+      notes:f.notes,images:f.images,
+    });
   };
-  const saveNotes=sid=>{setSessions(prev=>prev.map(s=>s.id===sid?{...s,notes:notesVal}:s));setEditNotes(null);};
+
+  return <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640",position:"relative"}}>
+    {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
+    {showPicker&&<EjercicioPicker ejercicios={ejercicios} onAdd={addExFromCatalog} onClose={()=>setShowPicker(false)}/>}
+    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>{isEdit?"Editar Sesión":"Nueva Sesión"}</p>
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 110px 1fr 110px",gap:12,marginBottom:12}}>
+      <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))}/></div>
+      <div><Lbl>Hora inicio</Lbl><input type="time" value={f.time} onChange={e=>setF(p=>({...p,time:e.target.value}))}/></div>
+      <div><Lbl>Tipo</Lbl><select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))}>{Object.keys(TC).map(t=><option key={t}>{t}</option>)}</select></div>
+      <div><Lbl>Duración (min)</Lbl><input type="number" value={f.dur} onChange={e=>setF(p=>({...p,dur:e.target.value}))}/></div>
+    </div>
+    <div style={{marginBottom:12}}><Lbl>Título</Lbl><input type="text" value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder="Título de la sesión"/></div>
+
+    {/* Ejercicios del catálogo */}
+    <div style={{marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <Lbl>Ejercicios del catálogo</Lbl>
+        <button onClick={()=>setShowPicker(true)} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 12px",borderRadius:6,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+          <Plus size={11}/>Añadir del catálogo
+        </button>
+      </div>
+      {f.exObjs.length===0?<p style={{fontSize:11,color:th.muted}}>Sin ejercicios del catálogo. Usa el botón para seleccionar.</p>:
+      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+        {f.exObjs.map(ex=>{const c=CC[ex.cat]||"#f97316";return <div key={ex.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:th.card2,borderRadius:8,border:`1px solid ${c}40`}}>
+          {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:36,height:36,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setViewEx(ex)}>
+            <p style={{fontSize:13,color:th.text,fontWeight:600}}>{ex.name}</p>
+            <p style={{fontSize:10,color:c}}>{ex.cat}{ex.dur?` · ${ex.dur}`:""}</p>
+          </div>
+          <button onClick={()=>removeExObj(ex.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2,flexShrink:0}}><Trash2 size={12}/></button>
+        </div>;})}
+      </div>}
+    </div>
+
+    <div style={{marginBottom:12}}><Lbl>Ejercicios adicionales (uno por línea)</Lbl><textarea rows={3} value={f.exs} onChange={e=>setF(p=>({...p,exs:e.target.value}))} placeholder={"Calentamiento 15'\nVuelta a la calma 10'..."}/></div>
+    <div style={{marginBottom:12}}><Lbl>Notas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones, observaciones…"/></div>
+    <div style={{marginBottom:16}}><Lbl>Imágenes de la sesión (hasta 4)</Lbl><ImageUploader images={f.images} setImages={imgs=>setF(p=>({...p,images:imgs}))}/></div>
+    <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
+  </div>;
+}
+
+function Entrenamientos(){
+  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios}=useData();
+  const[exp,setExp]=useState(null);
+  const[showAdd,setShowAdd]=useState(false);
+  const[editSes,setEditSes]=useState(null); // session being edited
+  const[showTemplates,setShowTemplates]=useState(false);
+  const[saveAsTemplate,setSaveAsTemplate]=useState(null);const[tplName,setTplName]=useState("");
+  const[viewEx,setViewEx]=useState(null); // exercise modal
+  const[viewImg,setViewImg]=useState(null); // image lightbox
+
+  const saveSession=s=>{
+    if(editSes){
+      setSessions(prev=>prev.map(x=>x.id===s.id?s:x));
+      setEditSes(null);
+    } else {
+      const id=sessions.length?Math.max(...sessions.map(x=>x.id))+1:1;
+      setSessions(prev=>[...prev,{...s,id}]);
+      setShowAdd(false);
+    }
+  };
 
   const loadTemplate=tpl=>{
-    setF(prev=>({...prev,type:tpl.type,dur:tpl.dur,title:tpl.title,exs:tpl.exs,notes:tpl.notes||""}));
-    setShowTemplates(false);setAdd(true);
+    setShowAdd(true);setShowTemplates(false);
+    // SesionForm will handle it via editSes=null with pre-filled values
+    // We pass it as a "template" session (no id)
+    setEditSes({...tpl,id:null,date:"",title:tpl.title});
   };
   const doSaveTemplate=sid=>{
     if(!tplName.trim())return;
     const s=sessions.find(x=>x.id===sid);if(!s)return;
-    const id=Date.now();
-    setSesionTemplates(prev=>[...prev,{id,name:tplName.trim(),type:s.type,dur:s.dur,title:s.title,exs:Array.isArray(s.exs)?s.exs.join("\n"):s.exs||"",notes:s.notes||""}]);
+    setSesionTemplates(prev=>[...prev,{id:Date.now(),name:tplName.trim(),type:s.type,dur:s.dur,title:s.title,exs:Array.isArray(s.exs)?s.exs.join("\n"):s.exs||"",exObjs:s.exObjs||[],notes:s.notes||"",images:s.images||[]}]);
     setSaveAsTemplate(null);setTplName("");
   };
   const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
 
+  const exportPDF=s=>{
+    const w=window.open("","_blank");
+    const exObjsHtml=(s.exObjs||[]).map(ex=>`
+      <div class="exobj">
+        <div class="exobj-header">
+          <span class="exobj-name">${ex.name}</span>
+          ${ex.dur?`<span class="exobj-dur">${ex.dur}</span>`:""}
+          <span class="exobj-badge">${ex.cat}</span>
+        </div>
+        ${ex.desc?`<p class="exobj-desc">${ex.desc}</p>`:""}
+        ${(ex.images||[]).length?`<div class="exobj-imgs">${ex.images.map(img=>`<img src="${img}" class="exobj-img"/>`).join("")}</div>`:""}
+      </div>`).join("");
+    const exsHtml=(s.exs||[]).map((e,i)=>`<div class="item"><div class="item-dot"></div><div class="item-text"><strong>${i+1}.</strong> ${e}</div></div>`).join("");
+    const imgsHtml=(s.images||[]).length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.images.map(img=>`<img src="${img}" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>`).join("")}</div>`:"";
+    w.document.write(pdfOpen(`Sesión: ${s.title}`)
+      +pdfHeader(s.title,`${s.date}${s.time?` · ${s.time}`:""}h · ${s.dur} min · ${s.type}`)
+      +`<style>.exobj{margin-bottom:14px;padding:12px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}
+        .exobj-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+        .exobj-name{font-weight:700;font-size:14px;color:#1e293b}
+        .exobj-dur{font-size:11px;color:#f97316;font-weight:700;background:#fff7ed;padding:1px 7px;border-radius:4px}
+        .exobj-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:#dbeafe;color:#1d4ed8;text-transform:uppercase}
+        .exobj-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}
+        .exobj-imgs{display:flex;gap:6px;flex-wrap:wrap}
+        .exobj-img{height:90px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0}</style>`
+      +(s.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body"><p>${s.notes}</p></div></div>`:"")
+      +(exObjsHtml?`<div class="section"><div class="section-title">Ejercicios del catálogo</div>${exObjsHtml}</div>`:"")
+      +(exsHtml?`<div class="section"><div class="section-title">Ejercicios adicionales</div><div class="section-body">${exsHtml}</div></div>`:"")
+      +(imgsHtml?`<div class="section"><div class="section-title">Imágenes de la sesión</div>${imgsHtml}</div>`:"")
+      +pdfClose()
+    );
+    w.document.close();setTimeout(()=>w.print(),400);
+  };
+
   return <div>
-    <SH title="Entrenamientos" sub="Sesiones · Plantillas · Notas" right={<div style={{display:"flex",gap:8}}>
+    {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
+    {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8}}/></div>}
+
+    <SH title="Entrenamientos" sub="Sesiones · Ejercicios · Notas · PDF" right={<div style={{display:"flex",gap:8}}>
       <Btn onClick={()=>setShowTemplates(!showTemplates)} variant="ghost" icon={<Copy size={14}/>} sm>Plantillas {sesionTemplates.length>0&&`(${sesionTemplates.length})`}</Btn>
-      <Btn onClick={()=>{setAdd(true);setShowTemplates(false);}} icon={<Plus size={14}/>}>Nueva Sesión</Btn>
+      <Btn onClick={()=>{setShowAdd(true);setEditSes(null);setShowTemplates(false);}} icon={<Plus size={14}/>}>Nueva Sesión</Btn>
     </div>}/>
 
-    {/* Panel plantillas */}
+    {/* Plantillas */}
     {showTemplates&&<div className="card" style={{padding:18,marginBottom:14,borderColor:"rgba(139,92,246,.3)"}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#8b5cf6",marginBottom:12,textTransform:"uppercase"}}>Plantillas guardadas</p>
-      {sesionTemplates.length===0?<p style={{fontSize:12,color:th.muted}}>Aún no tienes plantillas. Crea una sesión y guárdala como plantilla para reutilizarla.</p>:(
+      {sesionTemplates.length===0?<p style={{fontSize:12,color:th.muted}}>Aún no tienes plantillas. Guarda una sesión como plantilla para reutilizarla.</p>:(
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {sesionTemplates.map(t=>{const c=TC[t.type]||"#f97316";return <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:th.card2,borderRadius:8,border:`1px solid ${th.border}`}}>
             <div style={{flex:1}}>
@@ -1250,70 +1496,89 @@ function Entrenamientos(){
     </div>}
 
     {/* Formulario nueva sesión */}
-    {add&&<div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640"}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>Nueva Sesión</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
-        <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))}/></div>
-        <div><Lbl>Tipo</Lbl><select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))}>{Object.keys(TC).map(t=><option key={t}>{t}</option>)}</select></div>
-        <div><Lbl>Duración (min)</Lbl><input type="number" value={f.dur} onChange={e=>setF(p=>({...p,dur:e.target.value}))}/></div>
-      </div>
-      <div style={{marginBottom:12}}><Lbl>Título</Lbl><input type="text" value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder="Título de la sesión"/></div>
-      <div style={{marginBottom:12}}><Lbl>Ejercicios (uno por línea)</Lbl><textarea rows={4} value={f.exs} onChange={e=>setF(p=>({...p,exs:e.target.value}))} placeholder={"Calentamiento 15'\nEjercicio principal 30'..."}/></div>
-      <div style={{marginBottom:16}}><Lbl>Notas previas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones previas…"/></div>
-      <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={()=>setAdd(false)} variant="ghost">Cancelar</Btn></div>
-    </div>}
+    {showAdd&&!editSes&&<SesionForm ejercicios={ejercicios} onSave={saveSession} onCancel={()=>setShowAdd(false)}/>}
+    {/* Cargar desde plantilla (editSes sin id) */}
+    {showAdd&&editSes&&!editSes.id&&<SesionForm session={{...editSes,id:null}} ejercicios={ejercicios} onSave={saveSession} onCancel={()=>{setShowAdd(false);setEditSes(null);}}/>}
 
     {/* Lista sesiones */}
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {sessions.map(s=>{const c=TC[s.type]||"#f97316";const op=exp===s.id;return <div key={s.id} style={{background:th.card,border:`1px solid ${th.border}`,borderLeft:`4px solid ${c}`,borderRadius:12,padding:"16px 20px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setExp(op?null:s.id)}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
-            <div style={{minWidth:52,textAlign:"center"}}><p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted}}>{s.date}</p><p style={{fontFamily:"DM Mono",fontSize:13,color:c,fontWeight:700}}>{s.dur}'</p></div>
-            <div><h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4}}>{s.title}</h4>
-              <div style={{display:"flex",gap:6,alignItems:"center"}}><Badge color={c}>{s.type}</Badge>{s.notes&&<span style={{fontSize:10,color:th.muted}}>📝</span>}</div>
+      {sessions.length===0&&<div className="card" style={{padding:48,textAlign:"center"}}><Dumbbell size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted}}>Sin sesiones registradas</p></div>}
+      {[...sessions].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>{
+        const c=TC[s.type]||"#f97316";const op=exp===s.id;const isEditing=editSes?.id===s.id;
+
+        if(isEditing)return <SesionForm key={s.id} session={s} ejercicios={ejercicios} onSave={s2=>{saveSession(s2);setExp(s.id);}} onCancel={()=>setEditSes(null)}/>;
+
+        return <div key={s.id} style={{background:th.card,border:`1px solid ${th.border}`,borderLeft:`4px solid ${c}`,borderRadius:12}}>
+          {/* Cabecera */}
+          <div style={{padding:"14px 18px",display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setExp(op?null:s.id)}>
+            <div style={{minWidth:64,textAlign:"center",flexShrink:0}}>
+              <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted}}>{s.date}</p>
+              {s.time&&<p style={{fontFamily:"DM Mono",fontSize:10,color:c,fontWeight:600}}>{s.time}h</p>}
+              <p style={{fontFamily:"DM Mono",fontSize:13,color:c,fontWeight:700}}>{s.dur}'</p>
+            </div>
+            <div style={{flex:1,marginLeft:12}}>
+              <h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:4}}>{s.title}</h4>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <Badge color={c}>{s.type}</Badge>
+                {(s.exObjs||[]).length>0&&<Badge color="#3b82f6" sm>{s.exObjs.length} ejerc.</Badge>}
+                {s.notes&&<span style={{fontSize:10,color:th.muted}}>📝</span>}
+                {(s.images||[]).length>0&&<span style={{fontSize:10,color:th.muted}}>🖼️ {s.images.length}</span>}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>setEditSes(s)} title="Editar" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
+              <button onClick={()=>setSaveAsTemplate(s.id)} title="Guardar como plantilla" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}}><Copy size={13}/></button>
+              <button onClick={()=>exportPDF(s)} title="PDF" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
+              <Trash2 size={13} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setSessions(p=>p.filter(x=>x.id!==s.id))}/>
+              <ChevronRight size={14} color={th.muted} style={{transform:op?"rotate(90deg)":"none",transition:"transform .2s"}}/>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <button title="Guardar como plantilla" onClick={e=>{e.stopPropagation();setSaveAsTemplate(s.id);setTplName(s.title);}}
-              style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}} title="Guardar como plantilla">
-              <Copy size={13}/>
-            </button>
-            <button title="Exportar PDF" onClick={e=>{e.stopPropagation();exportSessionPDF(s);}} style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
-            <Trash2 size={14} color="#ef4444" style={{cursor:"pointer"}} onClick={e=>{e.stopPropagation();setSessions(p=>p.filter(x=>x.id!==s.id));}}/>
-            <ChevronRight size={15} color={th.muted} style={{transform:op?"rotate(90deg)":"none",transition:"transform .2s"}}/>
-          </div>
-        </div>
 
-        {/* Diálogo guardar plantilla */}
-        {saveAsTemplate===s.id&&<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${th.border}`,display:"flex",gap:8,alignItems:"center"}}>
-          <input value={tplName} onChange={e=>setTplName(e.target.value)} placeholder="Nombre de la plantilla…" style={{flex:1}}/>
-          <Btn onClick={()=>doSaveTemplate(s.id)} sm>Guardar plantilla</Btn>
-          <Btn onClick={()=>setSaveAsTemplate(null)} variant="ghost" sm>Cancelar</Btn>
-        </div>}
+          {/* Guardar plantilla */}
+          {saveAsTemplate===s.id&&<div style={{padding:"10px 18px",borderTop:`1px solid ${th.border}`,display:"flex",gap:8,alignItems:"center"}}>
+            <input value={tplName} onChange={e=>setTplName(e.target.value)} placeholder="Nombre de la plantilla…" style={{flex:1}}/>
+            <Btn onClick={()=>doSaveTemplate(s.id)} sm>Guardar</Btn>
+            <Btn onClick={()=>setSaveAsTemplate(null)} variant="ghost" sm>Cancelar</Btn>
+          </div>}
 
-        {op&&<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${th.border}`}}>
-          {editNotes===s.id?(
-            <div style={{marginBottom:14}}>
-              <Lbl>Notas post-entreno</Lbl>
-              <textarea rows={4} value={notesVal} onChange={e=>setNotesVal(e.target.value)} placeholder="Observaciones, rendimiento, ajustes…" style={{marginBottom:8}}/>
-              <div style={{display:"flex",gap:8}}><Btn onClick={()=>saveNotes(s.id)} sm>Guardar</Btn><Btn onClick={()=>setEditNotes(null)} variant="ghost" sm>Cancelar</Btn></div>
-            </div>
-          ):(
-            <div style={{marginBottom:12}}>
-              {s.notes&&<div style={{background:c+"0f",borderLeft:`3px solid ${c}`,padding:"8px 12px",borderRadius:4,marginBottom:8,fontSize:12,color:th.sub,lineHeight:1.6}}>
-                <strong style={{color:c,fontFamily:"Barlow Condensed",fontSize:13}}>NOTAS</strong><br/>{s.notes}
-              </div>}
-              <button onClick={()=>{setEditNotes(s.id);setNotesVal(s.notes||"");}} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:11,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-                <Edit2 size={11}/>{s.notes?"Editar notas":"Añadir notas post-entreno"}
-              </button>
-            </div>
-          )}
-          {(s.exs||[]).map((ex,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
-            <div style={{width:22,height:22,borderRadius:11,background:c+"18",border:`1px solid ${c}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:"DM Mono",fontSize:9,color:c}}>{i+1}</span></div>
-            <span style={{fontSize:13,color:th.sub}}>{ex}</span>
-          </div>)}
-        </div>}
-      </div>;})}
+          {/* Detalle expandido */}
+          {op&&<div style={{padding:"0 18px 18px",borderTop:`1px solid ${th.border}`,marginTop:0,paddingTop:14}}>
+            {/* Notas */}
+            {s.notes&&<div style={{background:c+"0f",borderLeft:`3px solid ${c}`,padding:"8px 12px",borderRadius:4,marginBottom:12,fontSize:12,color:th.sub,lineHeight:1.6}}>
+              <strong style={{color:c,fontFamily:"Barlow Condensed",fontSize:12}}>NOTAS</strong><br/>{s.notes}
+            </div>}
+
+            {/* Imágenes */}
+            {(s.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+              {s.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{height:70,borderRadius:7,objectFit:"cover",cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
+            </div>}
+
+            {/* Ejercicios del catálogo — clicables */}
+            {(s.exObjs||[]).length>0&&<div style={{marginBottom:12}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Ejercicios</p>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {s.exObjs.map(ex=>{const ec=CC[ex.cat]||"#f97316";return <div key={ex.id} onClick={()=>setViewEx(ex)}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:th.card2,borderRadius:8,border:`1px solid ${ec}30`,cursor:"pointer",transition:"all .15s"}}>
+                  {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:34,height:34,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
+                  <div style={{flex:1}}>
+                    <p style={{fontSize:13,color:th.text,fontWeight:600}}>{ex.name}</p>
+                    <p style={{fontSize:10,color:ec}}>{ex.cat}{ex.dur?` · ${ex.dur}`:""}</p>
+                  </div>
+                  <ChevronRight size={13} color={th.muted}/>
+                </div>;})}
+              </div>
+            </div>}
+
+            {/* Ejercicios libres */}
+            {(s.exs||[]).length>0&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
+              {s.exs.map((ex,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:22,height:22,borderRadius:11,background:c+"18",border:`1px solid ${c}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:"DM Mono",fontSize:9,color:c}}>{i+1}</span></div>
+                <span style={{fontSize:13,color:th.sub}}>{ex}</span>
+              </div>)}
+            </div>}
+          </div>}
+        </div>;
+      })}
     </div>
   </div>;
 }
@@ -1602,6 +1867,7 @@ Si no hay jugadas reconocibles devuelve: {"jugadas":[]}`}
   return <div>
     <SH title="Playbook" sub="Jugadas y sistemas · Todas editables" right={<div style={{display:"flex",gap:8}}>
       <input ref={fr} type="file" accept=".pdf" style={{display:"none"}} onChange={handlePDF}/>
+      <Btn onClick={()=>exportPlaybookPDF(plays,filter)} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn>
       <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>} disabled={pdfLoading}>{pdfLoading?"Analizando…":"Importar PDF"}</Btn>
       <Btn onClick={()=>{setShowAdd(true);setEditPlay("new");}} icon={<Plus size={14}/>}>Nueva Jugada</Btn>
     </div>}/>
@@ -1648,7 +1914,7 @@ function Ejercicios(){
   const delEx=id=>setEjercicios(prev=>prev.filter(e=>e.id!==id));
 
   return <div>
-    <SH title="Ejercicios" sub="Biblioteca por categoría · Todos editables" right={<Btn onClick={()=>{setShowAdd(true);setEditEx("new");}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn>}/>
+    <SH title="Ejercicios" sub="Biblioteca por categoría · Todos editables" right={<div style={{display:"flex",gap:8}}><Btn onClick={()=>exportEjerciciosPDF(ejercicios,filter)} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn><Btn onClick={()=>{setShowAdd(true);setEditEx("new");}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn></div>}/>
     {(showAdd||editEx)&&<EjercicioEditForm ex={editEx==="new"?null:editEx} onSave={saveEx} onCancel={()=>{setShowAdd(false);setEditEx(null);}}/>}
     <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
@@ -2339,8 +2605,8 @@ Sé específico y práctico.`});
   const saveSessionToCalendar=()=>{
     if(!sesResult||sesResult.error)return;
     const id=sessions.length?Math.max(...sessions.map(s=>s.id))+1:1;
-    const exs=sesResult.text.split("\n").filter(l=>l.trim()&&l.length>10&&!l.startsWith("#")).slice(0,12);
-    setSessions(prev=>[...prev,{id,date:sesResult.date,type:sesResult.type,dur:sesResult.dur,title:sesResult.title,exs,notes:sesResult.text}]);
+    const exsList=sesResult.text.split("\n").filter(l=>l.trim()&&l.length>10&&!l.startsWith("#")).slice(0,12);
+    setSessions(prev=>[...prev,{id,date:sesResult.date,time:"",type:sesResult.type,dur:sesResult.dur,title:sesResult.title,exs:exsList,exObjs:[],notes:sesResult.text,images:[]}]);
     setSesSaved(true);
   };
   const saveSessionAsTemplate=()=>{
