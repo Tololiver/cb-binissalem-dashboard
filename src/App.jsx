@@ -2820,9 +2820,9 @@ function IAAsistente(){
                   </tr>
                 </thead>
                 <tbody>{rivalPlayers.map(p=>{
-                  const ni={type:"number",style:{width:38,textAlign:"center",fontSize:11,padding:"3px 2px"}};
+                  const ni={type:"text",inputMode:"numeric",pattern:"[0-9]*",maxLength:3,style:{width:46,textAlign:"center",fontSize:11,padding:"3px 2px"}};
                   return <tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
-                    <td style={{padding:"4px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} style={{width:32,textAlign:"center",fontSize:12,padding:"3px 2px"}}/></td>
+                    <td style={{padding:"4px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} maxLength={3} style={{width:50,textAlign:"center",fontSize:12,padding:"3px 4px"}}/></td>
                     <td style={{padding:"4px 6px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:120,fontSize:12}}/></td>
                     <td style={{padding:"4px 3px"}}><input {...ni} value={p.pj} onChange={e=>setRP(p.id,"pj",e.target.value)}/></td>
                     <td style={{padding:"4px 3px"}}><input {...ni} value={p.pt} onChange={e=>setRP(p.id,"pt",e.target.value)}/></td>
@@ -3018,13 +3018,15 @@ function IAAsistente(){
 ══════════════════════════════════════════════════════════ */
 
 function ModoPartido(){
-  const{th}=useTheme();const{matches,setMatches,players,setPlayers}=useData();
+  const{th}=useTheme();const{matches,setMatches,players,setPlayers,apiKey}=useData();
   const today=new Date().toISOString().split("T")[0];
-  // Show past matches too, sorted desc, most recent first
   const allSorted=[...matches].sort((a,b)=>b.date.localeCompare(a.date));
   const[sel,setSel]=useState(null);
   const m=matches.find(x=>x.id===sel)||allSorted[0];
-  const[tab,setTab]=useState("marcador"); // marcador | stats
+  const[tab,setTab]=useState("marcador");
+  const[pdfLoading,setPdfLoading]=useState(false);
+  const[pdfMsg,setPdfMsg]=useState(null);
+  const pdfRef=useRef();
 
   // Cuartos — inicializamos del partido guardado o vacíos
   const initQ=side=>(m?.quarters?.[side]||[0,0,0,0]).map(String);
@@ -3098,6 +3100,60 @@ function ModoPartido(){
     setStatsCommitted(true);
   };
 
+  // ── PDF import for match stats ─────────────────────────────
+  const importStatsPDF=async e=>{
+    const file=e.target.files[0];if(!file)return;
+    if(!apiKey){setPdfMsg("❌ Configura tu API Key en ⚙️ Ajustes.");e.target.value="";return;}
+    if(!m){e.target.value="";return;}
+    setPdfLoading(true);setPdfMsg("Leyendo estadísticas del PDF…");
+    try{
+      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const convNames=convPlayers.map(p=>"#"+p.num+" "+p.name).join(", ");
+      const data=await callClaude(apiKey,{
+        model:"claude-sonnet-4-20250514",max_tokens:2000,
+        messages:[{role:"user",content:[
+          {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+          {type:"text",text:"Analiza esta estadística de partido de baloncesto. Extrae las estadísticas de TODOS los jugadores que encuentres.\n"
+            +"Jugadores de CB Binissalem: "+convNames+"\n\n"
+            +"Devuelve ÚNICAMENTE JSON válido en una sola línea (sin markdown):\n"
+            +'{"nuestros":[{"num":"4","name":"Nombre","pt":"12","min":"25","tl_i":"3","tl_m":"2","t2_i":"8","t2_m":"5","t3_i":"4","t3_m":"2","fc":"3"}],'
+            +'"rivales":[{"num":"5","name":"Nombre","pt":"15","min":"30","tl_i":"2","tl_m":"1","t2_i":"10","t2_m":"6","t3_i":"3","t3_m":"1","fc":"2"}]}\n'
+            +"Si no puedes identificar a qué equipo pertenece un jugador, usa el contexto del documento. "
+            +"Extrae TODOS los jugadores que encuentres con datos reales del PDF."}
+        ]}]
+      });
+      const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
+      const jStart=txt.indexOf("{");const jEnd=txt.lastIndexOf("}");
+      const parsed=JSON.parse(txt.slice(jStart,jEnd+1).replace(/[\r\n]+/g," "));
+      let imported=0;
+      // Our players
+      if(parsed.nuestros?.length){
+        const newStats={...pStats};
+        (parsed.nuestros||[]).forEach(rp=>{
+          const match=convPlayers.find(p=>
+            p.num===rp.num||p.name.toLowerCase().includes((rp.name||"").toLowerCase().split(" ")[0])||
+            (rp.name||"").toLowerCase().includes(p.name.toLowerCase().split(" ")[0])
+          );
+          if(match){
+            newStats[match.id]={pt:rp.pt||"",min:rp.min||"",tl_i:rp.tl_i||"",tl_m:rp.tl_m||"",t2_i:rp.t2_i||"",t2_m:rp.t2_m||"",t3_i:rp.t3_i||"",t3_m:rp.t3_m||"",fc:rp.fc||""};
+            imported++;
+          }
+        });
+        setPStats(newStats);
+      }
+      // Rival players — save to match
+      const rivales=(parsed.rivales||[]).map((p,i)=>({id:Date.now()+i,num:p.num||String(i+1),name:p.name||"Jugador "+(i+1),pt:p.pt||"",min:p.min||"",tl_i:p.tl_i||"",tl_m:p.tl_m||"",t2_i:p.t2_i||"",t2_m:p.t2_m||"",t3_i:p.t3_i||"",t3_m:p.t3_m||"",fc:p.fc||""}));
+      if(rivales.length){
+        setMatches(prev=>prev.map(x=>x.id===m.id?{...x,rivalStats:rivales}:x));
+        imported+=rivales.length;
+      }
+      const our=(parsed.nuestros||[]).length;const riv=rivales.length;
+      setPdfMsg("✅ "+imported+" jugadores importados"+(our?" · "+our+" CB Binissalem":"")+( riv?" · "+riv+" rival":""));
+    }catch(err){setPdfMsg("❌ Error: "+err.message?.slice(0,50));}
+    setPdfLoading(false);e.target.value="";
+    setTimeout(()=>setPdfMsg(null),7000);
+  };
+
   if(!m)return <div style={{textAlign:"center",padding:"60px 20px"}}>
     <Trophy size={48} color={th.muted} style={{margin:"0 auto 16px",display:"block"}}/>
     <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,marginBottom:8}}>No hay partidos</p>
@@ -3105,16 +3161,17 @@ function ModoPartido(){
   </div>;
 
   const QInput=({val,onChange,color="#f97316"})=>(
-    <input type="number" min="0" value={val} onChange={e=>onChange(e.target.value)}
-      style={{width:54,height:44,textAlign:"center",fontFamily:"DM Mono",fontSize:18,fontWeight:700,color,padding:"4px",borderRadius:8,border:`2px solid ${val?color:th.border2}`,background:val?color+"0d":th.inputBg}}/>
+    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} value={val} onChange={e=>{if(/^\d*$/.test(e.target.value))onChange(e.target.value);}}
+      style={{width:64,height:44,textAlign:"center",fontFamily:"DM Mono",fontSize:18,fontWeight:700,color,padding:"4px",borderRadius:8,border:`2px solid ${val?color:th.border2}`,background:val?color+"0d":th.inputBg}}/>
   );
 
   const SF=({label,pid,field,small})=>(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
       <span style={{fontFamily:"Barlow Condensed",fontSize:9,color:th.muted,textTransform:"uppercase",letterSpacing:.3}}>{label}</span>
-      <input type="number" min="0" value={getStat(pid,field)} onChange={e=>setStat(pid,field,e.target.value)}
+      <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3}
+        value={getStat(pid,field)} onChange={e=>{if(/^\d*$/.test(e.target.value))setStat(pid,field,e.target.value);}}
         disabled={statsCommitted}
-        style={{width:small?36:42,height:32,textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:600,padding:"2px",borderRadius:6,border:`1px solid ${th.border2}`,background:statsCommitted?th.card2:th.inputBg,color:th.text,opacity:statsCommitted?.6:1}}/>
+        style={{width:small?44:50,height:34,textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:600,padding:"2px",borderRadius:6,border:`1px solid ${th.border2}`,background:statsCommitted?th.card2:th.inputBg,color:th.text,opacity:statsCommitted?.6:1}}/>
     </div>
   );
 
@@ -3258,9 +3315,14 @@ function ModoPartido(){
               </tr>)}
             </tbody>
           </table>
-          {!statsCommitted&&<div style={{padding:"16px 20px",borderTop:`1px solid ${th.border}`,display:"flex",gap:10,alignItems:"center"}}>
+          {!statsCommitted&&<div style={{padding:"16px 20px",borderTop:`1px solid ${th.border}`,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <input ref={pdfRef} type="file" accept=".pdf" style={{display:"none"}} onChange={importStatsPDF}/>
             <Btn onClick={commitStats} icon={<Check size={14}/>}>Confirmar y acumular en temporada</Btn>
-            <p style={{fontSize:11,color:th.muted}}>⚠️ Esta acción suma las stats a los totales de cada jugador. Solo se puede hacer una vez por partido.</p>
+            <Btn onClick={()=>pdfRef.current?.click()} variant="ghost" disabled={pdfLoading} icon={pdfLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={13}/>}>
+              {pdfLoading?"Leyendo…":"Importar stats PDF"}
+            </Btn>
+            {pdfMsg&&<span style={{fontSize:11,color:pdfMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{pdfMsg}</span>}
+            {!pdfMsg&&<p style={{fontSize:11,color:th.muted}}>⚠️ Acumular a temporada es irreversible por partido.</p>}
           </div>}
         </div>
       }
@@ -3525,7 +3587,7 @@ function MatchAnalysisBlock({m,players}){
     setEditing(false);
   };
 
-  const ni={type:"number",min:0,style:{width:42,height:26,textAlign:"center",fontFamily:"DM Mono",fontSize:11,borderRadius:5,border:"1px solid",borderColor:th.border2,background:th.inputBg,color:th.text,padding:0}};
+  const ni={type:"text",inputMode:"numeric",pattern:"[0-9]*",maxLength:3,style:{width:46,height:28,textAlign:"center",fontFamily:"DM Mono",fontSize:11,borderRadius:5,border:"1px solid",borderColor:th.border2,background:th.inputBg,color:th.text,padding:"0 2px"}};
 
   return <div>
     {/* Rival stats accordion */}
@@ -3543,8 +3605,8 @@ function MatchAnalysisBlock({m,players}){
               ))}
             </tr></thead>
             <tbody>{rivalPS.map(p=><tr key={p.id} style={{borderTop:"1px solid "+th.border}}>
-              <td style={{padding:"3px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} style={{width:32,height:26,textAlign:"center",fontFamily:"DM Mono",fontSize:11,borderRadius:5,border:"1px solid "+th.border2,background:th.inputBg,color:th.text}}/></td>
-              <td style={{padding:"3px 4px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:110,height:26,fontSize:11,borderRadius:5,border:"1px solid "+th.border2,background:th.inputBg,color:th.text,padding:"0 4px"}}/></td>
+              <td style={{padding:"3px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} maxLength={3} style={{width:52,height:28,textAlign:"center",fontFamily:"DM Mono",fontSize:11,borderRadius:5,border:"1px solid "+th.border2,background:th.inputBg,color:th.text}}/></td>
+              <td style={{padding:"3px 4px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:130,height:28,fontSize:11,borderRadius:5,border:"1px solid "+th.border2,background:th.inputBg,color:th.text,padding:"0 4px"}}/></td>
               {["pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"].map(f=>(
                 <td key={f} style={{padding:"3px 3px",textAlign:"center"}}><input {...ni} value={p[f]} onChange={e=>setRP(p.id,f,e.target.value)}/></td>
               ))}
@@ -3831,6 +3893,252 @@ function BasketballIQ(){
   </div>;
 }
 
+/* ══════════════════════════════════════════════════════════
+   BLOQUE E — Informes personalizados
+══════════════════════════════════════════════════════════ */
+function Informes(){
+  const{th}=useTheme();const{apiKey}=useData();
+  const[informes,setInformes]=useState([]);
+  const[editId,setEditId]=useState(null);
+  const[showNew,setShowNew]=useState(false);
+  const[form,setForm]=useState({title:"",category:"Táctico",content:""});
+  const[aiLoading,setAiLoading]=useState(false);
+  const[aiMsg,setAiMsg]=useState(null);
+  const cats=["Táctico","Partido","Jugador","Temporada","Otro"];
+
+  const saveNew=()=>{
+    if(!form.title||!form.content)return;
+    setInformes(prev=>[{id:Date.now(),date:new Date().toISOString().split("T")[0],...form},...prev]);
+    setForm({title:"",category:"Táctico",content:""});setShowNew(false);
+  };
+  const saveEdit=()=>{
+    setInformes(prev=>prev.map(r=>r.id===editId?{...r,...form}:r));
+    setEditId(null);
+  };
+  const del=id=>setInformes(prev=>prev.filter(r=>r.id!==id));
+  const startEdit=r=>{setForm({title:r.title,category:r.category,content:r.content});setEditId(r.id);};
+
+  const correctWithAI=async()=>{
+    if(!apiKey){setAiMsg("❌ Configura tu API Key.");return;}
+    if(!form.content.trim()){setAiMsg("❌ Escribe contenido primero.");return;}
+    setAiLoading(true);setAiMsg(null);
+    try{
+      const data=await callClaude(apiKey,{
+        model:"claude-sonnet-4-20250514",max_tokens:2000,
+        messages:[{role:"user",content:
+          "Eres un asistente de redacción especializado en baloncesto y comunicación deportiva.\n\n"
+          +"Corrige y mejora el siguiente texto de un informe de baloncesto. Mantén el significado y los datos exactos. Mejora:\n"
+          +"- Gramática y ortografía\n- Tono profesional y deportivo\n- Claridad y estructura\n- Coherencia del discurso\n\n"
+          +"TEXTO ORIGINAL:\n"+form.content+"\n\n"
+          +"Devuelve ÚNICAMENTE el texto corregido, sin explicaciones ni comentarios."
+        }]
+      });
+      const corrected=data.content?.find(b=>b.type==="text")?.text||form.content;
+      setForm(f=>({...f,content:corrected}));
+      setAiMsg("✅ Texto revisado y mejorado por IA");
+    }catch(e){setAiMsg("❌ Error: "+e.message?.slice(0,50));}
+    setAiLoading(false);setTimeout(()=>setAiMsg(null),4000);
+  };
+
+  const exportPDF=r=>{
+    const w=window.open("","_blank");
+    w.document.write(pdfOpen(r.title)+pdfHeader(r.title,r.date+" · "+r.category)+mdToHtml(r.content)+pdfClose());
+    w.document.close();setTimeout(()=>w.print(),400);
+  };
+
+  const EditForm=({onSave,onCancel})=>(
+    <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 160px",gap:12,marginBottom:12}}>
+        <div><Lbl>Título</Lbl><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Título del informe"/></div>
+        <div><Lbl>Categoría</Lbl><select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{cats.map(c=><option key={c}>{c}</option>)}</select></div>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <Lbl>Contenido</Lbl>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            {aiMsg&&<span style={{fontSize:11,color:aiMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{aiMsg}</span>}
+            <Btn onClick={correctWithAI} disabled={aiLoading} variant="ghost" sm
+              icon={aiLoading?<Loader size={12} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={12}/>}>
+              {aiLoading?"Revisando…":"IA: Corregir texto"}
+            </Btn>
+          </div>
+        </div>
+        <textarea rows={14} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))}
+          placeholder={"Escribe tu informe aquí…\n\nPuedes usar formato markdown:\n# Título\n## Sección\n**negrita** · - lista"}
+          style={{fontFamily:"DM Mono",fontSize:12,lineHeight:1.7}}/>
+        <p style={{fontSize:10,color:th.muted,marginTop:4}}>Soporta formato markdown. El botón IA corrige gramática, tono y estilo manteniendo los datos.</p>
+      </div>
+      <div style={{display:"flex",gap:8}}><Btn onClick={onSave}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
+    </div>
+  );
+
+  const catColors={Táctico:"#3b82f6",Partido:"#f97316",Jugador:"#10b981",Temporada:"#8b5cf6",Otro:"#64748b"};
+
+  return <div>
+    <SH title="Informes" sub="Crear · Editar · Exportar PDF · Corrección IA"
+      right={<Btn onClick={()=>{setShowNew(true);setEditId(null);setForm({title:"",category:"Táctico",content:"",date:new Date().toISOString().split("T")[0]});}} icon={<Plus size={14}/>}>Nuevo informe</Btn>}/>
+
+    {showNew&&!editId&&<EditForm onSave={saveNew} onCancel={()=>setShowNew(false)}/>}
+
+    {informes.length===0&&!showNew&&<div className="card" style={{padding:48,textAlign:"center"}}>
+      <FileText size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/>
+      <p style={{color:th.muted,fontSize:14}}>Sin informes. Crea el primero con el botón superior.</p>
+    </div>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {informes.map(r=>{
+        const c=catColors[r.category]||"#64748b";
+        if(editId===r.id)return <EditForm key={r.id} onSave={saveEdit} onCancel={()=>setEditId(null)}/>;
+        return <div key={r.id} className="card" style={{padding:0,overflow:"hidden",borderLeft:`4px solid ${c}`}}>
+          <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text}}>{r.title}</h4>
+                <Badge color={c} sm>{r.category}</Badge>
+              </div>
+              <p style={{fontSize:11,color:th.muted}}>{r.date} · {r.content.length} caracteres</p>
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <Btn onClick={()=>startEdit(r)} variant="ghost" sm icon={<Edit2 size={12}/>}>Editar</Btn>
+              <Btn onClick={()=>exportPDF(r)} variant="ghost" sm icon={<Printer size={12}/>}>PDF</Btn>
+              <button onClick={()=>del(r.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:4}}><Trash2 size={14}/></button>
+            </div>
+          </div>
+          <div style={{padding:"0 18px 14px",borderTop:`1px solid ${th.border}`}}>
+            <div style={{fontSize:12,color:th.sub,lineHeight:1.7,maxHeight:120,overflow:"hidden",maskImage:"linear-gradient(to bottom,black 60%,transparent)"}}
+              dangerouslySetInnerHTML={{__html:mdToHtml(r.content.slice(0,300))}}/>
+          </div>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+/* ══════════════════════════════════════════════════════════
+   BLOQUE F — Buscador semántico con IA
+══════════════════════════════════════════════════════════ */
+function BuscadorIA(){
+  const{th}=useTheme();const{recursos,ejercicios,plays,apiKey}=useData();
+  const[query,setQuery]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[results,setResults]=useState(null);
+  const[filter,setFilter]=useState("Todo");
+
+  const search=async()=>{
+    if(!query.trim())return;
+    if(!apiKey){setResults({error:"Configura tu API Key en ⚙️ Ajustes."});return;}
+    setLoading(true);setResults(null);
+
+    // Build index
+    const index=[
+      ...recursos.map(r=>({tipo:"Recurso",id:r.id,titulo:r.title,desc:(r.tags||[]).join(", ")+" "+r.url,extra:r.url})),
+      ...ejercicios.map(e=>({tipo:"Ejercicio",id:e.id,titulo:e.name,desc:e.cat+" "+e.diff+" "+(e.desc||""),extra:e.cat+" · "+e.diff+(e.dur?" · "+e.dur:"")})),
+      ...plays.map(p=>({tipo:"Jugada",id:p.id,titulo:p.name,desc:p.cat+" "+(p.desc||"")+" "+(p.tags||[]).join(" "),extra:p.cat})),
+    ].filter(x=>x.titulo);
+
+    if(index.length===0){setResults({items:[],note:"No hay contenido indexado todavía. Añade recursos, ejercicios y jugadas."});setLoading(false);return;}
+
+    const indexStr=index.map((x,i)=>`[${i}] ${x.tipo}: "${x.titulo}" — ${x.desc.slice(0,100)}`).join("\n");
+    try{
+      const data=await callClaude(apiKey,{
+        model:"claude-sonnet-4-20250514",max_tokens:600,
+        messages:[{role:"user",content:
+          "Eres un buscador semántico de una app de gestión de baloncesto.\n\n"
+          +"BÚSQUEDA DEL ENTRENADOR: \""+query+"\"\n\n"
+          +"ÍNDICE DE CONTENIDO:\n"+indexStr+"\n\n"
+          +"Devuelve ÚNICAMENTE JSON válido en una sola línea con los índices más relevantes (máximo 8):\n"
+          +'{"resultados":[{"idx":0,"relevancia":"alta","razon":"Ejercicio de bloqueo directo, muy relevante para la consulta"}]}'
+        }]
+      });
+      const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
+      const jStart=txt.indexOf("{");const jEnd=txt.lastIndexOf("}");
+      const parsed=JSON.parse(txt.slice(jStart,jEnd+1).replace(/\n/g," "));
+      const items=(parsed.resultados||[]).map(r=>({...index[r.idx],...r})).filter(Boolean);
+      setResults({items,query});
+    }catch(e){setResults({error:"Error: "+e.message?.slice(0,60)});}
+    setLoading(false);
+  };
+
+  const typeColors={Recurso:"#f97316",Ejercicio:"#3b82f6",Jugada:"#10b981"};
+  const relColors={alta:"#10b981",media:"#f97316",baja:"#94a3b8"};
+  const stats={total:(recursos.length+ejercicios.length+plays.length),recursos:recursos.length,ejercicios:ejercicios.length,jugadas:plays.length};
+
+  return <div>
+    <SH title="Buscador IA" sub="Busca entre recursos, ejercicios y jugadas en lenguaje natural"/>
+
+    {/* Stats del índice */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
+      {[["Total indexado",stats.total,"#f97316"],["Recursos",stats.recursos,"#f97316"],["Ejercicios",stats.ejercicios,"#3b82f6"],["Jugadas",stats.jugadas,"#10b981"]].map(([l,v,c])=>(
+        <div key={l} className="card" style={{padding:"14px 16px"}}>
+          <p style={{fontFamily:"DM Mono",fontSize:24,fontWeight:700,color:c,lineHeight:1}}>{v}</p>
+          <p style={{fontSize:11,color:th.muted,marginTop:4}}>{l}</p>
+        </div>
+      ))}
+    </div>
+
+    {/* Buscador */}
+    <div className="card" style={{padding:20,marginBottom:16}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>¿Qué buscas?</p>
+      <div style={{display:"flex",gap:10}}>
+        <input value={query} onChange={e=>setQuery(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&search()}
+          placeholder="ej: ejercicios de bloqueo directo, jugadas para atacar zona, recursos de defensa presión…"
+          style={{flex:1,fontSize:14}}/>
+        <Btn onClick={search} disabled={loading||!query.trim()} icon={loading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>
+          {loading?"Buscando…":"Buscar"}
+        </Btn>
+      </div>
+      <p style={{fontSize:11,color:th.muted,marginTop:8}}>La IA entiende lenguaje natural y encuentra el contenido más relevante de tu biblioteca.</p>
+    </div>
+
+    {/* Resultados */}
+    {results?.error&&<div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.3)",borderRadius:10,padding:"12px 16px",color:"#ef4444",fontSize:13}}>{results.error}</div>}
+    {results?.note&&<div style={{background:"rgba(245,158,11,.07)",border:"1px solid rgba(245,158,11,.3)",borderRadius:10,padding:"12px 16px",color:"#f59e0b",fontSize:13}}>{results.note}</div>}
+    {results?.items&&<div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>
+          {results.items.length} resultado{results.items.length!==1?"s":""} para «{results.query}»
+        </p>
+        <div style={{display:"flex",gap:6}}>
+          {["Todo","Recurso","Ejercicio","Jugada"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)}
+              style={{padding:"3px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700,
+                background:filter===f?(typeColors[f]||"#f97316"):th.card2,color:filter===f?"#fff":th.sub}}>
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+      {results.items.length===0?<div className="card" style={{padding:32,textAlign:"center"}}>
+        <p style={{color:th.muted}}>Sin resultados relevantes. Prueba con otra búsqueda.</p>
+      </div>:
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {results.items.filter(x=>filter==="Todo"||x.tipo===filter).map((item,i)=>{
+          const c=typeColors[item.tipo]||"#f97316";
+          return <div key={i} className="card" style={{padding:"14px 18px",borderLeft:`4px solid ${c}`}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <Badge color={c} sm>{item.tipo}</Badge>
+                  <span style={{background:relColors[item.relevancia]+"20",color:relColors[item.relevancia],border:"1px solid "+relColors[item.relevancia]+"40",borderRadius:4,padding:"1px 7px",fontSize:9,fontFamily:"Barlow Condensed",fontWeight:700,textTransform:"uppercase"}}>{item.relevancia}</span>
+                </div>
+                <h4 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:3}}>{item.titulo}</h4>
+                <p style={{fontSize:11,color:th.muted,marginBottom:item.razon?4:0}}>{item.extra}</p>
+                {item.razon&&<p style={{fontSize:12,color:th.sub,fontStyle:"italic"}}>💡 {item.razon}</p>}
+              </div>
+              {item.tipo==="Recurso"&&item.extra?.startsWith("http")&&
+                <a href={item.extra} target="_blank" rel="noopener noreferrer"
+                  style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:12,textDecoration:"none",flexShrink:0,fontFamily:"Barlow Condensed",fontWeight:700}}>
+                  <Link size={11}/>Abrir
+                </a>}
+            </div>
+          </div>;
+        })}
+      </div>}
+    </div>}
+  </div>;
+}
+
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
@@ -3850,9 +4158,11 @@ const NAV=[
   {id:"pizarra",  label:"Pizarra",       icon:PenTool},
   {id:"ia",       label:"IA Asistente",  icon:Brain},
   {id:"iq",       label:"Basketball IQ", icon:Target},
-  {id:"recursos", label:"Recursos",      icon:Link},
+  {id:"informes", label:"Informes",       icon:FileText},
+  {id:"buscador", label:"Buscador IA",    icon:Search},
+  {id:"recursos", label:"Recursos",       icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
