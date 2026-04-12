@@ -392,13 +392,7 @@ function Dashboard(){
   })).sort((a,b)=>b.rate-a.rate).slice(0,5);
 
   return <div>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-      <div>
-        <h2 style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:30,fontWeight:800,color:th.text,letterSpacing:1,textTransform:"uppercase",lineHeight:1}}>Panel Principal</h2>
-        <p style={{color:th.muted,fontSize:12,marginTop:4}}>CB Binissalem Sénior A · Temporada 2025/26</p>
-      </div>
-      <img src={`data:image/png;base64,${LOGO_B64}`} alt="CB Binissalem" style={{width:68,height:68,objectFit:"contain",borderRadius:12,background:"#fff",padding:4,border:`1px solid ${th.border}`}}/>
-    </div>
+    <SH title="Panel Principal" sub="CB Binissalem Sénior A · Temporada 2025/26"/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
       {kpis.map(k=><div key={k.label} className="card" style={{padding:"20px 22px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -3149,7 +3143,7 @@ function ModoPartido(){
 
       {/* Tabs */}
       <div style={{display:"flex",gap:6}}>
-        {[["marcador","🏀 Marcador por cuartos"],["stats","📊 Estadísticas individuales"],["notas","📝 Notas"]].map(([k,lbl])=>(
+        {[["marcador","🏀 Marcador"],["stats","📊 Stats"],["analisis","🧠 Análisis IA"],["notas","📝 Notas"]].map(([k,lbl])=>(
           <button key={k} onClick={()=>setTab(k)}
             style={{padding:"6px 16px",borderRadius:8,border:`1px solid ${tab===k?"#f97316":th.border2}`,background:tab===k?"rgba(249,115,22,.1)":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:tab===k?"#f97316":th.sub}}>
             {lbl}
@@ -3271,6 +3265,9 @@ function ModoPartido(){
         </div>
       }
     </div>}
+
+    {/* ── TAB: ANÁLISIS IA ── */}
+    {tab==="analisis"&&<MatchAnalysisBlock m={m} players={players}/>}
 
     {/* ── TAB: NOTAS ── */}
     {tab==="notas"&&<div className="card" style={{padding:20}}>
@@ -3449,6 +3446,391 @@ function InformeSemanal(){
   </div>;
 }
 
+/* ══════════════════════════════════════════════════════════
+   BLOQUE D — Análisis IA post-partido
+══════════════════════════════════════════════════════════ */
+function MatchAnalysisBlock({m,players}){
+  const{th}=useTheme();
+  const{matchAnalyses,setMatchAnalyses,apiKey}=useData();
+  const existing=matchAnalyses.find(a=>a.matchId===m.id);
+  const[loading,setLoading]=useState(false);
+  const[editing,setEditing]=useState(false);
+  const[editText,setEditText]=useState("");
+  // Rival player stats state
+  const emptyRP=()=>({pj:"",pt:"",min:"",tl_i:"",tl_m:"",t2_i:"",t2_m:"",t3_i:"",t3_m:"",fc:""});
+  const[rivalPS,setRivalPS]=useState(m.rivalStats||[
+    {id:1,num:"",name:"Jugador 1",...emptyRP()},
+    {id:2,num:"",name:"Jugador 2",...emptyRP()},
+    {id:3,num:"",name:"Jugador 3",...emptyRP()},
+  ]);
+  const[showRival,setShowRival]=useState(false);
+  const setRP=(id,f,v)=>setRivalPS(prev=>prev.map(p=>p.id===id?{...p,[f]:v}:p));
+  const addRP=()=>setRivalPS(prev=>[...prev,{id:Date.now(),num:"",name:`Jugador ${prev.length+1}`,...emptyRP()}]);
+  const delRP=id=>setRivalPS(prev=>prev.filter(p=>p.id!==id));
+
+  const convPlayers=(m.convocados||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+  const pStats=m.playerStats||{};
+
+  const analyze=async()=>{
+    if(!apiKey){alert("Configura tu API Key en ⚙️ Ajustes.");return;}
+    setLoading(true);
+    // Build context
+    const result=m.pts_us!=null?m.pts_us+"-"+m.pts_them:"Sin resultado";
+    const qStr=m.quarters?"Q1:"+m.quarters.us[0]+"-"+m.quarters.them[0]+" Q2:"+m.quarters.us[1]+"-"+m.quarters.them[1]+" Q3:"+m.quarters.us[2]+"-"+m.quarters.them[2]+" Q4:"+m.quarters.us[3]+"-"+m.quarters.them[3]:"";
+    const ourStats=convPlayers.map(p=>{
+      const s=pStats[p.id]||{};
+      return "#"+p.num+" "+p.name+" ("+p.pos+"): "+[s.pt&&"PT:"+s.pt,s.min&&"Min:"+s.min,s.t2_m&&"T2:"+s.t2_m+"/"+s.t2_i,s.t3_m&&"T3:"+s.t3_m+"/"+s.t3_i,s.tl_m&&"TL:"+s.tl_m+"/"+s.tl_i,s.fc&&"FC:"+s.fc].filter(Boolean).join(" ");
+    }).filter(l=>l.includes(":")).join("\n");
+    const rivStr=rivalPS.filter(p=>p.pt||p.min).map(p=>"#"+p.num+" "+p.name+": "+[p.pt&&"PT:"+p.pt,p.min&&"Min:"+p.min,p.t2_m&&"T2:"+p.t2_m+"/"+p.t2_i,p.t3_m&&"T3:"+p.t3_m+"/"+p.t3_i,p.tl_m&&"TL:"+p.tl_m+"/"+p.tl_i,p.fc&&"FC:"+p.fc].filter(Boolean).join(" ")).join("\n");
+
+    try{
+      const data=await callClaude(apiKey,{
+        model:"claude-sonnet-4-20250514",max_tokens:1600,
+        messages:[{role:"user",content:
+          "Eres analista de baloncesto. Analiza este partido de CB Binissalem Sénior A.\n\n"
+          +"PARTIDO: CB Binissalem vs "+m.rival+" ("+m.location+") "+m.date+"\n"
+          +"RESULTADO: "+result+(qStr?" | "+qStr:"")+"\n\n"
+          +(ourStats?"NUESTRAS ESTADÍSTICAS:\n"+ourStats+"\n\n":"")
+          +(rivStr?"ESTADÍSTICAS RIVAL:\n"+rivStr+"\n\n":"")
+          +(m.notes?"NOTAS DEL ENTRENADOR:\n"+m.notes+"\n\n":"")
+          +"Genera un análisis post-partido completo en español con:\n"
+          +"1. RESUMEN DEL PARTIDO\n"
+          +"2. PUNTOS POSITIVOS (qué funcionó bien)\n"
+          +"3. PUNTOS A MEJORAR (errores y aspectos a trabajar)\n"
+          +"4. RENDIMIENTO INDIVIDUAL (destacados positivos y negativos)\n"
+          +"5. CONCLUSIONES Y PRÓXIMOS PASOS (qué entrenar esta semana)\n\n"
+          +"Sé específico, usa los datos estadísticos disponibles."
+        }]
+      });
+      const text=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
+      const analysis={id:Date.now(),matchId:m.id,rival:m.rival,date:m.date,result,text,rivalStats:rivalPS,created:new Date().toISOString()};
+      setMatchAnalyses(prev=>[analysis,...prev.filter(a=>a.matchId!==m.id)]);
+    }catch(e){alert("Error: "+e.message);}
+    setLoading(false);
+  };
+
+  const exportPDF=a=>{
+    const w=window.open("","_blank");
+    w.document.write(
+      pdfOpen("Análisis Post-Partido")
+      +pdfHeader("Análisis Post-Partido","CB Binissalem vs "+a.rival+" · "+a.date+" · "+a.result)
+      +mdToHtml(a.text)
+      +pdfClose()
+    );
+    w.document.close();setTimeout(()=>w.print(),400);
+  };
+
+  const saveEdit=()=>{
+    setMatchAnalyses(prev=>prev.map(a=>a.id===existing.id?{...a,text:editText}:a));
+    setEditing(false);
+  };
+
+  const ni={type:"number",min:0,style:{width:42,height:26,textAlign:"center",fontFamily:"DM Mono",fontSize:11,borderRadius:5,border:"1px solid",borderColor:th.border2,background:th.inputBg,color:th.text,padding:0}};
+
+  return <div>
+    {/* Rival stats accordion */}
+    <div className="card" style={{padding:16,marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setShowRival(!showRival)}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5}}>Estadísticas del equipo rival (opcional)</p>
+        <ChevronRight size={14} color={th.muted} style={{transform:showRival?"rotate(90deg)":"none",transition:"transform .2s"}}/>
+      </div>
+      {showRival&&<div style={{marginTop:12}}>
+        <div style={{overflowX:"auto"}}>
+          <table style={{borderCollapse:"collapse",fontSize:11,width:"100%",minWidth:580}}>
+            <thead><tr style={{background:th.tableHead}}>
+              {["#","Nombre","PT","Min","TL-I","TL-M","T2-I","T2-M","T3-I","T3-M","FC",""].map((h,i)=>(
+                <th key={i} style={{padding:"5px 4px",fontFamily:"Barlow Condensed",fontSize:9,color:th.muted,textTransform:"uppercase",textAlign:i<2?"left":"center"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{rivalPS.map(p=><tr key={p.id} style={{borderTop:"1px solid "+th.border}}>
+              <td style={{padding:"3px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} style={{width:32,height:26,textAlign:"center",fontFamily:"DM Mono",fontSize:11,borderRadius:5,border:"1px solid "+th.border2,background:th.inputBg,color:th.text}}/></td>
+              <td style={{padding:"3px 4px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:110,height:26,fontSize:11,borderRadius:5,border:"1px solid "+th.border2,background:th.inputBg,color:th.text,padding:"0 4px"}}/></td>
+              {["pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"].map(f=>(
+                <td key={f} style={{padding:"3px 3px",textAlign:"center"}}><input {...ni} value={p[f]} onChange={e=>setRP(p.id,f,e.target.value)}/></td>
+              ))}
+              <td style={{padding:"3px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444"}}><Trash2 size={11}/></button></td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <button onClick={addRP} style={{marginTop:8,display:"flex",alignItems:"center",gap:4,padding:"4px 12px",borderRadius:6,border:"1px solid "+th.border2,background:th.card2,cursor:"pointer",fontSize:11,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+          <Plus size={11}/>Añadir jugador
+        </button>
+      </div>}
+    </div>
+
+    {/* Generate button */}
+    {!existing&&<Btn onClick={analyze} disabled={loading} icon={loading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>
+      {loading?"Analizando partido…":"Generar análisis IA"}
+    </Btn>}
+
+    {/* Analysis result */}
+    {existing&&<div className="card" style={{padding:20,marginTop:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text}}>Análisis · {existing.date}</p>
+        <div style={{display:"flex",gap:6}}>
+          <Btn onClick={()=>exportPDF(existing)} variant="ghost" icon={<Printer size={13}/>} sm>PDF</Btn>
+          <Btn onClick={()=>{setEditText(existing.text);setEditing(true);}} variant="ghost" icon={<Edit2 size={13}/>} sm>Editar</Btn>
+          <Btn onClick={analyze} disabled={loading} variant="ghost" icon={<RotateCcw size={13}/>} sm>Regenerar</Btn>
+        </div>
+      </div>
+      {editing?(
+        <div>
+          <textarea rows={18} value={editText} onChange={e=>setEditText(e.target.value)} style={{marginBottom:8,fontFamily:"DM Mono",fontSize:11,lineHeight:1.7}}/>
+          <div style={{display:"flex",gap:8}}><Btn onClick={saveEdit} sm>Guardar</Btn><Btn onClick={()=>setEditing(false)} variant="ghost" sm>Cancelar</Btn></div>
+        </div>
+      ):(
+        <div style={{fontSize:13,color:th.sub,lineHeight:1.8}} dangerouslySetInnerHTML={{__html:mdToHtml(existing.text)}}/>
+      )}
+    </div>}
+  </div>;
+}
+
+/* ══════════════════════════════════════════════════════════
+   BLOQUE G — Basketball IQ
+══════════════════════════════════════════════════════════ */
+const IQ_DIMENSIONS=[
+  {id:"lectura",    label:"Lectura de juego",    desc:"Anticipación, toma de decisiones, visión",    color:"#f97316",icon:"🧠"},
+  {id:"defensa",    label:"Comprensión defensiva",desc:"Posición, ayudas, rotaciones, comunicación",  color:"#3b82f6",icon:"🛡️"},
+  {id:"ataque",     label:"Juego sin balón",      desc:"Cortes, bloqueos, espaciado, timing",         color:"#10b981",icon:"⚡"},
+  {id:"situacional",label:"Situaciones especiales",desc:"Últimos segundos, bonus, presión",           color:"#8b5cf6",icon:"⏱️"},
+  {id:"comunicacion",label:"Comunicación",        desc:"Liderazgo, llamadas, cohesión de equipo",     color:"#f59e0b",icon:"📣"},
+  {id:"adaptacion", label:"Adaptabilidad",        desc:"Cambios tácticos, resiliencia, versatilidad", color:"#ef4444",icon:"🔄"},
+];
+const IQ_LEVELS=["—","1 Básico","2 En desarrollo","3 Competente","4 Avanzado","5 Elite"];
+
+function BasketballIQ(){
+  const{th}=useTheme();
+  const{players,basketballIQ,setBasketballIQ,apiKey}=useData();
+  const active=players.filter(p=>p.active);
+  const[selPlayer,setSelPlayer]=useState(null);
+  const[tab,setTab]=useState("evaluacion"); // evaluacion | historial | equipo
+  const[genLoading,setGenLoading]=useState(false);
+  const[aiReport,setAiReport]=useState(null);
+
+  // Get scores for a player
+  const getScores=pid=>(basketballIQ.find(r=>r.playerId===pid)?.scores)||{};
+  const setScore=(pid,dim,val)=>{
+    setBasketballIQ(prev=>{
+      const existing=prev.find(r=>r.playerId===pid);
+      if(existing){
+        return prev.map(r=>r.playerId===pid?{...r,scores:{...r.scores,[dim]:val},updated:new Date().toISOString()}:r);
+      }
+      return [...prev,{playerId:pid,scores:{[dim]:val},notes:"",updated:new Date().toISOString()}];
+    });
+  };
+  const getNote=pid=>(basketballIQ.find(r=>r.playerId===pid)?.notes)||"";
+  const setNote=(pid,note)=>{
+    setBasketballIQ(prev=>{
+      const existing=prev.find(r=>r.playerId===pid);
+      if(existing)return prev.map(r=>r.playerId===pid?{...r,notes:note}:r);
+      return [...prev,{playerId:pid,scores:{},notes:note,updated:new Date().toISOString()}];
+    });
+  };
+
+  const calcIQ=scores=>{
+    const vals=IQ_DIMENSIONS.map(d=>+(scores[d.id]||0));
+    const filled=vals.filter(v=>v>0);
+    if(!filled.length)return null;
+    return Math.round(filled.reduce((a,v)=>a+v,0)/filled.length*20);
+  };
+
+  const generateReport=async pid=>{
+    if(!apiKey){alert("Configura tu API Key en ⚙️ Ajustes.");return;}
+    const p=players.find(x=>x.id===pid);if(!p)return;
+    const scores=getScores(pid);
+    const note=getNote(pid);
+    const iqVal=calcIQ(scores);
+    setGenLoading(true);setAiReport(null);
+    const dimStr=IQ_DIMENSIONS.map(d=>{
+      const v=+(scores[d.id]||0);
+      return d.label+": "+(v?IQ_LEVELS[v]+" ("+v+"/5)":"Sin evaluar");
+    }).join("\n");
+    try{
+      const data=await callClaude(apiKey,{
+        model:"claude-sonnet-4-20250514",max_tokens:1200,
+        messages:[{role:"user",content:
+          "Eres analista de baloncesto especializado en desarrollo de jugadores.\n\n"
+          +"JUGADOR: #"+p.num+" "+p.name+" ("+p.pos+")\n"
+          +"IQ BALONCESTO GLOBAL: "+(iqVal!=null?iqVal+"/100":"No calculado")+"\n\n"
+          +"EVALUACIÓN POR DIMENSIÓN:\n"+dimStr+"\n\n"
+          +(note?"NOTAS DEL ENTRENADOR:\n"+note+"\n\n":"")
+          +"Genera un informe de desarrollo del Basketball IQ en español con:\n"
+          +"1. PERFIL COGNITIVO (análisis de sus puntos fuertes y débiles)\n"
+          +"2. ÁREAS PRIORITARIAS DE MEJORA (máximo 3, con ejercicios concretos)\n"
+          +"3. PLAN DE TRABAJO (sesiones específicas para mejorar el IQ)\n"
+          +"4. PROYECCIÓN (potencial de mejora y timeline realista)\n\n"
+          +"Sé específico, práctico y orientado al jugador amateur/semiprofesional."
+        }]
+      });
+      const text=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
+      setAiReport({pid,text,player:p.name});
+    }catch(e){alert("Error: "+e.message);}
+    setGenLoading(false);
+  };
+
+  const exportPlayerPDF=(pid)=>{
+    const p=players.find(x=>x.id===pid);if(!p)return;
+    const scores=getScores(pid);const note=getNote(pid);const iqVal=calcIQ(scores);
+    const dimRows=IQ_DIMENSIONS.map(d=>{
+      const v=+(scores[d.id]||0);
+      const pct=v*20;
+      return "<tr><td style='padding:8px 12px;font-weight:600'>"+d.icon+" "+d.label+"</td>"
+        +"<td style='padding:8px 12px;color:#64748b;font-size:12px'>"+d.desc+"</td>"
+        +"<td style='padding:8px 12px;text-align:center'>"+(v?IQ_LEVELS[v]:"—")+"</td>"
+        +"<td style='padding:8px 12px;min-width:120px'>"
+        +"<div style='background:#e2e8f0;border-radius:4px;height:8px'>"
+        +"<div style='background:"+d.color+";width:"+pct+"%;height:8px;border-radius:4px'></div></div></td>"
+        +"</tr>";
+    }).join("");
+    const w=window.open("","_blank");
+    w.document.write(
+      pdfOpen("Basketball IQ — "+p.name)
+      +pdfHeader("Basketball IQ","#"+p.num+" "+p.name+" · "+p.pos+(iqVal!=null?" · IQ: "+iqVal+"/100":""))
+      +"<div class='section'><div class='section-title'>Evaluación por dimensiones</div>"
+      +"<table style='width:100%;border-collapse:collapse'>"
+      +"<thead><tr style='background:#f8fafc'><th style='padding:8px 12px;text-align:left'>Dimensión</th><th style='padding:8px 12px;text-align:left'>Descripción</th><th style='padding:8px 12px'>Nivel</th><th style='padding:8px 12px'>Progreso</th></tr></thead>"
+      +"<tbody>"+dimRows+"</tbody></table></div>"
+      +(note?"<div class='section'><div class='section-title'>Notas del entrenador</div><div class='section-body'><p>"+note+"</p></div></div>":"")
+      +(aiReport&&aiReport.pid===pid?"<div class='section'>"+mdToHtml(aiReport.text)+"</div>":"")
+      +pdfClose()
+    );
+    w.document.close();setTimeout(()=>w.print(),400);
+  };
+
+  const p=active.find(x=>x.id===selPlayer)||active[0];
+
+  return <div>
+    <SH title="Basketball IQ" sub="Coeficiente Intelectual de Baloncesto · Evaluación y desarrollo"/>
+    <TB tabs={[["evaluacion","📋 Evaluación individual"],["equipo","📊 Vista equipo"]]} active={tab} onChange={setTab}/>
+
+    {tab==="evaluacion"&&<div>
+      {/* Selector jugador */}
+      <div style={{marginBottom:16}}>
+        <Lbl>Jugador</Lbl>
+        <select value={selPlayer||p?.id||""} onChange={e=>setSelPlayer(+e.target.value)} style={{maxWidth:320}}>
+          {active.map(x=>{
+            const iq=calcIQ(getScores(x.id));
+            return <option key={x.id} value={x.id}>#{x.num} {x.name} {iq!=null?"· IQ "+iq:""}</option>;
+          })}
+        </select>
+      </div>
+
+      {p&&<div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:16}}>
+        {/* Dimensiones */}
+        <div className="card" style={{padding:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text,textTransform:"uppercase"}}>#{p.num} {p.name}</p>
+            {calcIQ(getScores(p.id))!=null&&<div style={{textAlign:"center"}}>
+              <p style={{fontFamily:"DM Mono",fontSize:32,fontWeight:900,color:"#f97316",lineHeight:1}}>{calcIQ(getScores(p.id))}</p>
+              <p style={{fontSize:10,color:th.muted}}>IQ / 100</p>
+            </div>}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {IQ_DIMENSIONS.map(d=>{
+              const val=+(getScores(p.id)[d.id]||0);
+              return <div key={d.id}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <div>
+                    <span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text}}>{d.icon} {d.label}</span>
+                    <span style={{fontSize:10,color:th.muted,marginLeft:8}}>{d.desc}</span>
+                  </div>
+                  <span style={{fontFamily:"DM Mono",fontSize:11,color:val?d.color:th.muted,fontWeight:700}}>{val?IQ_LEVELS[val]:"Sin evaluar"}</span>
+                </div>
+                {/* Rating bar — click to set */}
+                <div style={{display:"flex",gap:4}}>
+                  {[1,2,3,4,5].map(n=>(
+                    <button key={n} onClick={()=>setScore(p.id,d.id,n===val?0:n)}
+                      style={{flex:1,height:28,borderRadius:6,border:"none",cursor:"pointer",
+                        background:val>=n?d.color:th.card2,
+                        opacity:val>=n?1:.35,transition:"all .15s",
+                        fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,
+                        color:val>=n?"#fff":th.muted}}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>;
+            })}
+          </div>
+          <div style={{marginTop:16}}>
+            <Lbl>Notas del entrenador</Lbl>
+            <textarea rows={3} value={getNote(p.id)} onChange={e=>setNote(p.id,e.target.value)} placeholder="Observaciones, contexto, evolución del jugador…"/>
+          </div>
+        </div>
+
+        {/* Panel derecho */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {/* IQ Visual radar simulado con barras */}
+          <div className="card" style={{padding:18}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Perfil visual</p>
+            {IQ_DIMENSIONS.map(d=>{
+              const val=+(getScores(p.id)[d.id]||0);const pct=val*20;
+              return <div key={d.id} style={{marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                  <span style={{fontSize:10,color:th.sub,fontFamily:"Barlow Condensed",fontWeight:600}}>{d.icon} {d.label.split(" ")[0]}</span>
+                  <span style={{fontFamily:"DM Mono",fontSize:10,color:d.color,fontWeight:700}}>{val}/5</span>
+                </div>
+                <div style={{background:th.card2,borderRadius:4,height:6}}>
+                  <div style={{background:d.color,width:pct+"%",height:6,borderRadius:4,transition:"width .3s"}}/>
+                </div>
+              </div>;
+            })}
+          </div>
+          {/* Acciones */}
+          <div className="card" style={{padding:16,display:"flex",flexDirection:"column",gap:8}}>
+            <Btn onClick={()=>generateReport(p.id)} disabled={genLoading} icon={genLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
+              {genLoading?"Generando…":"Informe IA de desarrollo"}
+            </Btn>
+            <Btn onClick={()=>exportPlayerPDF(p.id)} variant="ghost" icon={<Printer size={13}/>}>Exportar PDF</Btn>
+          </div>
+          {aiReport&&aiReport.pid===p.id&&<div className="card" style={{padding:16}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:"#f97316",textTransform:"uppercase",marginBottom:10}}>Informe IA — {aiReport.player}</p>
+            <div style={{fontSize:12,color:th.sub,lineHeight:1.7,maxHeight:400,overflowY:"auto"}} dangerouslySetInnerHTML={{__html:mdToHtml(aiReport.text)}}/>
+          </div>}
+        </div>
+      </div>}
+    </div>}
+
+    {tab==="equipo"&&<div>
+      <div className="card" style={{overflowX:"auto",padding:0}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:700}}>
+          <thead>
+            <tr style={{background:th.tableHead}}>
+              <th style={{padding:"12px 16px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>Jugador</th>
+              {IQ_DIMENSIONS.map(d=><th key={d.id} style={{padding:"10px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:d.color,textTransform:"uppercase",letterSpacing:.5,minWidth:80}}>{d.icon}<br/>{d.label.split(" ")[0]}</th>)}
+              <th style={{padding:"10px 12px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:"#f97316",textTransform:"uppercase",letterSpacing:.5}}>IQ Global</th>
+            </tr>
+          </thead>
+          <tbody>
+            {active.map(p=>{
+              const scores=getScores(p.id);
+              const iq=calcIQ(scores);
+              return <tr key={p.id} style={{borderTop:"1px solid "+th.border}}>
+                <td style={{padding:"12px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:14,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:"#fff"}}>{p.num}</div>
+                    <div><p style={{fontSize:13,fontWeight:600,color:th.text}}>{p.name}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
+                  </div>
+                </td>
+                {IQ_DIMENSIONS.map(d=>{
+                  const v=+(scores[d.id]||0);
+                  return <td key={d.id} style={{padding:"10px 8px",textAlign:"center"}}>
+                    {v?<span style={{display:"inline-block",width:28,height:28,borderRadius:14,background:d.color+"20",border:"1px solid "+d.color+"50",fontFamily:"DM Mono",fontSize:12,fontWeight:700,color:d.color,lineHeight:"28px",textAlign:"center"}}>{v}</span>
+                    :<span style={{color:th.border2,fontSize:16}}>—</span>}
+                  </td>;
+                })}
+                <td style={{padding:"10px 12px",textAlign:"center"}}>
+                  {iq!=null?<span style={{fontFamily:"DM Mono",fontSize:16,fontWeight:900,color:iq>=80?"#10b981":iq>=60?"#f97316":"#ef4444"}}>{iq}</span>:<span style={{color:th.border2}}>—</span>}
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>}
+  </div>;
+}
+
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
@@ -3467,9 +3849,10 @@ const NAV=[
   {id:"exercises",label:"Ejercicios",    icon:Target},
   {id:"pizarra",  label:"Pizarra",       icon:PenTool},
   {id:"ia",       label:"IA Asistente",  icon:Brain},
+  {id:"iq",       label:"Basketball IQ", icon:Target},
   {id:"recursos", label:"Recursos",      icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
@@ -3489,9 +3872,11 @@ export default function App(){
   const[planMicro, setPlanMicroRaw]=useState(null);
   const[sesionTemplates,setSesionTemplatesRaw]=useState([]);
   const[scouting,     setScoutingRaw]     = useState([]);
+  const[matchAnalyses,setMatchAnalysesRaw]= useState([]);
+  const[basketballIQ, setBasketballIQRaw] = useState([]);
   const[apiKey,    setApiKeyRaw]   = useState(()=>localStorage.getItem("cb_apikey")||"");
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -3519,6 +3904,8 @@ export default function App(){
   const setSavedDrawings=useCallback(fn=>setSavedDrawingsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({savedDrawings:n});return n;}),[persist]);
   const setSesionTemplates=useCallback(fn=>setSesionTemplatesRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({sesionTemplates:n});return n;}),[persist]);
   const setScouting      =useCallback(fn=>setScoutingRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({scouting:n});return n;}),[persist]);
+  const setMatchAnalyses =useCallback(fn=>setMatchAnalysesRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({matchAnalyses:n});return n;}),[persist]);
+  const setBasketballIQ  =useCallback(fn=>setBasketballIQRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({basketballIQ:n});return n;}),[persist]);
   const setPlanMesos=useCallback(fn=>setPlanMesosRaw(prev=>{const cur=prev||DEFAULT_MESOS_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMesos:n});return n;}),[persist]);
   const setPlanMicro=useCallback(fn=>setPlanMicroRaw(prev=>{const cur=prev||DEFAULT_MICRO_EDIT;const n=typeof fn==="function"?fn(cur):fn;persist({planMicro:n});return n;}),[persist]);
   const setApiKey   =useCallback(v=>{setApiKeyRaw(v);try{localStorage.setItem("cb_apikey",v);}catch{};},[]);
@@ -3541,6 +3928,8 @@ export default function App(){
           if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
           if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
           if(d.scouting)      {setScoutingRaw(d.scouting);             stRef.current.scouting=d.scouting;}
+      if(d.matchAnalyses) {setMatchAnalysesRaw(d.matchAnalyses);   stRef.current.matchAnalyses=d.matchAnalyses;}
+      if(d.basketballIQ)  {setBasketballIQRaw(d.basketballIQ);     stRef.current.basketballIQ=d.basketballIQ;}
           if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
           if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
           if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
@@ -3566,6 +3955,8 @@ export default function App(){
         if(d.savedDrawings)setSavedDrawingsRaw(d.savedDrawings);
         if(d.sesionTemplates)setSesionTemplatesRaw(d.sesionTemplates);
         if(d.scouting)       setScoutingRaw(d.scouting);
+        if(d.matchAnalyses)  setMatchAnalysesRaw(d.matchAnalyses);
+        if(d.basketballIQ)   setBasketballIQRaw(d.basketballIQ);
         if(d.planMesos) setPlanMesosRaw(d.planMesos);
         if(d.planMicro) setPlanMicroRaw(d.planMicro);
         if(d.dark!==undefined)setDarkRaw(d.dark);
@@ -3592,7 +3983,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
@@ -3603,7 +3994,7 @@ export default function App(){
           <aside className={`sidebar${menuOpen?" open":""}`} style={{width:222,flexShrink:0,background:th.nav,display:"flex",flexDirection:"column",height:"100dvh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,.06)",zIndex:50}}>
             <div style={{padding:"18px 18px 10px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <img src={`data:image/png;base64,${LOGO_B64}`} alt="CB Binissalem" style={{width:34,height:34,borderRadius:9,objectFit:"contain",flexShrink:0,background:"#fff",padding:2}}/>
+                <div style={{width:34,height:34,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:900,color:"#fff",letterSpacing:-.5,flexShrink:0}}>CB</div>
                 <div><p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 25/26</p></div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
               </div>
