@@ -187,51 +187,58 @@ function GS({th}){return <style>{`
   /* Tablet ≤900px */
   @media(max-width:900px){
     .sidebar{
-      position:fixed!important;left:0;top:0;width:240px!important;
-      height:100dvh!important;z-index:50;
-      transform:translateX(-100%);transition:transform .25s ease;
+      position:fixed!important;left:0;top:0;width:250px!important;
+      height:100dvh!important;z-index:200;
+      transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1);
+      box-shadow:4px 0 24px rgba(0,0,0,.35)!important;
     }
     .sidebar.open{transform:translateX(0)!important;}
     .mobile-topbar{display:flex!important;}
-    .close-sidebar{display:block!important;}
-    /* Ajustes generales de layout en tablet */
-    main{padding:16px 14px!important;}
+    .close-sidebar{display:flex!important;}
+    main{padding:14px 12px!important;}
     .card{border-radius:10px!important;}
-    /* Grids inline reducidos */
-    [style*="repeat(4,1fr)"]{grid-template-columns:1fr 1fr!important;}
-    [style*="repeat(3,1fr)"]{grid-template-columns:1fr 1fr!important;}
-    [style*="repeat(7,1fr)"]{grid-template-columns:repeat(4,1fr)!important;}
+    /* Overlay when sidebar open */
+    .sidebar-overlay{display:block!important;}
   }
 
   /* Móvil ≤600px */
   @media(max-width:600px){
-    .sidebar{width:85vw!important;}
-    main{padding:12px 10px!important;}
-    /* Texto y cabeceras */
-    h2{font-size:20px!important;}
-    /* Cards de KPI — siempre 2 columnas en móvil */
-    [style*="repeat(4,1fr)"]{grid-template-columns:1fr 1fr!important;}
-    [style*="repeat(3,1fr)"]{grid-template-columns:1fr!important;}
-    [style*="repeat(7,1fr)"]{grid-template-columns:repeat(2,1fr)!important;}
-    /* Grids de 2 col → 1 col en móvil */
-    [style*="gridTemplateColumns:\"1fr 1fr\""]{grid-template-columns:1fr!important;}
-    /* Tablas con scroll horizontal */
-    .card{overflow-x:auto;}
-    /* Tipografía de stats grande → más pequeña */
-    [style*="fontSize:32"]{font-size:24px!important;}
-    [style*="fontSize:28"]{font-size:20px!important;}
+    .sidebar{width:82vw!important;max-width:300px!important;}
+    main{padding:10px 8px!important;}
+    h2{font-size:22px!important;}
+    /* Tables get horizontal scroll */
+    .card table{min-width:500px;}
+    /* Stack all 2-col grids */
+    .r2col{grid-template-columns:1fr!important;}
+    /* KPI grids: 2 col on mobile */
+    .kpi4{grid-template-columns:1fr 1fr!important;}
+    .kpi3{grid-template-columns:1fr 1fr!important;}
+    /* Sections headers */
+    .sh-right{display:none!important;}
   }
 
-  /* Clases de ayuda para grids responsive */
+  /* Named responsive grid classes */
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:900px){
-    .rg4{grid-template-columns:1fr 1fr!important;}
-    .rg3{grid-template-columns:1fr 1fr!important;}
-    .rg2{grid-template-columns:1fr!important;}
+    .g4{grid-template-columns:1fr 1fr!important;}
+    .g3{grid-template-columns:1fr 1fr!important;}
+    .g2{grid-template-columns:1fr!important;}
   }
   @media(max-width:600px){
-    .rg4{grid-template-columns:1fr 1fr!important;}
-    .rg3{grid-template-columns:1fr!important;}
-    .rg2{grid-template-columns:1fr!important;}
+    .g4{grid-template-columns:1fr 1fr!important;}
+    .g3{grid-template-columns:1fr!important;}
+    .g2{grid-template-columns:1fr!important;}
+  }
+
+  /* Overlay */
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;backdrop-filter:blur(2px)}
+  
+  /* Touch-friendly buttons on mobile */
+  @media(max-width:600px){
+    button{min-height:36px;}
+    input,select,textarea{font-size:16px!important;} /* prevent iOS zoom */
   }
 `}</style>;}
 
@@ -385,7 +392,13 @@ function Dashboard(){
   })).sort((a,b)=>b.rate-a.rate).slice(0,5);
 
   return <div>
-    <SH title="Panel Principal" sub="CB Binissalem Sénior A · Temporada 2025/26"/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div>
+        <h2 style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:30,fontWeight:800,color:th.text,letterSpacing:1,textTransform:"uppercase",lineHeight:1}}>Panel Principal</h2>
+        <p style={{color:th.muted,fontSize:12,marginTop:4}}>CB Binissalem Sénior A · Temporada 2025/26</p>
+      </div>
+      <img src={`data:image/png;base64,${LOGO_B64}`} alt="CB Binissalem" style={{width:68,height:68,objectFit:"contain",borderRadius:12,background:"#fff",padding:4,border:`1px solid ${th.border}`}}/>
+    </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
       {kpis.map(k=><div key={k.label} className="card" style={{padding:"20px 22px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -1833,7 +1846,7 @@ function Playbook(){
   const fr=useRef();
 
   const savePlay=p=>{
-    if(editPlay==="new"){setPlays(prev=>[...prev,{...p,id:Date.now()}]);}
+    if(!editPlay){setPlays(prev=>[...prev,{...p,id:Date.now()}]);}
     else{setPlays(prev=>prev.map(x=>x.id===editPlay.id?{...x,...p}:x));}
     setEditPlay(null);setShowAdd(false);
   };
@@ -1842,26 +1855,48 @@ function Playbook(){
   const handlePDF=async e=>{
     const file=e.target.files[0];if(!file)return;
     if(!apiKey){setPdfMsg("❌ Introduce primero tu API Key de Anthropic en Ajustes (⚙️ en el sidebar).");e.target.value="";return;}
-    setPdfLoading(true);setPdfMsg("Leyendo PDF con IA…");
+    setPdfLoading(true);setPdfMsg("Analizando PDF con IA — extrayendo jugadas y gráficos…");
     try{
       const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      // Pass PDF as image so Claude can see diagrams/graphics too
       const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-20250514",max_tokens:2000,
+        model:"claude-sonnet-4-20250514",max_tokens:4000,
         messages:[{role:"user",content:[
           {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
-          {type:"text",text:`Analiza este documento de baloncesto. Extrae TODAS las jugadas o sistemas que encuentres y devuelve ÚNICAMENTE JSON válido (sin markdown ni texto extra):
-{"jugadas":[{"nombre":"nombre jugada","categoria":"Ataque|Defensa|Especial","descripcion":"descripción detallada","etiquetas":["tag1","tag2"]}]}
-Si no hay jugadas reconocibles devuelve: {"jugadas":[]}`}
+          {type:"text",text:`Analiza este documento de playbook/jugadas de baloncesto. 
+Extrae TODAS las jugadas, sistemas, acciones tácticas o bloques de contenido que encuentres.
+Para cada jugada incluye todos los detalles disponibles: nombre, categoría, descripción completa, variantes, puntos clave, notas del entrenador.
+Si el documento tiene múltiples páginas o secciones, extrae una jugada por sección/bloque.
+
+Devuelve ÚNICAMENTE JSON válido en una sola línea, sin markdown, sin texto extra:
+{"jugadas":[{"nombre":"nombre exacto","categoria":"Ataque|Defensa|Especial","descripcion":"descripción completa con todos los detalles, variantes y notas","etiquetas":["tag1","tag2","tag3"]}]}
+
+Si no hay jugadas claras devuelve: {"jugadas":[]}`}
         ]}]
       });
       const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
-      const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
-      const nuevas=(parsed.jugadas||[]).map(j=>({id:Date.now()+Math.random(),name:j.nombre||j.name||"Sin nombre",cat:j.categoria||j.cat||"Ataque",desc:j.descripcion||j.desc||"",tags:j.etiquetas||j.tags||[],images:[]}));
-      if(nuevas.length>0){setPlays(prev=>[...prev,...nuevas]);setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length>1?"s":""} importada${nuevas.length>1?"s":""} del PDF`);}
-      else setPdfMsg("⚠️ No se encontraron jugadas. Prueba a crearlas manualmente.");
-    }catch(err){console.error(err);setPdfMsg(`❌ Error: ${err.message||"Inténtalo de nuevo."} Verifica tu API Key.`);}
+      // Robust JSON extraction
+      const jsonStart=txt.indexOf("{");const jsonEnd=txt.lastIndexOf("}");
+      const jsonStr=jsonStart>=0&&jsonEnd>=0?txt.slice(jsonStart,jsonEnd+1):txt;
+      const parsed=JSON.parse(jsonStr.replace(/[\r\n]+/g," "));
+      const jugadasRaw=parsed.jugadas||parsed.plays||[];
+      if(jugadasRaw.length===0){setPdfMsg("⚠️ No se encontraron jugadas. El PDF puede estar escaneado o sin texto.");setPdfLoading(false);e.target.value="";return;}
+      const nuevas=jugadasRaw.map((j,i)=>({
+        id:Date.now()+i,
+        name:j.nombre||j.name||`Jugada ${i+1}`,
+        cat:j.categoria||j.cat||"Ataque",
+        desc:j.descripcion||j.desc||"",
+        tags:(j.etiquetas||j.tags||[]).slice(0,6),
+        images:[]
+      }));
+      setPlays(prev=>[...prev,...nuevas]);
+      setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length!==1?"s":""} importada${nuevas.length!==1?"s":""}. Puedes añadir diagramas editando cada jugada.`);
+    }catch(err){
+      console.error(err);
+      setPdfMsg(`❌ Error al procesar: ${err.message?.slice(0,60)||"Inténtalo de nuevo"}.`);
+    }
     setPdfLoading(false);e.target.value="";
-    setTimeout(()=>setPdfMsg(null),6000);
+    setTimeout(()=>setPdfMsg(null),8000);
   };
 
   return <div>
@@ -1872,25 +1907,29 @@ Si no hay jugadas reconocibles devuelve: {"jugadas":[]}`}
       <Btn onClick={()=>{setShowAdd(true);setEditPlay("new");}} icon={<Plus size={14}/>}>Nueva Jugada</Btn>
     </div>}/>
     {pdfMsg&&<div style={{background:pdfMsg.startsWith("✅")?"rgba(16,185,129,.07)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.07)":"rgba(239,68,68,.07)",border:`1px solid ${pdfMsg.startsWith("✅")?"rgba(16,185,129,.3)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.3)":"rgba(239,68,68,.3)"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:th.text}}>{pdfMsg}</div>}
-    {(showAdd||editPlay)&&<PlaybookEditForm play={editPlay==="new"?null:editPlay} onSave={savePlay} onCancel={()=>{setShowAdd(false);setEditPlay(null);}}/>}
+    {(showAdd)&&<PlaybookEditForm play={null} onSave={savePlay} onCancel={()=>setShowAdd(false)}/>}
     <div style={{display:"flex",gap:8,marginBottom:20}}>
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(PC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
     </div>
     {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-      {filtered.map(play=>{const c=PC[play.cat]||"#f97316";return <div key={play.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-          <h3 style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,flex:1,marginRight:8}}>{play.name}</h3>
-          <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-            <Badge color={c}>{play.cat}</Badge>
-            <button onClick={()=>setEditPlay(play)} title="Editar" style={{width:26,height:26,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={11}/></button>
-            <button onClick={()=>delPlay(play.id)} title="Eliminar" style={{width:26,height:26,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>
+      {filtered.map(play=>{
+        const c=PC[play.cat]||"#f97316";
+        if(editPlay&&editPlay.id===play.id)return <div key={play.id} style={{gridColumn:"1/-1"}}><PlaybookEditForm play={editPlay} onSave={savePlay} onCancel={()=>setEditPlay(null)}/></div>;
+        return <div key={play.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <h3 style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,flex:1,marginRight:8}}>{play.name}</h3>
+            <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+              <Badge color={c}>{play.cat}</Badge>
+              <button onClick={()=>{setEditPlay(play);setShowAdd(false);}} title="Editar" style={{width:26,height:26,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={11}/></button>
+              <button onClick={()=>delPlay(play.id)} title="Eliminar" style={{width:26,height:26,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>
+            </div>
           </div>
-        </div>
-        <p style={{fontSize:12,color:th.sub,lineHeight:1.65,marginBottom:12}}>{play.desc}</p>
-        {(play.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{play.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}</div>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(play.tags||[]).map(t=><span key={t} style={{fontSize:10,color:th.muted,background:th.card2,padding:"2px 8px",borderRadius:4,border:`1px solid ${th.border}`}}>{t}</span>)}</div>
-      </div>;})}
+          <p style={{fontSize:12,color:th.sub,lineHeight:1.65,marginBottom:12}}>{play.desc}</p>
+          {(play.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{play.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}</div>}
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(play.tags||[]).map(t=><span key={t} style={{fontSize:10,color:th.muted,background:th.card2,padding:"2px 8px",borderRadius:4,border:`1px solid ${th.border}`}}>{t}</span>)}</div>
+        </div>;
+      })}
     </div>
   </div>;
 }
@@ -1907,39 +1946,41 @@ function Ejercicios(){
   const filtered=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
 
   const saveEx=ex=>{
-    if(editEx==="new"){setEjercicios(prev=>[...prev,{...ex,id:Date.now()}]);}
+    if(!editEx){setEjercicios(prev=>[...prev,{...ex,id:Date.now()}]);}
     else{setEjercicios(prev=>prev.map(x=>x.id===editEx.id?{...x,...ex}:x));}
     setEditEx(null);setShowAdd(false);
   };
   const delEx=id=>setEjercicios(prev=>prev.filter(e=>e.id!==id));
 
   return <div>
-    <SH title="Ejercicios" sub="Biblioteca por categoría · Todos editables" right={<div style={{display:"flex",gap:8}}><Btn onClick={()=>exportEjerciciosPDF(ejercicios,filter)} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn><Btn onClick={()=>{setShowAdd(true);setEditEx("new");}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn></div>}/>
-    {(showAdd||editEx)&&<EjercicioEditForm ex={editEx==="new"?null:editEx} onSave={saveEx} onCancel={()=>{setShowAdd(false);setEditEx(null);}}/>}
+    <SH title="Ejercicios" sub="Biblioteca por categoría · Todos editables" right={<div style={{display:"flex",gap:8}}><Btn onClick={()=>exportEjerciciosPDF(ejercicios,filter)} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn><Btn onClick={()=>{setShowAdd(true);setEditEx(null);}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn></div>}/>
+    {showAdd&&<EjercicioEditForm ex={null} onSave={saveEx} onCancel={()=>setShowAdd(false)}/>}
     <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
     </div>
     {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-      {filtered.map(ex=>{const c=CC[ex.cat]||"#f97316";const dc=DC[ex.diff]||"#10b981";return <div key={ex.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-          <div style={{flex:1,marginRight:8}}>
-            <h3 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:6}}>{ex.name}</h3>
-            <div style={{display:"flex",gap:5}}><Badge color={c} sm>{ex.cat}</Badge><Badge color={dc} sm>{ex.diff}</Badge></div>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-            {ex.dur&&<div style={{background:th.card2,borderRadius:7,padding:"4px 8px",border:`1px solid ${th.border}`}}><p style={{fontFamily:"DM Mono",fontSize:12,color:c,fontWeight:700}}>{ex.dur}</p></div>}
-            <div style={{display:"flex",gap:4}}>
-              <button onClick={()=>setEditEx(ex)} style={{width:24,height:24,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={11}/></button>
-              <button onClick={()=>delEx(ex.id)} style={{width:24,height:24,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={11}/></button>
+      {filtered.map(ex=>{
+        const c=CC[ex.cat]||"#f97316";const dc=DC[ex.diff]||"#10b981";
+        // Inline edit — replace card with form
+        if(editEx&&editEx.id===ex.id)return <div key={ex.id} style={{gridColumn:"1/-1"}}><EjercicioEditForm ex={editEx} onSave={saveEx} onCancel={()=>setEditEx(null)}/></div>;
+        return <div key={ex.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <div style={{flex:1,marginRight:8}}>
+              <h3 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:6}}>{ex.name}</h3>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><Badge color={c} sm>{ex.cat}</Badge><Badge color={dc} sm>{ex.diff}</Badge>{ex.dur&&<Badge color="#3b82f6" sm>{ex.dur}</Badge>}</div>
+            </div>
+            <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <button onClick={()=>{setEditEx(ex);setShowAdd(false);}} title="Editar" style={{width:28,height:28,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={12}/></button>
+              <button onClick={()=>delEx(ex.id)} title="Eliminar" style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={12}/></button>
             </div>
           </div>
-        </div>
-        {ex.desc&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,marginBottom:8}}>{ex.desc}</p>}
-        {(ex.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {ex.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
-        </div>}
-      </div>;})}
+          {ex.desc&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,marginBottom:8}}>{ex.desc}</p>}
+          {(ex.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {ex.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
+          </div>}
+        </div>;
+      })}
     </div>
   </div>;
 }
@@ -2013,33 +2054,101 @@ function Pizarra(){
   const els=steps[step];
   const setEls=fn=>setSteps(prev=>{const n=[...prev];n[step]=typeof fn==="function"?fn(prev[step]):fn;return n;});
 
-  // Render a player element — attacker (orange filled) or defender (blue, X mark)
+  // ── Helpers de dibujo ──────────────────────────────────────
+  const drawArrowHead=(ctx,x1,y1,x2,y2,color)=>{
+    const a=Math.atan2(y2-y1,x2-x1);const s=16;
+    ctx.beginPath();ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-s*Math.cos(a-Math.PI/6),y2-s*Math.sin(a-Math.PI/6));
+    ctx.lineTo(x2-s*Math.cos(a+Math.PI/6),y2-s*Math.sin(a+Math.PI/6));
+    ctx.closePath();ctx.fillStyle=color;ctx.fill();
+  };
+  const drawWavy=(ctx,x1,y1,x2,y2,color,withArrow)=>{
+    const dx=x2-x1,dy=y2-y1;const len=Math.sqrt(dx*dx+dy*dy);
+    if(len<2)return;
+    const ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
+    const waves=Math.max(3,Math.floor(len/30));const seg=len/waves;
+    ctx.strokeStyle=color;ctx.lineWidth=2.8;ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(x1,y1);
+    for(let i=0;i<waves;i++){
+      const t1=(i+.33)*seg;const t2=(i+.67)*seg;const t3=(i+1)*seg;
+      const side=i%2===0?1:-1;const amp=8;
+      ctx.bezierCurveTo(
+        x1+ux*t1+nx*side*amp, y1+uy*t1+ny*side*amp,
+        x1+ux*t2+nx*side*amp, y1+uy*t2+ny*side*amp,
+        x1+ux*Math.min(t3,len), y1+uy*Math.min(t3,len)
+      );
+    }
+    ctx.stroke();
+    if(withArrow)drawArrowHead(ctx,x1,y1,x2,y2,color);
+  };
+  const drawCurve=(ctx,x1,y1,x2,y2,color,withArrow,dashed)=>{
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    const dx=x2-x1,dy=y2-y1;
+    const cx=mx-dy*0.35,cy=my+dx*0.35;
+    if(dashed)ctx.setLineDash([12,8]);
+    ctx.strokeStyle=color;ctx.lineWidth=2.8;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.quadraticCurveTo(cx,cy,x2,y2);
+    ctx.stroke();ctx.setLineDash([]);
+    if(withArrow)drawArrowHead(ctx,cx+(x2-cx)*.5,cy+(y2-cy)*.5,x2,y2,color);
+  };
+  // Bloqueo (Screen) — rectángulo perpendicular a la dirección de llegada
+  const drawScreen=(ctx,x1,y1,x2,y2)=>{
+    const dx=x2-x1,dy=y2-y1;const len=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=-dy/len,ny=dx/len;const hw=14;
+    ctx.strokeStyle="#fff";ctx.lineWidth=3.5;
+    ctx.beginPath();
+    ctx.moveTo(x2+nx*hw,y2+ny*hw);ctx.lineTo(x2-nx*hw,y2-ny*hw);
+    ctx.stroke();
+    // Line from x1,y1 to x2,y2
+    ctx.strokeStyle="#f59e0b";ctx.lineWidth=2;ctx.setLineDash([8,5]);
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
+    ctx.stroke();ctx.setLineDash([]);
+  };
+  // Tiro — arco semicircular + línea
+  const drawShot=(ctx,x1,y1,x2,y2,color)=>{
+    ctx.strokeStyle=color;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    // Arco parabólico simulando trayectoria
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    const dx=x2-x1,dy=y2-y1;
+    const cx=mx-dy*0.5,cy=my+dx*0.5-30;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.quadraticCurveTo(cx,cy,x2,y2);
+    ctx.setLineDash([6,5]);ctx.strokeStyle=color+"aa";ctx.lineWidth=2;
+    ctx.stroke();ctx.setLineDash([]);
+    // Circle at destination (basket area)
+    ctx.beginPath();ctx.arc(x2,y2,7,0,Math.PI*2);
+    ctx.fillStyle=color+"33";ctx.fill();
+    ctx.strokeStyle=color;ctx.lineWidth=2;ctx.stroke();
+  };
+
   const rElCustom=(ctx,el,pv=false)=>{
-    ctx.globalAlpha=pv?.45:1;ctx.lineCap="round";ctx.lineJoin="round";
-    if(el.type==="player_atk"){
-      ctx.beginPath();ctx.arc(el.x,el.y,15,0,Math.PI*2);
-      ctx.fillStyle="#f97316";ctx.fill();
-      ctx.strokeStyle="rgba(255,255,255,.9)";ctx.lineWidth=2;ctx.stroke();
-      ctx.fillStyle="#fff";ctx.font="bold 13px 'Barlow Condensed',sans-serif";
-      ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(el.num),el.x,el.y+.5);
-    } else if(el.type==="player_def"){
-      ctx.beginPath();ctx.arc(el.x,el.y,15,0,Math.PI*2);
-      ctx.fillStyle=th.mode==="dark"?"#1e293b":"#f1f5f9";
-      ctx.fill();ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;ctx.stroke();
-      // X mark
-      const s=7;
-      ctx.strokeStyle="#3b82f6";ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(el.x-s+3,el.y-s+3);ctx.lineTo(el.x+s-3,el.y+s-3);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(el.x+s-3,el.y-s+3);ctx.lineTo(el.x-s+3,el.y+s-3);ctx.stroke();
-      // Number below X
-      ctx.fillStyle="#3b82f6";ctx.font="bold 9px 'Barlow Condensed',sans-serif";
-      ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(el.num),el.x,el.y+6);
-    } else if(el.type==="line"||el.type==="dash"||el.type==="arrow"){
-      if(el.type==="dash")ctx.setLineDash([14,9]);
-      ctx.strokeStyle=el.color;ctx.lineWidth=2.8;ctx.beginPath();ctx.moveTo(el.x1,el.y1);ctx.lineTo(el.x2,el.y2);ctx.stroke();ctx.setLineDash([]);
-      if(el.type==="arrow"){const a=Math.atan2(el.y2-el.y1,el.x2-el.x1);ctx.beginPath();ctx.moveTo(el.x2,el.y2);ctx.lineTo(el.x2-16*Math.cos(a-Math.PI/6),el.y2-16*Math.sin(a-Math.PI/6));ctx.lineTo(el.x2-16*Math.cos(a+Math.PI/6),el.y2-16*Math.sin(a+Math.PI/6));ctx.closePath();ctx.fillStyle=el.color;ctx.fill();}
-    } else {
-      rEl(ctx,el,false);
+    ctx.globalAlpha=pv?.4:1;ctx.lineCap="round";ctx.lineJoin="round";
+    switch(el.type){
+      case"player_atk":
+        ctx.beginPath();ctx.arc(el.x,el.y,15,0,Math.PI*2);
+        ctx.fillStyle="#f97316";ctx.fill();
+        ctx.strokeStyle="rgba(255,255,255,.9)";ctx.lineWidth=2;ctx.stroke();
+        ctx.fillStyle="#fff";ctx.font="bold 13px 'Barlow Condensed',sans-serif";
+        ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(el.num),el.x,el.y+.5);
+        break;
+      case"player_def":
+        ctx.beginPath();ctx.arc(el.x,el.y,15,0,Math.PI*2);
+        ctx.fillStyle=th.mode==="dark"?"#1e293b":"#f1f5f9";
+        ctx.fill();ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;ctx.stroke();
+        {const s=7;ctx.strokeStyle="#3b82f6";ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(el.x-s+3,el.y-s+3);ctx.lineTo(el.x+s-3,el.y+s-3);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(el.x+s-3,el.y-s+3);ctx.lineTo(el.x-s+3,el.y+s-3);ctx.stroke();
+        ctx.fillStyle="#3b82f6";ctx.font="bold 9px 'Barlow Condensed',sans-serif";
+        ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(el.num),el.x,el.y+6);}
+        break;
+      case"arrow": drawCurve(ctx,el.x1,el.y1,el.x2,el.y2,el.color,true,false); break;
+      case"curve_arrow": drawCurve(ctx,el.x1,el.y1,el.x2,el.y2,el.color,true,false); break;
+      case"line": drawCurve(ctx,el.x1,el.y1,el.x2,el.y2,el.color,false,false); break;
+      case"dash": drawCurve(ctx,el.x1,el.y1,el.x2,el.y2,el.color,true,true); break;
+      case"wavy": drawWavy(ctx,el.x1,el.y1,el.x2,el.y2,el.color,true); break;
+      case"screen": drawScreen(ctx,el.x1,el.y1,el.x2,el.y2); break;
+      case"shot": drawShot(ctx,el.x1,el.y1,el.x2,el.y2,el.color); break;
+      default: rEl(ctx,el,false);
     }
     ctx.globalAlpha=1;
   };
@@ -2069,7 +2178,14 @@ function Pizarra(){
   const savePlay=()=>{if(!saveName)return;const id=Date.now();setSavedDrawings(prev=>[...prev,{id,name:saveName,steps:steps.map(s=>[...s])}]);setSaveName("");setShowSave(false);};
   const loadPlay=play=>{setSteps(play.steps.map(s=>[...s]));setHist([[],[],[],[]]);setSelPlay(null);};
 
-  const lineTools=[{id:"arrow",label:"Flecha",icon:"→"},{id:"line",label:"Línea",icon:"—"},{id:"dash",label:"Pase",icon:"╌╌"}];
+  const lineTools=[
+    {id:"arrow",  label:"Flecha",   icon:"→",  desc:"Movimiento"},
+    {id:"dash",   label:"Pase",     icon:"⤑",  desc:"Pase (curvo)"},
+    {id:"wavy",   label:"Bote",     icon:"〰",  desc:"Con bote"},
+    {id:"line",   label:"Línea",    icon:"—",  desc:"Continua"},
+    {id:"screen", label:"Bloqueo",  icon:"⊣",  desc:"Screen/Block"},
+    {id:"shot",   label:"Tiro",     icon:"⊙",  desc:"Tiro a canasta"},
+  ];
 
   return <div>
     <SH title="Pizarra" sub="Atacantes · Defensores · 4 pasos por jugada"/>
@@ -2169,10 +2285,17 @@ function Pizarra(){
         {/* Herramientas */}
         <div className="card" style={{padding:14}}>
           <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Herramientas</p>
-          {lineTools.map(t=><div key={t.id} onClick={()=>setTool(t.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:7,cursor:"pointer",background:tool===t.id?"rgba(249,115,22,.1)":th.card2,border:`1px solid ${tool===t.id?"#f97316":th.border}`,marginBottom:5}}>
-            <span style={{fontSize:15,minWidth:22,textAlign:"center",color:tool===t.id?"#f97316":th.sub}}>{t.icon}</span>
-            <p style={{fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700,color:tool===t.id?"#f97316":th.text}}>{t.label}</p>
-          </div>)}
+          {lineTools.map(t=>{
+            const toolColors={arrow:"#f97316",dash:"#3b82f6",wavy:"#f59e0b",line:"#94a3b8",screen:"#fff",shot:"#10b981"};
+            const ac=tool===t.id;const tc=toolColors[t.id]||"#f97316";
+            return <div key={t.id} onClick={()=>setTool(t.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:7,cursor:"pointer",background:ac?tc+"18":th.card2,border:`1px solid ${ac?tc:th.border}`,marginBottom:4}}>
+              <span style={{fontSize:16,minWidth:22,textAlign:"center",color:ac?tc:th.sub}}>{t.icon}</span>
+              <div>
+                <p style={{fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700,color:ac?tc:th.text,lineHeight:1}}>{t.label}</p>
+                <p style={{fontSize:9,color:th.muted,lineHeight:1,marginTop:2}}>{t.desc}</p>
+              </div>
+            </div>;
+          })}
         </div>
 
         {/* Jugadas guardadas */}
@@ -2443,7 +2566,7 @@ function exportToPDF(title,content,subtitle,playersTable){
 
 function IAAsistente(){
   const{th}=useTheme();
-  const{players,matches,sessions,sesionTemplates,setSesionTemplates,setSessions,scouting,setScouting,apiKey}=useData();
+  const{players,matches,sessions,sesionTemplates,setSesionTemplates,setSessions,scouting,setScouting,plays,apiKey}=useData();
   const[tab,setTab]=useState("rival");
   const[selScout,setSelScout]=useState(null);
 
@@ -2503,6 +2626,10 @@ function IAAsistente(){
           }).join("\n")
         :"";
 
+      const playsCtx=plays&&plays.length>0
+        ?`\n\nJugadas disponibles en nuestro Playbook:\n${plays.map(p=>`- ${p.name} (${p.cat}): ${p.desc?.slice(0,80)||""}`).join("\n")}`
+        :"";
+
       content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}.\n`:""}${rivalText?`Información general:\n${rivalText}\n\n`:""}${rpStr?`Jugadores conocidos:\n${rpStr}\n\n`:""}
 
 Genera el informe táctico en español con estas secciones:
@@ -2510,13 +2637,13 @@ Genera el informe táctico en español con estas secciones:
 2. PUNTOS DÉBILES a explotar
 3. PLAN DE PARTIDO (ataque y defensa)
 4. JUGADORES A VIGILAR (con datos concretos si los hay)
-5. JUGADAS CLAVE a preparar
+5. JUGADAS CLAVE a preparar${playsCtx?`\n6. JUGADAS DE NUESTRO PLAYBOOK recomendadas — analiza cuáles encajan mejor contra este rival y por qué`:""}
 
 ${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al FINAL del informe en este bloque JSON (una sola línea, sin saltos de línea, sin markdown):
 PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25"}]
 IMPORTANTE: El campo "name" debe ser en una sola línea sin saltos de línea. Si el nombre es largo, abrevia. Si no hay datos suficientes, omite el bloque PLAYERS_JSON.`:""}
 
-Sé específico y práctico.`});
+Sé específico y práctico.${playsCtx}`);
 
       const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1800,messages:[{role:"user",content}]});
       let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
@@ -3468,7 +3595,7 @@ export default function App(){
           <aside className={`sidebar${menuOpen?" open":""}`} style={{width:222,flexShrink:0,background:th.nav,display:"flex",flexDirection:"column",height:"100dvh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,.06)",zIndex:50}}>
             <div style={{padding:"18px 18px 10px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:34,height:34,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:900,color:"#fff",letterSpacing:-.5,flexShrink:0}}>CB</div>
+                <img src={`data:image/png;base64,${LOGO_B64}`} alt="CB Binissalem" style={{width:34,height:34,borderRadius:9,objectFit:"contain",flexShrink:0,background:"#fff",padding:2}}/>
                 <div><p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 25/26</p></div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
               </div>
