@@ -1217,27 +1217,30 @@ function Estadisticas(){
 function exportPlaybookPDF(plays,filter){
   const list=filter==="Todos"?plays:plays.filter(p=>p.cat===filter);
   const w=window.open("","_blank");
-  const rows=list.map(p=>`
-    <div class="play">
-      <div class="play-header">
-        <span class="play-name">${p.name}</span>
-        <span class="play-cat" style="background:${PC[p.cat]||"#f97316"}20;color:${PC[p.cat]||"#f97316"};border:1px solid ${PC[p.cat]||"#f97316"}40">${p.cat}</span>
-      </div>
-      ${p.desc?`<p class="play-desc">${p.desc}</p>`:""}
-      ${(p.tags||[]).length?`<div class="tags">${p.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>`:""}
-      ${(p.images||[]).length?`<div class="imgs">${p.images.map(img=>`<img src="${img}" class="play-img"/>`).join("")}</div>`:""}
-    </div>`).join("");
+  const rows=list.map(p=>{
+    const cat=PC[p.cat]||"#f97316";
+    const tagsHtml=(p.tags||[]).length?'<div class="tags">'+p.tags.map(t=>'<span class="tag">'+t+'</span>').join("")+"</div>":"";
+    const imgsHtml=(p.images||[]).length?'<div class="imgs">'+p.images.map(img=>'<img src="'+img+'" class="play-img"/>').join("")+"</div>":"";
+    return '<div class="play">'
+      +'<div class="play-header">'
+      +'<span class="play-name">'+p.name+'</span>'
+      +'<span class="play-cat" style="background:'+cat+'20;color:'+cat+'">'+p.cat+'</span>'
+      +'</div>'
+      +(p.desc?'<p class="play-desc">'+p.desc+'</p>':"")
+      +tagsHtml+imgsHtml
+      +'</div>';
+  }).join("");
   w.document.write(pdfOpen("Playbook")
-    +pdfHeader("Playbook",`${filter!=="Todos"?filter+" · ":""}${list.length} jugadas`)
-    +`<style>.play{margin-bottom:18px;padding:14px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid}
-      .play-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-      .play-name{font-weight:700;font-size:15px;color:#1e293b}
-      .play-cat{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
-      .play-desc{font-size:13px;color:#475569;line-height:1.6;margin-bottom:6px}
-      .tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
-      .tag{font-size:10px;background:#f8fafc;border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;color:#64748b}
-      .imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-      .play-img{width:100px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}</style>`
+    +pdfHeader("Playbook",(filter!=="Todos"?filter+" · ":"")+list.length+" jugadas")
+    +'<style>.play{margin-bottom:18px;padding:14px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid}'
+    +'.play-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}'
+    +'.play-name{font-weight:700;font-size:15px;color:#1e293b}'
+    +'.play-cat{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}'
+    +'.play-desc{font-size:13px;color:#475569;line-height:1.6;margin-bottom:6px}'
+    +'.tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}'
+    +'.tag{font-size:10px;background:#f8fafc;border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;color:#64748b}'
+    +'.imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}'
+    +'.play-img{width:100px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}</style>'
     +rows+pdfClose());
   w.document.close();setTimeout(()=>w.print(),400);
 }
@@ -1246,27 +1249,30 @@ function exportPlaybookPDF(plays,filter){
 function exportEjerciciosPDF(ejercicios,filter){
   const list=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
   const w=window.open("","_blank");
-  const rows=list.map(ex=>`
-    <div class="ex">
-      <div class="ex-header">
-        <span class="ex-name">${ex.name}</span>
-        ${ex.dur?`<span class="ex-dur">${ex.dur}</span>`:""}
-        <span class="ex-badge" style="background:${CC[ex.cat]||"#f97316"}20;color:${CC[ex.cat]||"#f97316"}">${ex.cat}</span>
-        <span class="ex-badge" style="background:#e0f2fe;color:#0284c7">${ex.diff||"Básico"}</span>
-      </div>
-      ${ex.desc?`<p class="ex-desc">${ex.desc}</p>`:""}
-      ${(ex.images||[]).length?`<div class="imgs">${ex.images.map(img=>`<img src="${img}" class="ex-img"/>`).join("")}</div>`:""}
-    </div>`).join("");
+  const rows=list.map(ex=>{
+    const cat=CC[ex.cat]||"#f97316";
+    const imgsHtml=(ex.images||[]).length?'<div class="imgs">'+ex.images.map(img=>'<img src="'+img+'" class="ex-img"/>').join("")+"</div>":"";
+    return '<div class="ex">'
+      +'<div class="ex-header">'
+      +'<span class="ex-name">'+ex.name+'</span>'
+      +(ex.dur?'<span class="ex-dur">'+ex.dur+'</span>':"")
+      +'<span class="ex-badge" style="background:'+cat+'20;color:'+cat+'">'+ex.cat+'</span>'
+      +'<span class="ex-badge" style="background:#e0f2fe;color:#0284c7">'+(ex.diff||"Básico")+'</span>'
+      +'</div>'
+      +(ex.desc?'<p class="ex-desc">'+ex.desc+'</p>':"")
+      +imgsHtml
+      +'</div>';
+  }).join("");
   w.document.write(pdfOpen("Biblioteca de Ejercicios")
-    +pdfHeader("Biblioteca de Ejercicios",`${filter!=="Todos"?filter+" · ":""}${list.length} ejercicios`)
-    +`<style>.ex{margin-bottom:16px;padding:12px 14px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}
-      .ex-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
-      .ex-name{font-weight:700;font-size:15px;color:#1e293b;flex:1}
-      .ex-dur{font-family:monospace;font-size:12px;color:#f97316;font-weight:700;background:#fff7ed;padding:2px 8px;border-radius:4px}
-      .ex-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}
-      .ex-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}
-      .imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px}
-      .ex-img{width:90px;height:70px;object-fit:cover;border-radius:5px;border:1px solid #e2e8f0}</style>`
+    +pdfHeader("Biblioteca de Ejercicios",(filter!=="Todos"?filter+" · ":"")+list.length+" ejercicios")
+    +'<style>.ex{margin-bottom:16px;padding:12px 14px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}'
+    +'.ex-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}'
+    +'.ex-name{font-weight:700;font-size:15px;color:#1e293b;flex:1}'
+    +'.ex-dur{font-family:monospace;font-size:12px;color:#f97316;font-weight:700;background:#fff7ed;padding:2px 8px;border-radius:4px}'
+    +'.ex-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase}'
+    +'.ex-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}'
+    +'.imgs{display:flex;gap:8px;flex-wrap:wrap;margin-top:5px}'
+    +'.ex-img{width:90px;height:70px;object-fit:cover;border-radius:5px;border:1px solid #e2e8f0}</style>'
     +rows+pdfClose());
   w.document.close();setTimeout(()=>w.print(),400);
 }
@@ -1451,32 +1457,34 @@ function Entrenamientos(){
 
   const exportPDF=s=>{
     const w=window.open("","_blank");
-    const exObjsHtml=(s.exObjs||[]).map(ex=>`
-      <div class="exobj">
-        <div class="exobj-header">
-          <span class="exobj-name">${ex.name}</span>
-          ${ex.dur?`<span class="exobj-dur">${ex.dur}</span>`:""}
-          <span class="exobj-badge">${ex.cat}</span>
-        </div>
-        ${ex.desc?`<p class="exobj-desc">${ex.desc}</p>`:""}
-        ${(ex.images||[]).length?`<div class="exobj-imgs">${ex.images.map(img=>`<img src="${img}" class="exobj-img"/>`).join("")}</div>`:""}
-      </div>`).join("");
-    const exsHtml=(s.exs||[]).map((e,i)=>`<div class="item"><div class="item-dot"></div><div class="item-text"><strong>${i+1}.</strong> ${e}</div></div>`).join("");
-    const imgsHtml=(s.images||[]).length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.images.map(img=>`<img src="${img}" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>`).join("")}</div>`:"";
-    w.document.write(pdfOpen(`Sesión: ${s.title}`)
-      +pdfHeader(s.title,`${s.date}${s.time?` · ${s.time}`:""}h · ${s.dur} min · ${s.type}`)
-      +`<style>.exobj{margin-bottom:14px;padding:12px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}
-        .exobj-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
-        .exobj-name{font-weight:700;font-size:14px;color:#1e293b}
-        .exobj-dur{font-size:11px;color:#f97316;font-weight:700;background:#fff7ed;padding:1px 7px;border-radius:4px}
-        .exobj-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:#dbeafe;color:#1d4ed8;text-transform:uppercase}
-        .exobj-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}
-        .exobj-imgs{display:flex;gap:6px;flex-wrap:wrap}
-        .exobj-img{height:90px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0}</style>`
-      +(s.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body"><p>${s.notes}</p></div></div>`:"")
-      +(exObjsHtml?`<div class="section"><div class="section-title">Ejercicios del catálogo</div>${exObjsHtml}</div>`:"")
-      +(exsHtml?`<div class="section"><div class="section-title">Ejercicios adicionales</div><div class="section-body">${exsHtml}</div></div>`:"")
-      +(imgsHtml?`<div class="section"><div class="section-title">Imágenes de la sesión</div>${imgsHtml}</div>`:"")
+    const exObjsHtml=(s.exObjs||[]).map(ex=>{
+      const imgsH=(ex.images||[]).length?'<div class="exobj-imgs">'+ex.images.map(img=>'<img src="'+img+'" class="exobj-img"/>').join("")+"</div>":"";
+      return '<div class="exobj">'
+        +'<div class="exobj-header">'
+        +'<span class="exobj-name">'+ex.name+'</span>'
+        +(ex.dur?'<span class="exobj-dur">'+ex.dur+'</span>':"")
+        +'<span class="exobj-badge">'+ex.cat+'</span>'
+        +'</div>'
+        +(ex.desc?'<p class="exobj-desc">'+ex.desc+'</p>':"")
+        +imgsH+'</div>';
+    }).join("");
+    const exsHtml=(s.exs||[]).map((e,i)=>'<div class="item"><div class="item-dot"></div><div class="item-text"><strong>'+(i+1)+'.</strong> '+e+'</div></div>').join("");
+    const imgsHtml=(s.images||[]).length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+s.images.map(img=>'<img src="'+img+'" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>').join("")+"</div>":"";
+    const timeStr=s.time?" · "+s.time+"h":"";
+    w.document.write(pdfOpen("Sesión: "+s.title)
+      +pdfHeader(s.title,s.date+timeStr+" · "+s.dur+" min · "+s.type)
+      +'<style>.exobj{margin-bottom:14px;padding:12px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}'
+      +'.exobj-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}'
+      +'.exobj-name{font-weight:700;font-size:14px;color:#1e293b}'
+      +'.exobj-dur{font-size:11px;color:#f97316;font-weight:700;background:#fff7ed;padding:1px 7px;border-radius:4px}'
+      +'.exobj-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:#dbeafe;color:#1d4ed8;text-transform:uppercase}'
+      +'.exobj-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}'
+      +'.exobj-imgs{display:flex;gap:6px;flex-wrap:wrap}'
+      +'.exobj-img{height:90px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0}</style>'
+      +(s.notes?'<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body"><p>'+s.notes+'</p></div></div>':"")
+      +(exObjsHtml?'<div class="section"><div class="section-title">Ejercicios del catálogo</div>'+exObjsHtml+'</div>':"")
+      +(exsHtml?'<div class="section"><div class="section-title">Ejercicios adicionales</div><div class="section-body">'+exsHtml+'</div></div>':"")
+      +(imgsHtml?'<div class="section"><div class="section-title">Imágenes de la sesión</div>'+imgsHtml+'</div>':"")
       +pdfClose()
     );
     w.document.close();setTimeout(()=>w.print(),400);
@@ -2544,17 +2552,20 @@ function Calendario(){
 /* ── PDF export helper ── */
 function exportToPDF(title,content,subtitle,playersTable){
   const w=window.open("","_blank");
-  const pTable=playersTable&&playersTable.length>0?`
-    <div class="section"><div class="section-title">Estadísticas de jugadores</div>
-    <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL int</th><th>TL met</th><th>T2 int</th><th>T2 met</th><th>T3 int</th><th>T3 met</th><th>FC</th></tr></thead>
-    <tbody>${playersTable.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>`<tr>
-      <td>${p.num||""}</td><td class="left">${p.name||""}</td>
-      <td>${p.pj||"—"}</td><td>${p.pt||"—"}</td><td>${p.min||"—"}</td>
-      <td>${p.tl_i||"—"}</td><td>${p.tl_m||"—"}</td>
-      <td>${p.t2_i||"—"}</td><td>${p.t2_m||"—"}</td>
-      <td>${p.t3_i||"—"}</td><td>${p.t3_m||"—"}</td>
-      <td>${p.fc||"—"}</td>
-    </tr>`).join("")}</tbody></table></div>`:"";
+  const pTable=playersTable&&playersTable.length>0?(
+    '<div class="section"><div class="section-title">Estadísticas de jugadores</div>'
+    +'<table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL int</th><th>TL met</th><th>T2 int</th><th>T2 met</th><th>T3 int</th><th>T3 met</th><th>FC</th></tr></thead>'
+    +'<tbody>'+playersTable.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>
+      '<tr>'
+      +'<td>'+(p.num||"")+'</td><td class="left">'+(p.name||"")+'</td>'
+      +'<td>'+(p.pj||"—")+'</td><td>'+(p.pt||"—")+'</td><td>'+(p.min||"—")+'</td>'
+      +'<td>'+(p.tl_i||"—")+'</td><td>'+(p.tl_m||"—")+'</td>'
+      +'<td>'+(p.t2_i||"—")+'</td><td>'+(p.t2_m||"—")+'</td>'
+      +'<td>'+(p.t3_i||"—")+'</td><td>'+(p.t3_m||"—")+'</td>'
+      +'<td>'+(p.fc||"—")+'</td>'
+      +'</tr>'
+    ).join("")+'</tbody></table></div>'
+  ):"";
   w.document.write(pdfOpen(title)
     +pdfHeader(title,subtitle||new Date().toLocaleDateString("es"))
     +pTable
@@ -2627,23 +2638,14 @@ function IAAsistente(){
         :"";
 
       const playsCtx=plays&&plays.length>0
-        ?`\n\nJugadas disponibles en nuestro Playbook:\n${plays.map(p=>`- ${p.name} (${p.cat}): ${p.desc?.slice(0,80)||""}`).join("\n")}`
+        ?"\n\nJugadas disponibles en nuestro Playbook:\n"+plays.map(p=>"- "+p.name+" ("+p.cat+"): "+(p.desc?.slice(0,80)||"")).join("\n")
         :"";
 
-      content.push({type:"text",text:`Eres analista táctico de baloncesto. ${rivalName?`Rival: ${rivalName}.\n`:""}${rivalText?`Información general:\n${rivalText}\n\n`:""}${rpStr?`Jugadores conocidos:\n${rpStr}\n\n`:""}
-
-Genera el informe táctico en español con estas secciones:
-1. PUNTOS FUERTES del rival
-2. PUNTOS DÉBILES a explotar
-3. PLAN DE PARTIDO (ataque y defensa)
-4. JUGADORES A VIGILAR (con datos concretos si los hay)
-5. JUGADAS CLAVE a preparar${playsCtx?`\n6. JUGADAS DE NUESTRO PLAYBOOK recomendadas — analiza cuáles encajan mejor contra este rival y por qué`:""}
-
-${!hasManualPlayers?`Además, si en la información encuentras jugadores identificables, extráelos al FINAL del informe en este bloque JSON (una sola línea, sin saltos de línea, sin markdown):
-PLAYERS_JSON:[{"num":"4","name":"Nombre Apellido","pj":"15","pt":"","min":"350","tl_i":"30","tl_m":"18","t2_i":"120","t2_m":"70","t3_i":"40","t3_m":"10","fc":"25"}]
-IMPORTANTE: El campo "name" debe ser en una sola línea sin saltos de línea. Si el nombre es largo, abrevia. Si no hay datos suficientes, omite el bloque PLAYERS_JSON.`:""}
-
-Sé específico y práctico.${playsCtx}`);
+      const rivalIntro=(rivalName?"Rival: "+rivalName+".\n":"")+(rivalText?"Información general:\n"+rivalText+"\n\n":"")+(rpStr?"Jugadores conocidos:\n"+rpStr+"\n\n":"");
+      const playsRec=playsCtx?"\n6. JUGADAS DE NUESTRO PLAYBOOK recomendadas — analiza cuáles encajan mejor contra este rival y por qué":"";
+      const jsonInstr=!hasManualPlayers?"\nAdemás, si encuentras jugadores identificables, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
+      const promptText=rivalIntro+"Genera el informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR (con datos concretos)\n5. JUGADAS CLAVE a preparar"+playsRec+jsonInstr+"\n\nSé específico y práctico."+playsCtx;
+      content.push({type:"text",text:promptText});
 
       const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1800,messages:[{role:"user",content}]});
       let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
@@ -3396,26 +3398,32 @@ function InformeSemanal(){
           <div class="kpi"><div class="kpi-val">${avgPts}</div><div class="kpi-lbl">PTS/P</div></div>
           <div class="kpi"><div class="kpi-val">${sessions.length}</div><div class="kpi-lbl">Sesiones</div></div>
         </div>`
-      +`<div class="section"><div class="section-title">Entrenamientos esta semana</div>
-        ${weekSessions.length
-          ?`<table><thead><tr><th style="text-align:left">Fecha</th><th style="text-align:left">Sesión</th><th>Tipo</th><th>Min</th></tr></thead><tbody>
-            ${weekSessions.map(s=>`<tr><td class="left">${s.date}</td><td class="left">${s.title}</td><td>${s.type}</td><td>${s.dur}</td></tr>`).join("")}
-            </tbody></table>`
-          :"<p class='section-body' style='color:#94a3b8'>Sin sesiones registradas esta semana</p>"}</div>`
-      +(weekMatches.length?`<div class="section"><div class="section-title">Partidos esta semana</div>
-        <table><thead><tr><th style="text-align:left">Rival</th><th>Lugar</th><th>Resultado</th></tr></thead><tbody>
-        ${weekMatches.map(m=>`<tr><td class="left">${m.rival}</td><td>${m.location}</td><td style="color:${m.pts_us!=null?(m.pts_us>m.pts_them?"#10b981":"#ef4444"):"#64748b"};font-weight:700">${m.pts_us!=null?`${m.pts_us}–${m.pts_them}`:"—"}</td></tr>`).join("")}
-        </tbody></table></div>`:"")
-      +`<div class="section"><div class="section-title">Próximos partidos</div>
-        ${nextMatches.length
-          ?`<table><thead><tr><th style="text-align:left">Fecha</th><th style="text-align:left">Rival</th><th>Lugar</th></tr></thead><tbody>
-            ${nextMatches.map(m=>`<tr><td class="left">${m.date}</td><td class="left">${m.rival}</td><td>${m.location}</td></tr>`).join("")}
-            </tbody></table>`
-          :"<p class='section-body' style='color:#94a3b8'>Sin partidos próximos planificados</p>"}</div>`
-      +`<div class="section"><div class="section-title">Top anotadores</div>
-        <table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>Pos.</th><th>PJ</th><th>PTS/P</th><th>T2%</th><th>T3%</th><th>TL%</th></tr></thead><tbody>
-        ${top5.map((pl,i)=>`<tr><td>${i+1}</td><td class="left">${pl.name}</td><td>${pl.pos}</td><td>${pl.pj}</td><td><strong>${pl.pts_p}</strong></td><td>${pl.t2_pct}%</td><td>${pl.t3_pct}%</td><td>${pl.tl_pct}%</td></tr>`).join("")}
-        </tbody></table></div>`
+      +("<div class='section'><div class='section-title'>Entrenamientos esta semana</div>"
+        +(weekSessions.length
+          ?"<table><thead><tr><th style='text-align:left'>Fecha</th><th style='text-align:left'>Sesión</th><th>Tipo</th><th>Min</th></tr></thead><tbody>"
+            +weekSessions.map(s=>"<tr><td class='left'>"+s.date+"</td><td class='left'>"+s.title+"</td><td>"+s.type+"</td><td>"+s.dur+"</td></tr>").join("")
+            +"</tbody></table>"
+          :"<p style='color:#94a3b8'>Sin sesiones esta semana</p>")
+        +"</div>")
+      +(weekMatches.length?("<div class='section'><div class='section-title'>Partidos esta semana</div>"
+        +"<table><thead><tr><th style='text-align:left'>Rival</th><th>Lugar</th><th>Resultado</th></tr></thead><tbody>"
+        +weekMatches.map(m=>{
+          const rc=m.pts_us!=null?(m.pts_us>m.pts_them?"#10b981":"#ef4444"):"#64748b";
+          const res=m.pts_us!=null?m.pts_us+"–"+m.pts_them:"—";
+          return "<tr><td class='left'>"+m.rival+"</td><td>"+m.location+"</td><td style='color:"+rc+";font-weight:700'>"+res+"</td></tr>";
+        }).join("")
+        +"</tbody></table></div>"):"")
+      +("<div class='section'><div class='section-title'>Próximos partidos</div>"
+        +(nextMatches.length
+          ?"<table><thead><tr><th style='text-align:left'>Fecha</th><th style='text-align:left'>Rival</th><th>Lugar</th></tr></thead><tbody>"
+            +nextMatches.map(m=>"<tr><td class='left'>"+m.date+"</td><td class='left'>"+m.rival+"</td><td>"+m.location+"</td></tr>").join("")
+            +"</tbody></table>"
+          :"<p style='color:#94a3b8'>Sin partidos próximos</p>")
+        +"</div>")
+      +("<div class='section'><div class='section-title'>Top anotadores</div>"
+        +"<table><thead><tr><th>#</th><th style='text-align:left'>Jugador</th><th>Pos.</th><th>PJ</th><th>PTS/P</th><th>T2%</th><th>T3%</th><th>TL%</th></tr></thead><tbody>"
+        +top5.map((pl,i)=>"<tr><td>"+(i+1)+"</td><td class='left'>"+pl.name+"</td><td>"+pl.pos+"</td><td>"+pl.pj+"</td><td><strong>"+pl.pts_p+"</strong></td><td>"+pl.t2_pct+"%</td><td>"+pl.t3_pct+"%</td><td>"+pl.tl_pct+"%</td></tr>").join("")
+        +"</tbody></table></div>")
       +pdfClose()
     );
     w.document.close();setTimeout(()=>w.print(),400);
