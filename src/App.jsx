@@ -1854,36 +1854,74 @@ function Playbook(){
   };
   const delPlay=id=>setPlays(prev=>prev.filter(p=>p.id!==id));
 
+  const[pdfProgress,setPdfProgress]=useState(""); // progress text for multi-pass
+
   const handlePDF=async e=>{
     const file=e.target.files[0];if(!file)return;
     if(!apiKey){setPdfMsg("❌ Introduce primero tu API Key de Anthropic en Ajustes (⚙️ en el sidebar).");e.target.value="";return;}
-    setPdfLoading(true);setPdfMsg("Analizando PDF con IA — extrayendo jugadas y gráficos…");
+    setPdfLoading(true);setPdfMsg("Preparando análisis por bloques…");setPdfProgress("");
+
     try{
       const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-      // Pass PDF as image so Claude can see diagrams/graphics too
-      const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-20250514",max_tokens:4000,
-        messages:[{role:"user",content:[
-          {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
-          {type:"text",text:`Analiza este documento de playbook/jugadas de baloncesto. 
-Extrae TODAS las jugadas, sistemas, acciones tácticas o bloques de contenido que encuentres.
-Para cada jugada incluye todos los detalles disponibles: nombre, categoría, descripción completa, variantes, puntos clave, notas del entrenador.
-Si el documento tiene múltiples páginas o secciones, extrae una jugada por sección/bloque.
 
-Devuelve ÚNICAMENTE JSON válido en una sola línea, sin markdown, sin texto extra:
-{"jugadas":[{"nombre":"nombre exacto","categoria":"Ataque|Defensa|Especial","descripcion":"descripción completa con todos los detalles, variantes y notas","etiquetas":["tag1","tag2","tag3"]}]}
+      // Multi-pass: ask for plays in batches by index range
+      // Pass 1: jugadas 1-25, Pass 2: 26-50, Pass 3: 51+
+      const passes=[
+        {label:"Bloque 1/3 (jugadas 1-25)…",   from:1,  to:25},
+        {label:"Bloque 2/3 (jugadas 26-50)…",  from:26, to:50},
+        {label:"Bloque 3/3 (jugadas 51+)…",    from:51, to:999},
+      ];
 
-Si no hay jugadas claras devuelve: {"jugadas":[]}`}
-        ]}]
+      const makePrompt=(from,to)=>
+        "Analiza este playbook de baloncesto. "
+        +"Extrae las jugadas numeradas "+from+" a "+to+" del documento (o las que existan en ese rango). "
+        +"Para cada jugada incluye nombre, categoría, descripción completa, variantes y puntos clave. "
+        +"Si en el documento no hay numeración explícita, trátalas en orden de aparición. "
+        +"Si el rango pedido supera las jugadas existentes, extrae las que queden. "
+        +"Devuelve ÚNICAMENTE JSON en una sola línea sin markdown:\n"
+        +'{"jugadas":[{"nombre":"nombre","categoria":"Ataque|Defensa|Especial","descripcion":"descripción completa","etiquetas":["tag1"]}]}\n'
+        +"Si no hay jugadas en ese rango devuelve: {\"jugadas\":[]}";
+
+      let todas=[];
+      for(const pass of passes){
+        setPdfProgress(pass.label);
+        try{
+          const data=await callClaude(apiKey,{
+            model:"claude-sonnet-4-20250514",max_tokens:5000,
+            messages:[{role:"user",content:[
+              {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+              {type:"text",text:makePrompt(pass.from,pass.to)}
+            ]}]
+          });
+          const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
+          const jStart=txt.indexOf("{");const jEnd=txt.lastIndexOf("}");
+          if(jStart<0||jEnd<0)continue;
+          const parsed=JSON.parse(txt.slice(jStart,jEnd+1).replace(/[\r\n]+/g," "));
+          const batch=(parsed.jugadas||[]).filter(j=>j.nombre||j.name);
+          todas=[...todas,...batch];
+          setPdfProgress(pass.label.replace("…","")+" → "+batch.length+" jugadas encontradas");
+          // Small delay between passes
+          await new Promise(r=>setTimeout(r,800));
+        }catch(passErr){
+          console.warn("Pass error:",passErr.message);
+          // Continue with next pass even if one fails
+        }
+      }
+
+      // Deduplicate by name (in case passes overlap)
+      const seen=new Set();
+      const deduped=todas.filter(j=>{
+        const key=(j.nombre||j.name||"").toLowerCase().trim();
+        if(!key||seen.has(key))return false;
+        seen.add(key);return true;
       });
-      const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
-      // Robust JSON extraction
-      const jsonStart=txt.indexOf("{");const jsonEnd=txt.lastIndexOf("}");
-      const jsonStr=jsonStart>=0&&jsonEnd>=0?txt.slice(jsonStart,jsonEnd+1):txt;
-      const parsed=JSON.parse(jsonStr.replace(/[\r\n]+/g," "));
-      const jugadasRaw=parsed.jugadas||parsed.plays||[];
-      if(jugadasRaw.length===0){setPdfMsg("⚠️ No se encontraron jugadas. El PDF puede estar escaneado o sin texto.");setPdfLoading(false);e.target.value="";return;}
-      const nuevas=jugadasRaw.map((j,i)=>({
+
+      if(deduped.length===0){
+        setPdfMsg("⚠️ No se encontraron jugadas. El PDF puede estar escaneado sin texto seleccionable.");
+        setPdfLoading(false);setPdfProgress("");e.target.value="";return;
+      }
+
+      const nuevas=deduped.map((j,i)=>({
         id:Date.now()+i,
         name:j.nombre||j.name||`Jugada ${i+1}`,
         cat:j.categoria||j.cat||"Ataque",
@@ -1892,23 +1930,28 @@ Si no hay jugadas claras devuelve: {"jugadas":[]}`}
         images:[]
       }));
       setPlays(prev=>[...prev,...nuevas]);
-      setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length!==1?"s":""} importada${nuevas.length!==1?"s":""}. Puedes añadir diagramas editando cada jugada.`);
+      setPdfMsg(`✅ ${nuevas.length} jugada${nuevas.length!==1?"s":""} importada${nuevas.length!==1?"s":""} en 3 pasadas.`);
     }catch(err){
       console.error(err);
-      setPdfMsg(`❌ Error al procesar: ${err.message?.slice(0,60)||"Inténtalo de nuevo"}.`);
+      setPdfMsg(`❌ Error: ${err.message?.slice(0,60)||"Inténtalo de nuevo"}.`);
     }
-    setPdfLoading(false);e.target.value="";
-    setTimeout(()=>setPdfMsg(null),8000);
+    setPdfLoading(false);setPdfProgress("");e.target.value="";
+    setTimeout(()=>setPdfMsg(null),10000);
   };
 
   return <div>
     <SH title="Playbook" sub="Jugadas y sistemas · Todas editables" right={<div style={{display:"flex",gap:8}}>
       <input ref={fr} type="file" accept=".pdf" style={{display:"none"}} onChange={handlePDF}/>
       <Btn onClick={()=>exportPlaybookPDF(plays,filter)} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn>
-      <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>} disabled={pdfLoading}>{pdfLoading?"Analizando…":"Importar PDF"}</Btn>
+      <Btn onClick={()=>fr.current?.click()} variant="ghost" icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>} disabled={pdfLoading}>
+        {pdfLoading?"Analizando…":"Importar PDF"}
+      </Btn>
       <Btn onClick={()=>{setShowAdd(true);setEditPlay("new");}} icon={<Plus size={14}/>}>Nueva Jugada</Btn>
     </div>}/>
-    {pdfMsg&&<div style={{background:pdfMsg.startsWith("✅")?"rgba(16,185,129,.07)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.07)":"rgba(239,68,68,.07)",border:`1px solid ${pdfMsg.startsWith("✅")?"rgba(16,185,129,.3)":pdfMsg.startsWith("⚠️")?"rgba(245,158,11,.3)":"rgba(239,68,68,.3)"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:th.text}}>{pdfMsg}</div>}
+    {(pdfMsg||pdfProgress)&&<div style={{background:pdfMsg?.startsWith("✅")?"rgba(16,185,129,.07)":pdfMsg?.startsWith("⚠️")?"rgba(245,158,11,.07)":"rgba(239,68,68,.07)",border:`1px solid ${pdfMsg?.startsWith("✅")?"rgba(16,185,129,.3)":pdfMsg?.startsWith("⚠️")?"rgba(245,158,11,.3)":"rgba(239,68,68,.3)"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:th.text}}>
+      {pdfProgress&&!pdfMsg&&<div style={{display:"flex",alignItems:"center",gap:8,color:th.sub}}><Loader size={13} style={{animation:"spin 1s linear infinite",flexShrink:0}}/>{pdfProgress}</div>}
+      {pdfMsg&&pdfMsg}
+    </div>}
     {(showAdd)&&<PlaybookEditForm play={null} onSave={savePlay} onCancel={()=>setShowAdd(false)}/>}
     <div style={{display:"flex",gap:8,marginBottom:20}}>
       {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(PC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
