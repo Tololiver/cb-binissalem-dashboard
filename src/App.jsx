@@ -3272,11 +3272,24 @@ function ModoPartido(){
 
     {/* ── TAB: ESTADÍSTICAS INDIVIDUALES ── */}
     {tab==="stats"&&<div>
+      {/* PDF import — siempre visible, con o sin convocatoria */}
+      <input ref={pdfRef} type="file" accept=".pdf" style={{display:"none"}} onChange={importStatsPDF}/>
+      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <Btn onClick={()=>pdfRef.current?.click()} disabled={pdfLoading}
+          icon={pdfLoading?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={14}/>}>
+          {pdfLoading?"Leyendo PDF…":"Importar stats desde PDF"}
+        </Btn>
+        <p style={{fontSize:12,color:th.muted}}>Sube el acta del partido — la IA extrae automáticamente las estadísticas de ambos equipos</p>
+      </div>
+      {pdfMsg&&<div style={{background:pdfMsg.startsWith("✅")?"rgba(16,185,129,.07)":"rgba(239,68,68,.07)",border:`1px solid ${pdfMsg.startsWith("✅")?"rgba(16,185,129,.3)":"rgba(239,68,68,.3)"}`,borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:pdfMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{pdfMsg}</div>}
+
       {statsCommitted&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:10,padding:"10px 16px",marginBottom:14,fontSize:13,color:"#10b981"}}>
-        ✅ Estadísticas ya confirmadas y sumadas a los totales de temporada. No se pueden editar para evitar duplicados.
+        ✅ Estadísticas ya confirmadas y sumadas a los totales de temporada.
       </div>}
       {convPlayers.length===0
-        ?<div className="card" style={{padding:32,textAlign:"center"}}><p style={{color:th.muted,fontSize:13}}>No hay convocatoria definida para este partido.<br/>Ve a la sección Partidos para añadir la convocatoria.</p></div>
+        ?<div className="card" style={{padding:32,textAlign:"center"}}>
+          <p style={{color:th.muted,fontSize:13}}>No hay convocatoria definida para este partido.<br/>Ve a la sección Partidos para añadir la convocatoria, o importa el acta PDF arriba.</p>
+        </div>
         :<div className="card" style={{overflow:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:680}}>
             <thead>
@@ -3316,13 +3329,8 @@ function ModoPartido(){
             </tbody>
           </table>
           {!statsCommitted&&<div style={{padding:"16px 20px",borderTop:`1px solid ${th.border}`,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <input ref={pdfRef} type="file" accept=".pdf" style={{display:"none"}} onChange={importStatsPDF}/>
             <Btn onClick={commitStats} icon={<Check size={14}/>}>Confirmar y acumular en temporada</Btn>
-            <Btn onClick={()=>pdfRef.current?.click()} variant="ghost" disabled={pdfLoading} icon={pdfLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<FileText size={13}/>}>
-              {pdfLoading?"Leyendo…":"Importar stats PDF"}
-            </Btn>
-            {pdfMsg&&<span style={{fontSize:11,color:pdfMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{pdfMsg}</span>}
-            {!pdfMsg&&<p style={{fontSize:11,color:th.muted}}>⚠️ Acumular a temporada es irreversible por partido.</p>}
+            <p style={{fontSize:11,color:th.muted}}>⚠️ Acumular a temporada es irreversible por partido.</p>
           </div>}
         </div>
       }
