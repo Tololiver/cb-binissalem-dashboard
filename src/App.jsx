@@ -4558,87 +4558,95 @@ function ShotChart(){
   const[filterMatch,setFilterMatch]=useState("all");
   const[showHeat,setShowHeat]=useState(false);
   const[showNums,setShowNums]=useState(true);
-  const[view,setView]=useState("court");// court | stats
+  const[view,setView]=useState("court");
   const lastTap=useRef(0);
 
+  // Court geometry — basket at TOP, baseline at BOTTOM
   const CW=520,CH=440;
   const PAINT={x:170,y:0,w:180,h:180};
-  const THREE_RADIUS=195;const CENTER_X=260;const CENTER_Y=440;
-  const CORNER_X_L=120,CORNER_X_R=400,CORNER_Y=380;// corner 3 line endpoints
+  const BX=260,BY=184;  // basket center (middle of paint bottom)
+  const R3=220;          // 3pt arc radius in canvas px
+  const CL_X=125,CR_X=395; // corner 3pt line X positions
+  const cornerDY=Math.sqrt(R3*R3-(BX-CL_X)*(BX-CL_X));
+  const CORNER_Y=BY+cornerDY; // y where arc meets corner lines ≈ 358
 
   const zoneName=({x,y})=>{
-    const dx=x-CENTER_X,dy=CENTER_Y-y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    const inPaint=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y<=PAINT.y+PAINT.h;
-    if(inPaint&&dist<90)return"TL";
+    const dist=Math.sqrt((x-BX)*(x-BX)+(y-BY)*(y-BY));
+    const inPaint=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y>=PAINT.y&&y<=PAINT.y+PAINT.h;
+    if(inPaint&&dist<70)return"TL";
     if(inPaint)return"T2_PAINT";
-    if(dist>THREE_RADIUS)return"T3";
-    if(x<CENTER_X-80)return"T2_LEFT";
-    if(x>CENTER_X+80)return"T2_RIGHT";
+    // Corner 3: below CORNER_Y outside the corner lines
+    if(y>CORNER_Y&&(x<CL_X||x>CR_X))return"T3";
+    // Arc 3
+    if(dist>R3)return"T3";
+    if(x<BX-70)return"T2_LEFT";
+    if(x>BX+70)return"T2_RIGHT";
     return"T2_MID";
   };
 
   const drawCourt=ctx=>{
     ctx.clearRect(0,0,CW,CH);
-    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#f0fdf4";ctx.fillRect(0,0,CW,CH);
+    // Floor
+    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#ecfdf5";
+    ctx.fillRect(0,0,CW,CH);
 
     // Court outline
-    ctx.strokeStyle=th.mode==="dark"?"#334155":"#94a3b8";ctx.lineWidth=2;
-    ctx.strokeRect(0,0,CW,CH);
+    ctx.strokeStyle=th.mode==="dark"?"#334155":"#94a3b8";
+    ctx.lineWidth=2;ctx.strokeRect(1,1,CW-2,CH-2);
 
-    // Paint zone (key)
-    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;
-    ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
+    // Paint / key
+    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";
+    ctx.lineWidth=2;ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
 
-    // FT lane blocks
+    // Key blocks
     ctx.fillStyle=th.mode==="dark"?"#334155":"#94a3b8";
     for(let i=1;i<=4;i++){
-      ctx.fillRect(PAINT.x,PAINT.y+i*34,6,16);
-      ctx.fillRect(PAINT.x+PAINT.w-6,PAINT.y+i*34,6,16);
+      ctx.fillRect(PAINT.x,PAINT.y+i*34,5,14);
+      ctx.fillRect(PAINT.x+PAINT.w-5,PAINT.y+i*34,5,14);
     }
 
-    // FT circle (upper half only)
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h,62,Math.PI,0);
-    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;ctx.stroke();
-    // FT circle lower (dashed)
-    ctx.setLineDash([6,5]);
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h,62,0,Math.PI);ctx.stroke();
+    // FT circle — upper half solid
+    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(BX,PAINT.y+PAINT.h,62,Math.PI,0);ctx.stroke();
+    // lower half dashed
+    ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.arc(BX,PAINT.y+PAINT.h,62,0,Math.PI);ctx.stroke();
     ctx.setLineDash([]);
 
-    // ── THREE POINT LINE ─────────────────────────────────────
-    // Corner 3 lines (vertical from baseline)
+    // ── 3-POINT LINE (correct geometry) ──────────────────────
     ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;
-    ctx.beginPath();ctx.moveTo(CORNER_X_L,CH);ctx.lineTo(CORNER_X_L,CORNER_Y);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(CORNER_X_R,CH);ctx.lineTo(CORNER_X_R,CORNER_Y);ctx.stroke();
 
-    // Calculate angles where arc meets corner lines
-    const angL=Math.acos((CORNER_X_L-CENTER_X)/THREE_RADIUS);
-    const angR=Math.acos((CORNER_X_R-CENTER_X)/THREE_RADIUS);
-
+    // Corner lines: vertical from baseline up to where arc begins
     ctx.beginPath();
-    ctx.arc(CENTER_X,CENTER_Y,THREE_RADIUS,Math.PI-angL,angR*-1,false);
+    ctx.moveTo(CL_X,CH);ctx.lineTo(CL_X,CORNER_Y);
+    ctx.moveTo(CR_X,CH);ctx.lineTo(CR_X,CORNER_Y);
     ctx.stroke();
 
-    // 3pt label
-    ctx.font="bold 9px 'Barlow Condensed', sans-serif";
-    ctx.fillStyle="#3b82f6";ctx.textAlign="center";
-    ctx.fillText("─── LÍNEA DE 3 ───",CENTER_X,28);
-    ctx.fillStyle=th.mode==="dark"?"#64748b":"#94a3b8";
-    ctx.fillText("T3",CENTER_X-10,60);ctx.fillText("T3",55,280);ctx.fillText("T3",468,280);
+    // Arc centered on basket, from left corner to right corner going BELOW
+    const angL=Math.atan2(CORNER_Y-BY,CL_X-BX); // ≈ 2.24 rad
+    const angR=Math.atan2(CORNER_Y-BY,CR_X-BX); // ≈ 0.91 rad
+    ctx.beginPath();
+    ctx.arc(BX,BY,R3,angL,angR,true); // anticlockwise → passes through bottom
+    ctx.stroke();
 
-    // Basket
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,14,0,Math.PI*2);
+    // ── BASKET ────────────────────────────────────────────────
+    ctx.beginPath();ctx.arc(BX,BY,14,0,Math.PI*2);
     ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,5,0,Math.PI*2);
+    ctx.beginPath();ctx.arc(BX,BY,5,0,Math.PI*2);
     ctx.fillStyle="#f97316";ctx.fill();
     // Backboard
     ctx.strokeStyle="#f97316";ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(CENTER_X-28,PAINT.y+PAINT.h-8);ctx.lineTo(CENTER_X+28,PAINT.y+PAINT.h-8);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(BX-28,BY-10);ctx.lineTo(BX+28,BY-10);ctx.stroke();
 
-    // Zone labels
-    ctx.font="bold 10px 'Barlow Condensed', sans-serif";
-    ctx.fillStyle=th.mode==="dark"?"#475569":"#94a3b8";ctx.textAlign="center";
-    ctx.fillText("ZONA 2",CENTER_X,PAINT.y+PAINT.h-24);
+    // ── ZONE LABELS ───────────────────────────────────────────
+    ctx.font="bold 10px 'Barlow Condensed',sans-serif";
+    ctx.textAlign="center";
+    ctx.fillStyle=th.mode==="dark"?"#475569":"#94a3b8";
+    ctx.fillText("ZONA 2",BX,PAINT.y+PAINT.h-28);
+    ctx.fillStyle="#3b82f6";
+    ctx.fillText("T3",BX,BY+R3-20);     // bottom center (near arc bottom)
+    ctx.fillText("T3",62,280);           // left wing
+    ctx.fillText("T3",460,280);          // right wing
   };
 
   const drawShots=ctx=>{
