@@ -3110,8 +3110,28 @@ function IAAsistente(){
     </div>}
     <TB tabs={[["rival","🏀 Análisis Rival"],["sesion","📋 Generador de Sesión"],["resumen","📊 Resumen Temporada"]]} active={tab} onChange={setTab}/>
 
-    {tab==="rival"&&<div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:16}}>
-      {/* Panel izquierdo — generación */}
+    {tab==="rival"&&<div>
+      {/* Historial de informes — cabecera horizontal */}
+      {scouting.length>0&&<div style={{marginBottom:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>
+          Historial de informes <span style={{color:"#f97316"}}>({scouting.length})</span>
+        </p>
+        <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
+          {scouting.map(s=>(
+            <div key={s.id}
+              onClick={()=>{setSelScout(selScout?.id===s.id?null:s);setRivalResult(null);}}
+              style={{flexShrink:0,padding:"8px 14px",borderRadius:8,background:selScout?.id===s.id?"rgba(249,115,22,.1)":th.card2,
+                border:`1px solid ${selScout?.id===s.id?"#f97316":th.border}`,cursor:"pointer",minWidth:140,maxWidth:180,position:"relative"}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:selScout?.id===s.id?"#f97316":th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.rival}</p>
+              <p style={{fontFamily:"DM Mono",fontSize:9,color:th.muted,marginTop:2}}>{s.date}</p>
+              <button onClick={e=>{e.stopPropagation();delScout(s.id);if(selScout?.id===s.id)setSelScout(null);}}
+                style={{position:"absolute",top:4,right:4,width:18,height:18,borderRadius:4,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>✕</button>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* Contenido principal — ancho completo */}
       <div>
         <div className="card" style={{padding:20,marginBottom:14}}>
           <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:12}}>Scouting del rival</p>
@@ -3251,39 +3271,6 @@ function IAAsistente(){
             </div>}
           <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:400,overflowY:"auto"}}>{selScout.text}</div>
         </div>}
-      </div>
-
-      {/* Panel derecho — historial */}
-      <div>
-        <div className="card" style={{padding:16}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>
-            Historial de informes {scouting.length>0&&<span style={{color:"#f97316"}}>({scouting.length})</span>}
-          </p>
-          {scouting.length===0
-            ?<div style={{textAlign:"center",padding:"24px 0"}}>
-              <FileText size={28} color={th.muted} style={{margin:"0 auto 8px",display:"block"}}/>
-              <p style={{fontSize:12,color:th.muted,lineHeight:1.5}}>Sin informes guardados.<br/>Genera un informe y guárdalo.</p>
-            </div>
-            :<div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {scouting.map(s=><div key={s.id}
-                style={{padding:"10px 12px",borderRadius:8,background:selScout?.id===s.id?"rgba(249,115,22,.08)":th.card2,border:`1px solid ${selScout?.id===s.id?"#f97316":th.border}`,cursor:"pointer",transition:"all .15s"}}
-                onClick={()=>{setSelScout(s);setRivalResult(null);}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div style={{flex:1,minWidth:0}}>
-                    <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:selScout?.id===s.id?"#f97316":th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.rival}</p>
-                    <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginTop:2}}>{s.date}</p>
-                  </div>
-                  <button onClick={e=>{e.stopPropagation();delScout(s.id);if(selScout?.id===s.id)setSelScout(null);}}
-                    style={{width:22,height:22,borderRadius:5,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:6}}>
-                    <Trash2 size={11}/>
-                  </button>
-                </div>
-                <p style={{fontSize:11,color:th.muted,marginTop:5,lineHeight:1.4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
-                  {s.text.slice(0,80)}…
-                </p>
-              </div>)}
-            </div>}
-        </div>
       </div>
     </div>}
 
@@ -4568,22 +4555,22 @@ function ShotChart(){
   const cr=useRef(null);
   const[shots,setShots]=useState([]);
   const[filterPid,setFilterPid]=useState("all");
-  const[filterType,setFilterType]=useState("all");// all|T2|T3|TL
   const[filterMatch,setFilterMatch]=useState("all");
-  const[showHeat,setShowHeat]=useState(true);
+  const[showHeat,setShowHeat]=useState(false);
+  const[showNums,setShowNums]=useState(true);
+  const[view,setView]=useState("court");// court | stats
   const lastTap=useRef(0);
 
-  // Court dimensions (half court, FIBA)
   const CW=520,CH=440;
   const PAINT={x:170,y:0,w:180,h:180};
   const THREE_RADIUS=195;const CENTER_X=260;const CENTER_Y=440;
-  const TL_X1=170,TL_X2=350,TL_Y=180;
+  const CORNER_X_L=120,CORNER_X_R=400,CORNER_Y=380;// corner 3 line endpoints
 
   const zoneName=({x,y})=>{
     const dx=x-CENTER_X,dy=CENTER_Y-y;
     const dist=Math.sqrt(dx*dx+dy*dy);
     const inPaint=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y<=PAINT.y+PAINT.h;
-    if(inPaint&&dist<90)return"TL";// near basket = FT simulation
+    if(inPaint&&dist<90)return"TL";
     if(inPaint)return"T2_PAINT";
     if(dist>THREE_RADIUS)return"T3";
     if(x<CENTER_X-80)return"T2_LEFT";
@@ -4593,65 +4580,99 @@ function ShotChart(){
 
   const drawCourt=ctx=>{
     ctx.clearRect(0,0,CW,CH);
-    // Floor
-    ctx.fillStyle=th.card2;ctx.fillRect(0,0,CW,CH);
-    // Lines
-    ctx.strokeStyle=th.border;ctx.lineWidth=2;
-    // Paint
+    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#f0fdf4";ctx.fillRect(0,0,CW,CH);
+
+    // Court outline
+    ctx.strokeStyle=th.mode==="dark"?"#334155":"#94a3b8";ctx.lineWidth=2;
+    ctx.strokeRect(0,0,CW,CH);
+
+    // Paint zone (key)
+    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;
     ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
-    // FT circle
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h,60,Math.PI,0);ctx.stroke();
-    // Key blocks
-    for(let i=1;i<=4;i++){ctx.fillStyle=th.border;ctx.fillRect(PAINT.x-1,PAINT.y+i*35,6,18);ctx.fillRect(PAINT.x+PAINT.w-5,PAINT.y+i*35,6,18);}
-    // 3pt arc
+
+    // FT lane blocks
+    ctx.fillStyle=th.mode==="dark"?"#334155":"#94a3b8";
+    for(let i=1;i<=4;i++){
+      ctx.fillRect(PAINT.x,PAINT.y+i*34,6,16);
+      ctx.fillRect(PAINT.x+PAINT.w-6,PAINT.y+i*34,6,16);
+    }
+
+    // FT circle (upper half only)
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h,62,Math.PI,0);
+    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;ctx.stroke();
+    // FT circle lower (dashed)
+    ctx.setLineDash([6,5]);
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h,62,0,Math.PI);ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ── THREE POINT LINE ─────────────────────────────────────
+    // Corner 3 lines (vertical from baseline)
+    ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(CORNER_X_L,CH);ctx.lineTo(CORNER_X_L,CORNER_Y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(CORNER_X_R,CH);ctx.lineTo(CORNER_X_R,CORNER_Y);ctx.stroke();
+
+    // Calculate angles where arc meets corner lines
+    const angL=Math.acos((CORNER_X_L-CENTER_X)/THREE_RADIUS);
+    const angR=Math.acos((CORNER_X_R-CENTER_X)/THREE_RADIUS);
+
     ctx.beginPath();
-    const a1=Math.asin((CH-60)/THREE_RADIUS);
-    const a0=Math.PI-a1;
-    ctx.arc(CENTER_X,CENTER_Y,THREE_RADIUS,a0,a1*-1+Math.PI,true);
-    // 3pt corner lines
-    ctx.moveTo(PAINT.x-50,CH);ctx.lineTo(PAINT.x-50,CH-60);
-    ctx.moveTo(PAINT.x+PAINT.w+50,CH);ctx.lineTo(PAINT.x+PAINT.w+50,CH-60);
+    ctx.arc(CENTER_X,CENTER_Y,THREE_RADIUS,Math.PI-angL,angR*-1,false);
     ctx.stroke();
+
+    // 3pt label
+    ctx.font="bold 9px 'Barlow Condensed', sans-serif";
+    ctx.fillStyle="#3b82f6";ctx.textAlign="center";
+    ctx.fillText("─── LÍNEA DE 3 ───",CENTER_X,28);
+    ctx.fillStyle=th.mode==="dark"?"#64748b":"#94a3b8";
+    ctx.fillText("T3",CENTER_X-10,60);ctx.fillText("T3",55,280);ctx.fillText("T3",468,280);
+
     // Basket
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,14,0,Math.PI*2);ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
-    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,5,0,Math.PI*2);ctx.fillStyle="#f97316";ctx.fill();
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,14,0,Math.PI*2);
+    ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,5,0,Math.PI*2);
+    ctx.fillStyle="#f97316";ctx.fill();
     // Backboard
     ctx.strokeStyle="#f97316";ctx.lineWidth=3;
     ctx.beginPath();ctx.moveTo(CENTER_X-28,PAINT.y+PAINT.h-8);ctx.lineTo(CENTER_X+28,PAINT.y+PAINT.h-8);ctx.stroke();
-    // Labels
-    ctx.font="bold 10px Barlow Condensed, sans-serif";
-    ctx.fillStyle=th.muted;ctx.textAlign="center";
-    ctx.fillText("ZONA 2",CENTER_X,PAINT.y+PAINT.h-20);
-    ctx.fillText("T3",CENTER_X,30);ctx.fillText("T3",60,280);ctx.fillText("T3",460,280);
-    ctx.lineWidth=2;ctx.strokeStyle=th.border;
+
+    // Zone labels
+    ctx.font="bold 10px 'Barlow Condensed', sans-serif";
+    ctx.fillStyle=th.mode==="dark"?"#475569":"#94a3b8";ctx.textAlign="center";
+    ctx.fillText("ZONA 2",CENTER_X,PAINT.y+PAINT.h-24);
   };
 
   const drawShots=ctx=>{
     const filtered=shots.filter(s=>{
-      if(filterPid!=="all"&&s.pid!==filterPid)return false;
-      if(filterType!=="all"&&s.zone!==filterType)return false;
+      if(filterPid!=="all"&&String(s.pid)!==String(filterPid))return false;
       if(filterMatch!=="all"&&String(s.matchId)!==filterMatch)return false;
       return true;
     });
     if(showHeat){
-      // Heat map: draw blobs
-      const heatCanvas=document.createElement("canvas");heatCanvas.width=CW;heatCanvas.height=CH;
-      const hCtx=heatCanvas.getContext("2d");
+      const hc=document.createElement("canvas");hc.width=CW;hc.height=CH;
+      const hx=hc.getContext("2d");
       filtered.forEach(s=>{
-        const g=hCtx.createRadialGradient(s.x,s.y,0,s.x,s.y,38);
+        const g=hx.createRadialGradient(s.x,s.y,0,s.x,s.y,40);
         const col=s.made?"rgba(16,185,129,":"rgba(239,68,68,";
-        g.addColorStop(0,col+"0.35)");g.addColorStop(1,col+"0)");
-        hCtx.fillStyle=g;hCtx.fillRect(s.x-38,s.y-38,76,76);
+        g.addColorStop(0,col+"0.4)");g.addColorStop(1,col+"0)");
+        hx.fillStyle=g;hx.fillRect(s.x-40,s.y-40,80,80);
       });
-      ctx.drawImage(heatCanvas,0,0);
+      ctx.drawImage(hc,0,0);
     }
-    // Dots
     filtered.forEach(s=>{
-      ctx.beginPath();ctx.arc(s.x,s.y,7,0,Math.PI*2);
+      const r=showNums&&s.pid?9:7;
+      ctx.beginPath();ctx.arc(s.x,s.y,r,0,Math.PI*2);
       ctx.fillStyle=s.made?"#10b981":"#ef4444";
-      ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+      ctx.globalAlpha=0.9;ctx.fill();ctx.globalAlpha=1;
       ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.stroke();
-      if(!s.made){// X for miss
+      if(showNums&&s.pid){
+        const pl=players.find(p=>String(p.id)===String(s.pid));
+        if(pl){
+          ctx.font="bold 8px 'DM Mono',monospace";
+          ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
+          ctx.fillText(pl.num,s.x,s.y);
+          ctx.textBaseline="alphabetic";
+        }
+      } else if(!s.made){
         ctx.strokeStyle="#fff";ctx.lineWidth=1.5;
         ctx.beginPath();ctx.moveTo(s.x-4,s.y-4);ctx.lineTo(s.x+4,s.y+4);ctx.stroke();
         ctx.beginPath();ctx.moveTo(s.x+4,s.y-4);ctx.lineTo(s.x-4,s.y+4);ctx.stroke();
@@ -4663,7 +4684,7 @@ function ShotChart(){
     const canvas=cr.current;if(!canvas)return;
     const ctx=canvas.getContext("2d");
     drawCourt(ctx);drawShots(ctx);
-  },[shots,filterPid,filterType,filterMatch,showHeat,th]);
+  },[shots,filterPid,filterMatch,showHeat,showNums,th]);
 
   useEffect(()=>{redraw();},[redraw]);
 
@@ -4680,98 +4701,131 @@ function ShotChart(){
     lastTap.current=now;
     const{x,y}=getPos(e);
     const z=zoneName({x,y});
-    const made=isDouble;
     const pid=filterPid==="all"?null:filterPid;
-    setShots(prev=>[...prev,{id:Date.now(),x,y,made,zone:z,pid,matchId:filterMatch==="all"?null:filterMatch}]);
+    setShots(prev=>[...prev,{id:Date.now(),x,y,made:isDouble,zone:z,pid,matchId:filterMatch==="all"?null:filterMatch}]);
   };
 
-  const undoLast=()=>setShots(prev=>prev.slice(0,-1));
-  const clearAll=()=>setShots([]);
-
   const filtered=shots.filter(s=>{
-    if(filterPid!=="all"&&s.pid!==filterPid)return false;
+    if(filterPid!=="all"&&String(s.pid)!==String(filterPid))return false;
     if(filterMatch!=="all"&&String(s.matchId)!==filterMatch)return false;
     return true;
   });
   const made=filtered.filter(s=>s.made).length;
   const total=filtered.length;
   const pct=total?Math.round(made/total*100):0;
-
   const zones=["T2_PAINT","T2_LEFT","T2_MID","T2_RIGHT","T3","TL"];
-  const zoneLabel={"T2_PAINT":"Zona 2 (pintura)","T2_LEFT":"T2 Izquierda","T2_MID":"T2 Centro","T2_RIGHT":"T2 Derecha","T3":"Triples","TL":"Tiro Libre"};
+  const zoneLabel={"T2_PAINT":"Pintura","T2_LEFT":"T2 Izq","T2_MID":"T2 Centro","T2_RIGHT":"T2 Der","T3":"Triples","TL":"TL"};
+
+  // Stats por jugador
+  const playerStats=players.filter(p=>p.active).map(p=>{
+    const pShots=shots.filter(s=>String(s.pid)===String(p.id));
+    const pMade=pShots.filter(s=>s.made).length;
+    const t2=pShots.filter(s=>s.zone!=="T3"&&s.zone!=="TL");
+    const t3=pShots.filter(s=>s.zone==="T3");
+    return{p,total:pShots.length,made:pMade,pct:pShots.length?Math.round(pMade/pShots.length*100):null,
+      t2m:t2.filter(s=>s.made).length,t2i:t2.length,t3m:t3.filter(s=>s.made).length,t3i:t3.length};
+  }).filter(s=>s.total>0).sort((a,b)=>b.total-a.total);
 
   return <div>
-    <SH title="Shot Chart" sub="1 clic = fallo · 2 clics rápidos = acierto · Mapa de tiros del equipo"/>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 220px",gap:16}}>
+    <SH title="Shot Chart" sub="1 clic = fallo · 2 clics rápidos = acierto"/>
+
+    {/* Filtros y controles */}
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      <select value={filterPid} onChange={e=>setFilterPid(e.target.value)} style={{fontSize:11}}>
+        <option value="all">Todos los jugadores</option>
+        {players.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>#{p.num} {p.name.split(" ")[0]}</option>)}
+      </select>
+      <select value={filterMatch} onChange={e=>setFilterMatch(e.target.value)} style={{fontSize:11}}>
+        <option value="all">Todos los partidos</option>
+        {matches.map(m=><option key={m.id} value={m.id}>{m.date} vs {m.rival}</option>)}
+      </select>
+      <div style={{display:"flex",gap:4,marginLeft:4}}>
+        {[["court","🏀 Pista"],["stats","📊 Stats"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700,background:view===v?"#f97316":th.card2,color:view===v?"#fff":th.sub}}>{l}</button>
+        ))}
+      </div>
+      <button onClick={()=>setShowHeat(!showHeat)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:showHeat?"rgba(249,115,22,.12)":th.card2,color:showHeat?"#f97316":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}>🌡 Calor</button>
+      <button onClick={()=>setShowNums(!showNums)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:showNums?"rgba(59,130,246,.12)":th.card2,color:showNums?"#3b82f6":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}># Dorsales</button>
+      <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+        <button onClick={()=>setShots(prev=>prev.slice(0,-1))} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>↩</button>
+        <button onClick={()=>setShots([])} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>Limpiar</button>
+      </div>
+    </div>
+
+    {view==="court"&&<div style={{display:"grid",gridTemplateColumns:"1fr 200px",gap:14}}>
       {/* Canvas */}
-      <div className="card" style={{padding:14}}>
-        {/* Filters */}
-        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-          <select value={filterPid} onChange={e=>setFilterPid(e.target.value)} style={{fontSize:11}}>
-            <option value="all">Todos los jugadores</option>
-            {players.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>#{p.num} {p.name.split(" ")[0]}</option>)}
-          </select>
-          <select value={filterMatch} onChange={e=>setFilterMatch(e.target.value)} style={{fontSize:11}}>
-            <option value="all">Todos los partidos</option>
-            {matches.map(m=><option key={m.id} value={m.id}>{m.date} vs {m.rival}</option>)}
-          </select>
-          <button onClick={()=>setShowHeat(!showHeat)} style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${th.border2}`,background:showHeat?"rgba(249,115,22,.12)":th.card2,color:showHeat?"#f97316":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}>
-            {showHeat?"🌡 Mapa calor ON":"🌡 Mapa calor OFF"}
-          </button>
-          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-            <button onClick={undoLast} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>↩ Deshacer</button>
-            <button onClick={clearAll} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>Limpiar</button>
-          </div>
-        </div>
-        <div style={{borderRadius:8,overflow:"hidden",lineHeight:0,border:`1px solid ${th.border}`,background:th.card2}}>
+      <div className="card" style={{padding:12}}>
+        <div style={{borderRadius:8,overflow:"hidden",lineHeight:0,border:`1px solid ${th.border}`}}>
           <canvas ref={cr} width={CW} height={CH} style={{width:"100%",height:"auto",display:"block",cursor:"crosshair",touchAction:"none"}}
             onClick={handleTap} onTouchEnd={handleTap}/>
         </div>
-        <p style={{fontSize:11,color:th.muted,marginTop:8}}>
-          ● Verde = acierto &nbsp;● Rojo = fallo &nbsp;·&nbsp; 1 clic = fallo · 2 clics rápidos = acierto
+        <p style={{fontSize:10,color:th.muted,marginTop:6,textAlign:"center"}}>
+          🟢 Acierto (2 clics) &nbsp; 🔴 Fallo (1 clic) &nbsp;·&nbsp; # = dorsal del tirador
         </p>
       </div>
-      {/* Sidebar stats */}
+      {/* Stats sidebar */}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {/* Global */}
-        <div className="card" style={{padding:16,textAlign:"center"}}>
-          <p style={{fontFamily:"DM Mono",fontSize:40,fontWeight:700,color:pct>=50?"#10b981":"#ef4444",lineHeight:1}}>{pct}%</p>
-          <p style={{fontSize:11,color:th.muted,marginTop:4}}>Efectividad global</p>
-          <p style={{fontFamily:"DM Mono",fontSize:14,color:th.sub,marginTop:6}}>{made}/{total} tiros</p>
+        <div className="card" style={{padding:14,textAlign:"center"}}>
+          <p style={{fontFamily:"DM Mono",fontSize:36,fontWeight:700,color:pct>=50?"#10b981":"#ef4444",lineHeight:1}}>{total?pct+"%":"—"}</p>
+          <p style={{fontSize:10,color:th.muted,marginTop:3}}>Efectividad global</p>
+          <p style={{fontFamily:"DM Mono",fontSize:12,color:th.sub,marginTop:4}}>{made}/{total} tiros</p>
         </div>
-        {/* Por zona */}
         <div className="card" style={{padding:14}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Por zona</p>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:10,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Por zona</p>
           {zones.map(z=>{
-            const zShots=filtered.filter(s=>s.zone===z);
-            const zMade=zShots.filter(s=>s.made).length;
-            const zPct=zShots.length?Math.round(zMade/zShots.length*100):null;
-            if(!zShots.length)return null;
-            return <div key={z} style={{marginBottom:8}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                <span style={{fontSize:10,color:th.sub,fontFamily:"Barlow Condensed"}}>{zoneLabel[z]}</span>
-                <span style={{fontSize:10,fontFamily:"DM Mono",color:zPct>=50?"#10b981":"#ef4444",fontWeight:700}}>{zPct}%</span>
+            const zS=filtered.filter(s=>s.zone===z);
+            const zM=zS.filter(s=>s.made).length;
+            const zP=zS.length?Math.round(zM/zS.length*100):null;
+            if(!zS.length)return null;
+            return <div key={z} style={{marginBottom:7}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                <span style={{fontSize:9,color:th.sub,fontFamily:"Barlow Condensed"}}>{zoneLabel[z]}</span>
+                <span style={{fontSize:9,fontFamily:"DM Mono",color:zP>=50?"#10b981":"#ef4444",fontWeight:700}}>{zP}%</span>
               </div>
-              <div style={{height:5,borderRadius:3,background:th.border2}}>
-                <div style={{height:5,borderRadius:3,background:zPct>=50?"#10b981":"#ef4444",width:zPct+"%"}}/>
+              <div style={{height:4,borderRadius:2,background:th.border2}}>
+                <div style={{height:4,borderRadius:2,background:zP>=50?"#10b981":"#ef4444",width:zP+"%"}}/>
               </div>
-              <p style={{fontSize:9,color:th.muted,marginTop:2}}>{zMade}/{zShots.length} tiros</p>
+              <p style={{fontSize:8,color:th.muted,marginTop:1}}>{zM}/{zS.length}</p>
             </div>;
           })}
-          {!filtered.length&&<p style={{fontSize:11,color:th.muted}}>Haz clic en la pista para añadir tiros</p>}
-        </div>
-        {/* Leyenda */}
-        <div className="card" style={{padding:14}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Cómo usar</p>
-          <p style={{fontSize:11,color:th.sub,lineHeight:1.6}}>
-            <strong>1 clic</strong> → Fallo 🔴<br/>
-            <strong>2 clics rápidos</strong> → Acierto 🟢<br/>
-            Filtra por jugador o partido<br/>
-            Activa el mapa de calor para ver zonas calientes
-          </p>
+          {!filtered.length&&<p style={{fontSize:10,color:th.muted}}>Sin tiros registrados</p>}
         </div>
       </div>
-    </div>
+    </div>}
+
+    {view==="stats"&&<div className="card" style={{overflow:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>
+        <thead>
+          <tr style={{background:th.tableHead}}>
+            {["Jugador","Tiros","Aciertos","% Total","T2 int","T2 met","% T2","T3 int","T3 met","% T3"].map(h=>(
+              <th key={h} style={{padding:"8px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5,fontWeight:700}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {playerStats.length===0&&<tr><td colSpan={10} style={{padding:24,textAlign:"center",color:th.muted,fontSize:12}}>Sin tiros registrados. Ve a la vista Pista y añade tiros filtrando por jugador.</td></tr>}
+          {playerStats.map(({p,total,made,pct,t2m,t2i,t3m,t3i})=>(
+            <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
+              <td style={{padding:"8px 10px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:24,height:24,borderRadius:12,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
+                  <span style={{fontSize:12,color:th.text,fontFamily:"Barlow Condensed",fontWeight:700}}>{p.name.split(" ")[0]}</span>
+                </div>
+              </td>
+              {[total,made,pct!=null?pct+"%":"—",t2i,t2m,t2i?Math.round(t2m/t2i*100)+"%":"—",t3i,t3m,t3i?Math.round(t3m/t3i*100)+"%":"—"].map((v,i)=>(
+                <td key={i} style={{padding:"8px 10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,
+                  color:String(v).includes("%")?(parseInt(v)>=50?"#10b981":"#ef4444"):th.text,fontWeight:String(v).includes("%")?700:400}}>
+                  {v}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {playerStats.length>0&&<div style={{padding:"10px 16px",borderTop:`1px solid ${th.border}`,fontSize:11,color:th.muted}}>
+        Total equipo: {filtered.length} tiros · {made} aciertos · {pct}% efectividad
+      </div>}
+    </div>}
   </div>;
 }
 
