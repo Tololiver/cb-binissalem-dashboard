@@ -1394,20 +1394,56 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
           <Plus size={11}/>Añadir del catálogo
         </button>
       </div>
-      {f.exObjs.length===0?<p style={{fontSize:11,color:th.muted}}>Sin ejercicios del catálogo. Usa el botón para seleccionar.</p>:
-      <div style={{display:"flex",flexDirection:"column",gap:5}}>
-        {f.exObjs.map(ex=>{const c=CC[ex.cat]||"#f97316";return <div key={ex.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:th.card2,borderRadius:8,border:`1px solid ${c}40`}}>
-          {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:36,height:36,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
-          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setViewEx(ex)}>
-            <p style={{fontSize:13,color:th.text,fontWeight:600}}>{ex.name}</p>
-            <p style={{fontSize:10,color:c}}>{ex.cat}{ex.dur?` · ${ex.dur}`:""}</p>
-          </div>
-          <button onClick={()=>removeExObj(ex.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2,flexShrink:0}}><Trash2 size={12}/></button>
-        </div>;})}
-      </div>}
+      {f.exObjs.length===0
+        ?<p style={{fontSize:11,color:th.muted}}>Sin ejercicios del catálogo. Usa el botón para seleccionar.</p>
+        :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {f.exObjs.map((ex,idx)=>{
+            const c=CC[ex.cat]||"#f97316";
+            const updateEx=(field,val)=>setF(prev=>({...prev,exObjs:prev.exObjs.map((e,i)=>i===idx?{...e,[field]:val}:e)}));
+            return <div key={ex.id} style={{display:"grid",gridTemplateColumns:"64px 1fr auto",gap:8,padding:"10px 10px",background:th.card2,borderRadius:8,border:`1px solid ${c}40`,alignItems:"start"}}>
+              {/* Tiempo */}
+              <div>
+                <p style={{fontSize:9,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Min.</p>
+                <input type="text" inputMode="numeric" maxLength={3}
+                  value={ex.sesMin||ex.dur||""}
+                  onChange={e=>{if(/^\d*$/.test(e.target.value))updateEx("sesMin",e.target.value);}}
+                  placeholder="—"
+                  style={{width:"100%",textAlign:"center",fontFamily:"DM Mono",fontSize:16,fontWeight:700,color:c,borderRadius:7,border:`1.5px solid ${c}60`,background:c+"0d",padding:"6px 4px"}}/>
+              </div>
+              {/* Ejercicio + notas */}
+              <div style={{minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer"}} onClick={()=>setViewEx(ex)}>
+                  {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:28,height:28,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                  <div style={{minWidth:0}}>
+                    <p style={{fontSize:13,color:th.text,fontWeight:700,fontFamily:"Barlow Condensed",lineHeight:1.1}}>{ex.name}</p>
+                    <p style={{fontSize:10,color:c}}>{ex.cat}{ex.diff?` · ${ex.diff}`:""}</p>
+                  </div>
+                </div>
+                <textarea
+                  value={ex.sesNotes||""}
+                  onChange={e=>updateEx("sesNotes",e.target.value)}
+                  placeholder="Descripción, variantes, instrucciones para esta sesión…"
+                  rows={2}
+                  style={{width:"100%",fontSize:11,lineHeight:1.5,resize:"vertical",borderRadius:6,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text,padding:"5px 8px",fontFamily:"inherit"}}/>
+              </div>
+              {/* Acciones */}
+              <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"center",paddingTop:2}}>
+                <button onClick={()=>setF(prev=>{const a=[...prev.exObjs];if(idx>0){[a[idx-1],a[idx]]=[a[idx],a[idx-1]];}return{...prev,exObjs:a};})} disabled={idx===0} style={{width:22,height:22,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,cursor:"pointer",fontSize:10,color:th.muted,opacity:idx===0?.3:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>
+                <button onClick={()=>setF(prev=>{const a=[...prev.exObjs];if(idx<a.length-1){[a[idx],a[idx+1]]=[a[idx+1],a[idx]];}return{...prev,exObjs:a};})} disabled={idx===f.exObjs.length-1} style={{width:22,height:22,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,cursor:"pointer",fontSize:10,color:th.muted,opacity:idx===f.exObjs.length-1?.3:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↓</button>
+                <button onClick={()=>removeExObj(ex.id)} style={{width:22,height:22,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={11}/></button>
+              </div>
+            </div>;
+          })}
+          <p style={{fontSize:10,color:th.muted,marginTop:2}}>💡 El campo <strong>Min.</strong> define el tiempo en el Modo Gimnasio. Usa las flechas para reordenar.</p>
+        </div>}
     </div>
 
-    <div style={{marginBottom:12}}><Lbl>Ejercicios adicionales (uno por línea)</Lbl><textarea rows={3} value={f.exs} onChange={e=>setF(p=>({...p,exs:e.target.value}))} placeholder={"Calentamiento 15'\nVuelta a la calma 10'..."}/></div>
+    <div style={{marginBottom:12}}>
+      <Lbl>Ejercicios adicionales libres</Lbl>
+      <p style={{fontSize:10,color:th.muted,marginBottom:5}}>Formato: <code style={{background:th.card2,padding:"1px 4px",borderRadius:3}}>15 | Calentamiento con balón, dribling dinámico</code> (tiempo en minutos | descripción)</p>
+      <textarea rows={4} value={f.exs} onChange={e=>setF(p=>({...p,exs:e.target.value}))}
+        placeholder={"10 | Calentamiento — carrera, estiramiento dinámico\n15 | Tiro en suspensión desde esquinas\n20 | 3 vs 3 con portador\n5 | Vuelta a la calma"}
+        style={{fontFamily:"DM Mono",fontSize:12,lineHeight:1.7,resize:"vertical"}}/></div>
     <div style={{marginBottom:12}}><Lbl>Notas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones, observaciones…"/></div>
     <div style={{marginBottom:16}}><Lbl>Imágenes de la sesión (hasta 4)</Lbl><ImageUploader images={f.images} setImages={imgs=>setF(p=>({...p,images:imgs}))}/></div>
     <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
@@ -1418,9 +1454,100 @@ function Entrenamientos(){
   const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios}=useData();
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
-  const[editSes,setEditSes]=useState(null); // session being edited
+  const[editSes,setEditSes]=useState(null);
   const[showTemplates,setShowTemplates]=useState(false);
   const[saveAsTemplate,setSaveAsTemplate]=useState(null);const[tplName,setTplName]=useState("");
+  const[viewEx,setViewEx]=useState(null);
+  const[viewImg,setViewImg]=useState(null);
+  // Gym Mode
+  const[gymMode,setGymMode]=useState(false);
+  const[gymIdx,setGymIdx]=useState(0);
+  const[gymSec,setGymSec]=useState(0);
+  const[gymRunning,setGymRunning]=useState(false);
+  const gymTimer=useRef(null);
+
+  const startGym=s=>{
+    const exs=s.exObjs||[];if(!exs.length)return;
+    setGymMode(true);setGymIdx(0);setGymRunning(false);
+    const dur=exs[0]?.sesMin?parseInt(exs[0].sesMin)*60:exs[0]?.dur?parseInt(exs[0].dur)*60:300;
+    setGymSec(dur);
+  };
+  const stopGym=()=>{setGymMode(false);setGymRunning(false);clearInterval(gymTimer.current);};
+
+  useEffect(()=>{
+    if(gymRunning){
+      gymTimer.current=setInterval(()=>setGymSec(s=>{
+        if(s<=1){
+          clearInterval(gymTimer.current);setGymRunning(false);
+          if(typeof window!=="undefined"&&window.AudioContext){
+            try{const ac=new AudioContext();const o=ac.createOscillator();const g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.setValueAtTime(0.3,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.8);o.start();o.stop(ac.currentTime+0.8);}catch(e){}
+          }
+          return 0;
+        }
+        return s-1;
+      }),1000);
+    } else {clearInterval(gymTimer.current);}
+    return()=>clearInterval(gymTimer.current);
+  },[gymRunning]);
+
+  const gymNextEx=(s,exs)=>{
+    const next=gymIdx+1;
+    if(next>=exs.length){stopGym();return;}
+    setGymIdx(next);const dur=exs[next]?.sesMin?parseInt(exs[next].sesMin)*60:exs[next]?.dur?parseInt(exs[next].dur)*60:300;
+    setGymSec(dur);setGymRunning(false);
+  };
+  const gymPrevEx=(s,exs)=>{
+    const prev=gymIdx-1;if(prev<0)return;
+    setGymIdx(prev);const dur=exs[prev]?.sesMin?parseInt(exs[prev].sesMin)*60:exs[prev]?.dur?parseInt(exs[prev].dur)*60:300;
+    setGymSec(dur);setGymRunning(false);
+  };
+  const fmt=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+  // Gym Mode overlay
+  if(gymMode){
+    const s=sessions.find(x=>x.id===exp);
+    const exs=s?.exObjs||[];const ex=exs[gymIdx]||{};
+    const pct=ex.sesMin?gymSec/(parseInt(ex.sesMin)*60)*100:ex.dur?gymSec/(parseInt(ex.dur)*60)*100:100;
+    return <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:9999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      {/* Header */}
+      <div style={{position:"absolute",top:20,left:20,right:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:2}}>Modo Gimnasio</p>
+        <button onClick={stopGym} style={{padding:"6px 16px",borderRadius:8,border:"1px solid rgba(239,68,68,.4)",background:"rgba(239,68,68,.1)",color:"#ef4444",cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:14}}>✕ Salir</button>
+      </div>
+      {/* Ejercicio actual */}
+      <p style={{fontFamily:"Barlow Condensed",fontSize:20,color:"#f97316",fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:8}}>Ejercicio {gymIdx+1} / {exs.length}</p>
+      <h1 style={{fontFamily:"Barlow Condensed",fontSize:52,fontWeight:700,color:"#f8fafc",textAlign:"center",marginBottom:6,lineHeight:1}}>{ex.name||"Ejercicio"}</h1>
+      <p style={{fontSize:16,color:"#64748b",marginBottom:32,textAlign:"center"}}>{ex.cat||""}{ex.diff?" · "+ex.diff:""}</p>
+      {/* Timer */}
+      <div style={{position:"relative",width:200,height:200,marginBottom:32}}>
+        <svg width="200" height="200" style={{transform:"rotate(-90deg)"}}>
+          <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="8"/>
+          <circle cx="100" cy="100" r="88" fill="none" stroke={gymSec===0?"#ef4444":"#f97316"} strokeWidth="8"
+            strokeDasharray={2*Math.PI*88} strokeDashoffset={2*Math.PI*88*(1-pct/100)} strokeLinecap="round"
+            style={{transition:"stroke-dashoffset 1s linear"}}/>
+        </svg>
+        <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <p style={{fontFamily:"DM Mono",fontSize:48,fontWeight:700,color:gymSec<30?"#ef4444":"#f8fafc",lineHeight:1}}>{fmt(gymSec)}</p>
+          <p style={{fontSize:12,color:"#64748b",marginTop:4}}>{ex.sesMin?ex.sesMin+" min":ex.dur?ex.dur+" min":"sin límite"}</p>
+        </div>
+      </div>
+      {/* Controles */}
+      <div style={{display:"flex",gap:16,marginBottom:24}}>
+        <button onClick={()=>gymPrevEx(s,exs)} disabled={gymIdx===0} style={{width:56,height:56,borderRadius:28,border:"1px solid rgba(255,255,255,.15)",background:"rgba(255,255,255,.05)",color:"#fff",fontSize:22,cursor:"pointer",opacity:gymIdx===0?.3:1}}>‹</button>
+        <button onClick={()=>setGymRunning(r=>!r)} style={{width:80,height:80,borderRadius:40,border:"none",background:gymRunning?"#ef4444":"#f97316",color:"#fff",fontSize:28,cursor:"pointer",boxShadow:`0 0 30px ${gymRunning?"#ef444440":"#f9731640"}`}}>
+          {gymRunning?"⏸":"▶"}
+        </button>
+        <button onClick={()=>gymNextEx(s,exs)} disabled={gymIdx>=exs.length-1} style={{width:56,height:56,borderRadius:28,border:"1px solid rgba(255,255,255,.15)",background:"rgba(255,255,255,.05)",color:"#fff",fontSize:22,cursor:"pointer",opacity:gymIdx>=exs.length-1?.3:1}}>›</button>
+      </div>
+      {/* Siguiente */}
+      {gymIdx<exs.length-1&&<div style={{padding:"10px 24px",borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.04)"}}>
+        <p style={{fontSize:11,color:"#64748b",textAlign:"center",marginBottom:2}}>Siguiente</p>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#94a3b8"}}>{exs[gymIdx+1]?.name}</p>
+      </div>}
+      {/* Descripción */}
+      {ex.desc&&<p style={{fontSize:13,color:"#475569",marginTop:20,maxWidth:400,textAlign:"center",lineHeight:1.6}}>{ex.desc}</p>}
+    </div>;
+  }
   const[viewEx,setViewEx]=useState(null); // exercise modal
   const[viewImg,setViewImg]=useState(null); // image lightbox
 
@@ -1544,6 +1671,7 @@ function Entrenamientos(){
               <button onClick={()=>setEditSes(s)} title="Editar" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
               <button onClick={()=>setSaveAsTemplate(s.id)} title="Guardar como plantilla" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}}><Copy size={13}/></button>
               <button onClick={()=>exportPDF(s)} title="PDF" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
+              {(s.exObjs||[]).length>0&&<button onClick={()=>startGym(s)} title="Modo Gimnasio" style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.1)",cursor:"pointer",color:"#10b981",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12}}>▶ Gimnasio</button>}
               <Trash2 size={13} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setSessions(p=>p.filter(x=>x.id!==s.id))}/>
               <ChevronRight size={14} color={th.muted} style={{transform:op?"rotate(90deg)":"none",transition:"transform .2s"}}/>
             </div>
@@ -1570,26 +1698,47 @@ function Entrenamientos(){
 
             {/* Ejercicios del catálogo — clicables */}
             {(s.exObjs||[]).length>0&&<div style={{marginBottom:12}}>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Ejercicios</p>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                {s.exObjs.map(ex=>{const ec=CC[ex.cat]||"#f97316";return <div key={ex.id} onClick={()=>setViewEx(ex)}
-                  style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:th.card2,borderRadius:8,border:`1px solid ${ec}30`,cursor:"pointer",transition:"all .15s"}}>
-                  {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:34,height:34,objectFit:"cover",borderRadius:5,flexShrink:0}}/>}
-                  <div style={{flex:1}}>
-                    <p style={{fontSize:13,color:th.text,fontWeight:600}}>{ex.name}</p>
-                    <p style={{fontSize:10,color:ec}}>{ex.cat}{ex.dur?` · ${ex.dur}`:""}</p>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Ejercicios del catálogo</p>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {s.exObjs.map((ex,idx)=>{const ec=CC[ex.cat]||"#f97316";const min=ex.sesMin||ex.dur||null;return <div key={ex.id}
+                  style={{display:"grid",gridTemplateColumns:"52px 1fr",gap:8,padding:"8px 10px",background:th.card2,borderRadius:8,border:`1px solid ${ec}30`}}>
+                  {/* Tiempo */}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:ec+"12",borderRadius:6,padding:"4px 0",cursor:"default"}}>
+                    <p style={{fontFamily:"DM Mono",fontSize:20,fontWeight:700,color:ec,lineHeight:1}}>{min||"—"}</p>
+                    <p style={{fontSize:8,color:ec,opacity:.7,textTransform:"uppercase",letterSpacing:.5}}>min</p>
                   </div>
-                  <ChevronRight size={13} color={th.muted}/>
+                  {/* Info */}
+                  <div style={{minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:ex.sesNotes?4:0,cursor:"pointer"}} onClick={()=>setViewEx(ex)}>
+                      {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:26,height:26,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                      <div>
+                        <p style={{fontSize:13,color:th.text,fontWeight:700,fontFamily:"Barlow Condensed"}}>{ex.name}</p>
+                        <p style={{fontSize:10,color:ec}}>{ex.cat}{ex.diff?` · ${ex.diff}`:""}</p>
+                      </div>
+                    </div>
+                    {ex.sesNotes&&<p style={{fontSize:11,color:th.sub,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{ex.sesNotes}</p>}
+                  </div>
                 </div>;})}
               </div>
             </div>}
 
-            {/* Ejercicios libres */}
+            {/* Ejercicios libres — soporta formato "min | descripción" */}
             {(s.exs||[]).length>0&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-              {s.exs.map((ex,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:22,height:22,borderRadius:11,background:c+"18",border:`1px solid ${c}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:"DM Mono",fontSize:9,color:c}}>{i+1}</span></div>
-                <span style={{fontSize:13,color:th.sub}}>{ex}</span>
-              </div>)}
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:.8,marginBottom:4}}>Ejercicios adicionales</p>
+              {s.exs.map((ex,i)=>{
+                const hasPipe=ex.includes("|");
+                const min=hasPipe?ex.split("|")[0].trim():"";
+                const desc=hasPipe?ex.split("|").slice(1).join("|").trim():ex;
+                return <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                  {hasPipe
+                    ?<div style={{minWidth:44,background:"rgba(249,115,22,.08)",borderRadius:6,padding:"3px 6px",textAlign:"center",flexShrink:0}}>
+                        <p style={{fontFamily:"DM Mono",fontSize:14,fontWeight:700,color:c,lineHeight:1}}>{min}</p>
+                        <p style={{fontSize:8,color:c,opacity:.7}}>min</p>
+                      </div>
+                    :<div style={{width:22,height:22,borderRadius:11,background:c+"18",border:`1px solid ${c}35`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}><span style={{fontFamily:"DM Mono",fontSize:9,color:c}}>{i+1}</span></div>}
+                  <span style={{fontSize:13,color:th.sub,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{desc}</span>
+                </div>;
+              })}
             </div>}
           </div>}
         </div>;
@@ -2193,6 +2342,20 @@ function Pizarra(){
       case"wavy": drawWavy(ctx,el.x1,el.y1,el.x2,el.y2,el.color,true); break;
       case"screen": drawScreen(ctx,el.x1,el.y1,el.x2,el.y2); break;
       case"shot": drawShot(ctx,el.x1,el.y1,el.x2,el.y2,el.color); break;
+      case"cone":
+        {ctx.beginPath();ctx.moveTo(el.x,el.y-12);ctx.lineTo(el.x-10,el.y+10);ctx.lineTo(el.x+10,el.y+10);ctx.closePath();
+        ctx.fillStyle="#f59e0b";ctx.fill();ctx.strokeStyle="#d97706";ctx.lineWidth=1.5;ctx.stroke();}break;
+      case"ball":
+        {ctx.beginPath();ctx.arc(el.x,el.y,9,0,Math.PI*2);ctx.fillStyle="#f97316";ctx.fill();
+        ctx.strokeStyle="#ea580c";ctx.lineWidth=1.5;ctx.stroke();
+        ctx.strokeStyle="#ea580c90";ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(el.x-9,el.y);ctx.lineTo(el.x+9,el.y);ctx.stroke();
+        ctx.beginPath();ctx.arc(el.x,el.y,9,0,Math.PI);ctx.stroke();}break;
+      case"ladder":
+        {const w=18,h=36,rungs=4;ctx.strokeStyle="#64748b";ctx.lineWidth=2;
+        ctx.strokeRect(el.x-w/2,el.y-h/2,w,h);
+        for(let i=1;i<rungs;i++){const ry=el.y-h/2+i*(h/rungs);
+        ctx.beginPath();ctx.moveTo(el.x-w/2,ry);ctx.lineTo(el.x+w/2,ry);ctx.stroke();}}break;
       default: rEl(ctx,el,false);
     }
     ctx.globalAlpha=1;
@@ -2213,6 +2376,12 @@ function Pizarra(){
       else setDefNum(n=>n<5?n+1:1);
       return;
     }
+    if(["cone","ball","ladder"].includes(tool)){
+      const el={type:tool,x:p.x,y:p.y};
+      setHist(h=>{const n=[...h];n[step]=[...n[step],els];return n;});
+      setEls(ps=>[...ps,el]);
+      return;
+    }
     or.current=p;dr.current=true;
   };
   const oM=e=>{if(!dr.current||!or.current)return;const p=gp(e);rd(els,{type:tool,x1:or.current.x,y1:or.current.y,x2:p.x,y2:p.y,color});};
@@ -2223,6 +2392,23 @@ function Pizarra(){
   const savePlay=()=>{if(!saveName)return;const id=Date.now();setSavedDrawings(prev=>[...prev,{id,name:saveName,steps:steps.map(s=>[...s])}]);setSaveName("");setShowSave(false);};
   const loadPlay=play=>{setSteps(play.steps.map(s=>[...s]));setHist([[],[],[],[]]);setSelPlay(null);};
 
+  const[animating,setAnimating]=useState(false);
+  const[animStep,setAnimStep]=useState(0);
+  const animRef=useRef(null);
+  const[animSpeed,setAnimSpeed]=useState(800);// ms per step
+
+  const playAnimation=()=>{
+    if(animating){clearInterval(animRef.current);setAnimating(false);setAnimStep(0);return;}
+    const nonEmpty=steps.map((s,i)=>({s,i})).filter(({s})=>s.length>0);
+    if(nonEmpty.length<2){alert("Necesitas al menos 2 pasos con elementos para animar");return;}
+    setAnimating(true);setAnimStep(0);let cur=0;
+    animRef.current=setInterval(()=>{
+      cur++;if(cur>=steps.length){clearInterval(animRef.current);setAnimating(false);setAnimStep(0);return;}
+      setAnimStep(cur);setStep(cur);
+    },animSpeed);
+  };
+  useEffect(()=>()=>clearInterval(animRef.current),[]);
+
   const lineTools=[
     {id:"arrow",  label:"Flecha",   icon:"→",  desc:"Movimiento"},
     {id:"dash",   label:"Pase",     icon:"⤑",  desc:"Pase (curvo)"},
@@ -2231,17 +2417,31 @@ function Pizarra(){
     {id:"screen", label:"Bloqueo",  icon:"⊣",  desc:"Screen/Block"},
     {id:"shot",   label:"Tiro",     icon:"⊙",  desc:"Tiro a canasta"},
   ];
+  const equipTools=[
+    {id:"cone",   label:"Cono",     icon:"△",  desc:"Cono"},
+    {id:"ball",   label:"Balón",    icon:"●",  desc:"Balón"},
+    {id:"ladder", label:"Escalera", icon:"⊞",  desc:"Escalera agilidad"},
+  ];
 
   return <div>
-    <SH title="Pizarra" sub="Atacantes · Defensores · 4 pasos por jugada"/>
+    <SH title="Pizarra" sub="Atacantes · Defensores · 4 pasos por jugada · Equipamiento · Animación"/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 200px",gap:16}}>
       <div className="card" style={{padding:16}}>
-        {/* Pasos */}
+        {/* Pasos + Animar */}
         <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
           <span style={{fontSize:11,color:th.muted,fontFamily:"Barlow Condensed,sans-serif",textTransform:"uppercase",marginRight:4}}>Paso:</span>
-          {[0,1,2,3].map(i=><button key={i} onClick={()=>setStep(i)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${step===i?"#f97316":th.border2}`,background:step===i?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,fontSize:14,color:step===i?"#f97316":th.sub,position:"relative"}}>
+          {[0,1,2,3].map(i=><button key={i} onClick={()=>{if(!animating)setStep(i);}} style={{width:32,height:32,borderRadius:8,border:`1px solid ${step===i?"#f97316":th.border2}`,background:step===i?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,fontSize:14,color:step===i?"#f97316":th.sub,position:"relative"}}>
             {i+1}{steps[i].length>0&&<span style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:4,background:"#f97316"}}/>}
           </button>)}
+          {/* Animate */}
+          <button onClick={playAnimation} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,border:`1px solid ${animating?"#ef4444":"rgba(139,92,246,.4)"}`,background:animating?"rgba(239,68,68,.1)":"rgba(139,92,246,.07)",cursor:"pointer",color:animating?"#ef4444":"#8b5cf6",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            {animating?"⏹ Parar":"▶ Animar"}
+          </button>
+          {!animating&&<select value={animSpeed} onChange={e=>setAnimSpeed(Number(e.target.value))} style={{fontSize:10,padding:"3px 6px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub}}>
+            <option value={400}>Rápido</option>
+            <option value={800}>Normal</option>
+            <option value={1500}>Lento</option>
+          </select>}
           <div style={{flex:1}}/>
           <button onClick={()=>{setSaveName("");setShowSave(!showSave);}} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.07)",cursor:"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}><Save size={12}/>Guardar</button>
         </div>
@@ -2272,6 +2472,11 @@ function Pizarra(){
 
           {/* Líneas */}
           {lineTools.map(t=><button key={t.id} onClick={()=>setTool(t.id)} title={t.label} style={{height:32,padding:"0 10px",borderRadius:8,border:`1px solid ${tool===t.id?"#f97316":th.border2}`,background:tool===t.id?"rgba(249,115,22,.15)":th.card2,cursor:"pointer",fontSize:14,color:tool===t.id?"#f97316":th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>{t.icon}</button>)}
+
+          <div style={{width:1,height:26,background:th.border2}}/>
+
+          {/* Equipamiento */}
+          {equipTools.map(t=><button key={t.id} onClick={()=>setTool(t.id)} title={t.label} style={{height:32,padding:"0 10px",borderRadius:8,border:`1px solid ${tool===t.id?"#f59e0b":th.border2}`,background:tool===t.id?"rgba(245,158,11,.15)":th.card2,cursor:"pointer",fontSize:14,color:tool===t.id?"#f59e0b":th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>{t.icon}</button>)}
 
           {/* Colores (solo para líneas) */}
           {tool!=="player"&&<>
@@ -2325,6 +2530,21 @@ function Pizarra(){
               </button>)}
             </div>
           </div>
+        </div>
+
+        {/* Equipamiento */}
+        <div className="card" style={{padding:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Equipamiento</p>
+          {equipTools.map(t=>{
+            const ac=tool===t.id;
+            return <div key={t.id} onClick={()=>setTool(t.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:7,cursor:"pointer",background:ac?"rgba(245,158,11,.12)":th.card2,border:`1px solid ${ac?"#f59e0b":th.border}`,marginBottom:4}}>
+              <span style={{fontSize:16,minWidth:22,textAlign:"center",color:ac?"#f59e0b":th.sub}}>{t.icon}</span>
+              <div>
+                <p style={{fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700,color:ac?"#f59e0b":th.text,lineHeight:1}}>{t.label}</p>
+                <p style={{fontSize:9,color:th.muted,lineHeight:1,marginTop:2}}>{t.desc}</p>
+              </div>
+            </div>;
+          })}
         </div>
 
         {/* Herramientas */}
@@ -4190,6 +4410,221 @@ function BuscadorIA(){
   </div>;
 }
 
+/* ══════════════════════════════════════════════════════════
+   SHOT CHART — Mapa de tiros interactivo
+══════════════════════════════════════════════════════════ */
+function ShotChart(){
+  const{th}=useTheme();const{players,matches}=useData();
+  const cr=useRef(null);
+  const[shots,setShots]=useState([]);
+  const[filterPid,setFilterPid]=useState("all");
+  const[filterType,setFilterType]=useState("all");// all|T2|T3|TL
+  const[filterMatch,setFilterMatch]=useState("all");
+  const[showHeat,setShowHeat]=useState(true);
+  const lastTap=useRef(0);
+
+  // Court dimensions (half court, FIBA)
+  const CW=520,CH=440;
+  const PAINT={x:170,y:0,w:180,h:180};
+  const THREE_RADIUS=195;const CENTER_X=260;const CENTER_Y=440;
+  const TL_X1=170,TL_X2=350,TL_Y=180;
+
+  const zoneName=({x,y})=>{
+    const dx=x-CENTER_X,dy=CENTER_Y-y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const inPaint=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y<=PAINT.y+PAINT.h;
+    if(inPaint&&dist<90)return"TL";// near basket = FT simulation
+    if(inPaint)return"T2_PAINT";
+    if(dist>THREE_RADIUS)return"T3";
+    if(x<CENTER_X-80)return"T2_LEFT";
+    if(x>CENTER_X+80)return"T2_RIGHT";
+    return"T2_MID";
+  };
+
+  const drawCourt=ctx=>{
+    ctx.clearRect(0,0,CW,CH);
+    // Floor
+    ctx.fillStyle=th.card2;ctx.fillRect(0,0,CW,CH);
+    // Lines
+    ctx.strokeStyle=th.border;ctx.lineWidth=2;
+    // Paint
+    ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
+    // FT circle
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h,60,Math.PI,0);ctx.stroke();
+    // Key blocks
+    for(let i=1;i<=4;i++){ctx.fillStyle=th.border;ctx.fillRect(PAINT.x-1,PAINT.y+i*35,6,18);ctx.fillRect(PAINT.x+PAINT.w-5,PAINT.y+i*35,6,18);}
+    // 3pt arc
+    ctx.beginPath();
+    const a1=Math.asin((CH-60)/THREE_RADIUS);
+    const a0=Math.PI-a1;
+    ctx.arc(CENTER_X,CENTER_Y,THREE_RADIUS,a0,a1*-1+Math.PI,true);
+    // 3pt corner lines
+    ctx.moveTo(PAINT.x-50,CH);ctx.lineTo(PAINT.x-50,CH-60);
+    ctx.moveTo(PAINT.x+PAINT.w+50,CH);ctx.lineTo(PAINT.x+PAINT.w+50,CH-60);
+    ctx.stroke();
+    // Basket
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,14,0,Math.PI*2);ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
+    ctx.beginPath();ctx.arc(CENTER_X,PAINT.y+PAINT.h+4,5,0,Math.PI*2);ctx.fillStyle="#f97316";ctx.fill();
+    // Backboard
+    ctx.strokeStyle="#f97316";ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(CENTER_X-28,PAINT.y+PAINT.h-8);ctx.lineTo(CENTER_X+28,PAINT.y+PAINT.h-8);ctx.stroke();
+    // Labels
+    ctx.font="bold 10px Barlow Condensed, sans-serif";
+    ctx.fillStyle=th.muted;ctx.textAlign="center";
+    ctx.fillText("ZONA 2",CENTER_X,PAINT.y+PAINT.h-20);
+    ctx.fillText("T3",CENTER_X,30);ctx.fillText("T3",60,280);ctx.fillText("T3",460,280);
+    ctx.lineWidth=2;ctx.strokeStyle=th.border;
+  };
+
+  const drawShots=ctx=>{
+    const filtered=shots.filter(s=>{
+      if(filterPid!=="all"&&s.pid!==filterPid)return false;
+      if(filterType!=="all"&&s.zone!==filterType)return false;
+      if(filterMatch!=="all"&&String(s.matchId)!==filterMatch)return false;
+      return true;
+    });
+    if(showHeat){
+      // Heat map: draw blobs
+      const heatCanvas=document.createElement("canvas");heatCanvas.width=CW;heatCanvas.height=CH;
+      const hCtx=heatCanvas.getContext("2d");
+      filtered.forEach(s=>{
+        const g=hCtx.createRadialGradient(s.x,s.y,0,s.x,s.y,38);
+        const col=s.made?"rgba(16,185,129,":"rgba(239,68,68,";
+        g.addColorStop(0,col+"0.35)");g.addColorStop(1,col+"0)");
+        hCtx.fillStyle=g;hCtx.fillRect(s.x-38,s.y-38,76,76);
+      });
+      ctx.drawImage(heatCanvas,0,0);
+    }
+    // Dots
+    filtered.forEach(s=>{
+      ctx.beginPath();ctx.arc(s.x,s.y,7,0,Math.PI*2);
+      ctx.fillStyle=s.made?"#10b981":"#ef4444";
+      ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+      ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.stroke();
+      if(!s.made){// X for miss
+        ctx.strokeStyle="#fff";ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(s.x-4,s.y-4);ctx.lineTo(s.x+4,s.y+4);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(s.x+4,s.y-4);ctx.lineTo(s.x-4,s.y+4);ctx.stroke();
+      }
+    });
+  };
+
+  const redraw=useCallback(()=>{
+    const canvas=cr.current;if(!canvas)return;
+    const ctx=canvas.getContext("2d");
+    drawCourt(ctx);drawShots(ctx);
+  },[shots,filterPid,filterType,filterMatch,showHeat,th]);
+
+  useEffect(()=>{redraw();},[redraw]);
+
+  const getPos=e=>{
+    const rect=cr.current.getBoundingClientRect();
+    const scaleX=CW/rect.width,scaleY=CH/rect.height;
+    const touch=e.touches?e.touches[0]:e;
+    return{x:(touch.clientX-rect.left)*scaleX,y:(touch.clientY-rect.top)*scaleY};
+  };
+
+  const handleTap=e=>{
+    e.preventDefault();
+    const now=Date.now();const isDouble=now-lastTap.current<350;
+    lastTap.current=now;
+    const{x,y}=getPos(e);
+    const z=zoneName({x,y});
+    const made=isDouble;
+    const pid=filterPid==="all"?null:filterPid;
+    setShots(prev=>[...prev,{id:Date.now(),x,y,made,zone:z,pid,matchId:filterMatch==="all"?null:filterMatch}]);
+  };
+
+  const undoLast=()=>setShots(prev=>prev.slice(0,-1));
+  const clearAll=()=>setShots([]);
+
+  const filtered=shots.filter(s=>{
+    if(filterPid!=="all"&&s.pid!==filterPid)return false;
+    if(filterMatch!=="all"&&String(s.matchId)!==filterMatch)return false;
+    return true;
+  });
+  const made=filtered.filter(s=>s.made).length;
+  const total=filtered.length;
+  const pct=total?Math.round(made/total*100):0;
+
+  const zones=["T2_PAINT","T2_LEFT","T2_MID","T2_RIGHT","T3","TL"];
+  const zoneLabel={"T2_PAINT":"Zona 2 (pintura)","T2_LEFT":"T2 Izquierda","T2_MID":"T2 Centro","T2_RIGHT":"T2 Derecha","T3":"Triples","TL":"Tiro Libre"};
+
+  return <div>
+    <SH title="Shot Chart" sub="1 clic = fallo · 2 clics rápidos = acierto · Mapa de tiros del equipo"/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 220px",gap:16}}>
+      {/* Canvas */}
+      <div className="card" style={{padding:14}}>
+        {/* Filters */}
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+          <select value={filterPid} onChange={e=>setFilterPid(e.target.value)} style={{fontSize:11}}>
+            <option value="all">Todos los jugadores</option>
+            {players.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>#{p.num} {p.name.split(" ")[0]}</option>)}
+          </select>
+          <select value={filterMatch} onChange={e=>setFilterMatch(e.target.value)} style={{fontSize:11}}>
+            <option value="all">Todos los partidos</option>
+            {matches.map(m=><option key={m.id} value={m.id}>{m.date} vs {m.rival}</option>)}
+          </select>
+          <button onClick={()=>setShowHeat(!showHeat)} style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${th.border2}`,background:showHeat?"rgba(249,115,22,.12)":th.card2,color:showHeat?"#f97316":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}>
+            {showHeat?"🌡 Mapa calor ON":"🌡 Mapa calor OFF"}
+          </button>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <button onClick={undoLast} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>↩ Deshacer</button>
+            <button onClick={clearAll} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>Limpiar</button>
+          </div>
+        </div>
+        <div style={{borderRadius:8,overflow:"hidden",lineHeight:0,border:`1px solid ${th.border}`,background:th.card2}}>
+          <canvas ref={cr} width={CW} height={CH} style={{width:"100%",height:"auto",display:"block",cursor:"crosshair",touchAction:"none"}}
+            onClick={handleTap} onTouchEnd={handleTap}/>
+        </div>
+        <p style={{fontSize:11,color:th.muted,marginTop:8}}>
+          ● Verde = acierto &nbsp;● Rojo = fallo &nbsp;·&nbsp; 1 clic = fallo · 2 clics rápidos = acierto
+        </p>
+      </div>
+      {/* Sidebar stats */}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {/* Global */}
+        <div className="card" style={{padding:16,textAlign:"center"}}>
+          <p style={{fontFamily:"DM Mono",fontSize:40,fontWeight:700,color:pct>=50?"#10b981":"#ef4444",lineHeight:1}}>{pct}%</p>
+          <p style={{fontSize:11,color:th.muted,marginTop:4}}>Efectividad global</p>
+          <p style={{fontFamily:"DM Mono",fontSize:14,color:th.sub,marginTop:6}}>{made}/{total} tiros</p>
+        </div>
+        {/* Por zona */}
+        <div className="card" style={{padding:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Por zona</p>
+          {zones.map(z=>{
+            const zShots=filtered.filter(s=>s.zone===z);
+            const zMade=zShots.filter(s=>s.made).length;
+            const zPct=zShots.length?Math.round(zMade/zShots.length*100):null;
+            if(!zShots.length)return null;
+            return <div key={z} style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                <span style={{fontSize:10,color:th.sub,fontFamily:"Barlow Condensed"}}>{zoneLabel[z]}</span>
+                <span style={{fontSize:10,fontFamily:"DM Mono",color:zPct>=50?"#10b981":"#ef4444",fontWeight:700}}>{zPct}%</span>
+              </div>
+              <div style={{height:5,borderRadius:3,background:th.border2}}>
+                <div style={{height:5,borderRadius:3,background:zPct>=50?"#10b981":"#ef4444",width:zPct+"%"}}/>
+              </div>
+              <p style={{fontSize:9,color:th.muted,marginTop:2}}>{zMade}/{zShots.length} tiros</p>
+            </div>;
+          })}
+          {!filtered.length&&<p style={{fontSize:11,color:th.muted}}>Haz clic en la pista para añadir tiros</p>}
+        </div>
+        {/* Leyenda */}
+        <div className="card" style={{padding:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Cómo usar</p>
+          <p style={{fontSize:11,color:th.sub,lineHeight:1.6}}>
+            <strong>1 clic</strong> → Fallo 🔴<br/>
+            <strong>2 clics rápidos</strong> → Acierto 🟢<br/>
+            Filtra por jugador o partido<br/>
+            Activa el mapa de calor para ver zonas calientes
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
@@ -4206,14 +4641,15 @@ const NAV=[
   {id:"partido",  label:"Modo Partido",  icon:Trophy},
   {id:"playbook", label:"Playbook",      icon:BookOpen},
   {id:"exercises",label:"Ejercicios",    icon:Target},
-  {id:"pizarra",  label:"Pizarra",       icon:PenTool},
+  {id:"shotchart",label:"Shot Chart",     icon:Target},
+  {id:"pizarra",  label:"Pizarra",        icon:PenTool},
   {id:"ia",       label:"IA Asistente",  icon:Brain},
   {id:"iq",       label:"Basketball IQ", icon:Target},
   {id:"informes", label:"Informes",       icon:FileText},
   {id:"buscador", label:"Buscador IA",    icon:Search},
   {id:"recursos", label:"Recursos",       icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
