@@ -4572,13 +4572,14 @@ function ShotChart(){
   const SC_KX=SC_CX-SC_KW/2;        // 200  key left x
   const SC_KY=SC_BL-SC_KH;          // 170  key top y  (= FT line)
   const SC_FTR=SC_KW/2;             // 80   FT circle radius
-  const SC_RY=SC_BL-35;             // 335  rim y
-  const SC_C3=SC_m+68;              // 78   corner 3 line x
-  const SC_C3h=120;                 // corner line height above baseline
-  // 3pt radius: same formula as Pizarra
-  const SC_dx=SC_CX-SC_C3;
-  const SC_dy=SC_RY-(SC_BL-SC_C3h);
-  const SC_R3=Math.round(Math.sqrt(SC_dx*SC_dx+SC_dy*SC_dy));
+  const SC_RY=SC_BL-32;             // 338  rim y
+  const SC_C3=70;                   // corner 3 line x (11% of width)
+  // 3pt radius: set directly so arc clears FT circle by ~30px
+  const SC_R3=278;
+  // Corner line top y: where arc meets the corner line x
+  const SC_corner_dy=Math.sqrt(SC_R3*SC_R3-(SC_CX-SC_C3)*(SC_CX-SC_C3)); // ≈182
+  const SC_corner_y=SC_RY-SC_corner_dy;   // ≈156
+  const SC_C3h=SC_BL-SC_corner_y;         // ≈214 corner line height
 
   const zoneName=({x,y})=>{
     const d=Math.sqrt((x-SC_CX)**2+(y-SC_RY)**2);
@@ -4636,16 +4637,16 @@ function ShotChart(){
     // Rim catch arc (small arc under rim, like Pizarra)
     ctx.beginPath();ctx.arc(SC_CX,SC_RY,30,Math.PI,0,false);ctx.stroke();
 
-    // ── 3-POINT LINE — exact same formula as Pizarra ──────────
+    // ── 3-POINT LINE ──────────────────────────────────────────
     ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;
-    // Corner straight lines
+    // Corner straight lines (from baseline up to where arc starts)
     ctx.beginPath();
-    ctx.moveTo(SC_C3,SC_BL);ctx.lineTo(SC_C3,SC_BL-SC_C3h);
-    ctx.moveTo(SCW-SC_C3,SC_BL);ctx.lineTo(SCW-SC_C3,SC_BL-SC_C3h);
+    ctx.moveTo(SC_C3,SC_BL);ctx.lineTo(SC_C3,SC_corner_y);
+    ctx.moveTo(SCW-SC_C3,SC_BL);ctx.lineTo(SCW-SC_C3,SC_corner_y);
     ctx.stroke();
-    // Arc — same atan2 formula as Pizarra
-    const a1=Math.atan2((SC_BL-SC_C3h)-SC_RY,SC_C3-SC_CX);
-    const a2=Math.atan2((SC_BL-SC_C3h)-SC_RY,(SCW-SC_C3)-SC_CX);
+    // Arc centered on rim, sweeping UP from left corner through backcourt to right
+    const a1=Math.atan2(SC_corner_y-SC_RY,SC_C3-SC_CX);
+    const a2=Math.atan2(SC_corner_y-SC_RY,(SCW-SC_C3)-SC_CX);
     ctx.beginPath();ctx.arc(SC_CX,SC_RY,SC_R3,a1,a2,false);ctx.stroke();
 
     // Zone text labels
