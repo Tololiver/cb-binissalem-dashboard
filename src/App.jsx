@@ -1548,8 +1548,6 @@ function Entrenamientos(){
       {ex.desc&&<p style={{fontSize:13,color:"#475569",marginTop:20,maxWidth:400,textAlign:"center",lineHeight:1.6}}>{ex.desc}</p>}
     </div>;
   }
-  const[viewEx,setViewEx]=useState(null); // exercise modal
-  const[viewImg,setViewImg]=useState(null); // image lightbox
 
   const saveSession=s=>{
     if(editSes){
