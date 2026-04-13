@@ -1344,13 +1344,14 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
 
   // Migrate legacy exs (textarea) to unified exObjs on load
   const migrateExObjs=()=>{
-    const objs=session?.exObjs||[];
+    const objs=(session?.exObjs||[]).map(e=>e.type?e:{...e,type:"catalog"});
+    // Only migrate legacy exs if exObjs is empty (old sessions without unified list)
+    if(objs.length>0)return objs;
     const legacy=Array.isArray(session?.exs)?session.exs:((session?.exs||"").split("\n").filter(Boolean));
-    const freeFromLegacy=legacy.map((line,i)=>{
+    return legacy.map((line,i)=>{
       const parts=line.split("|");const hasTime=parts.length>1&&/^\d+$/.test(parts[0].trim());
       return{type:"free",id:"legacy_"+i,name:hasTime?parts.slice(1).join("|").trim():line.trim(),desc:"",sesMin:hasTime?parts[0].trim():""};
     });
-    return [...objs.map(e=>e.type?e:{...e,type:"catalog"}),...freeFromLegacy];
   };
 
   const[f,setF]=useState({
@@ -1526,13 +1527,14 @@ function Entrenamientos(){
   const[gymIdx,setGymIdx]=useState(0);
   const[gymSec,setGymSec]=useState(0);
   const[gymRunning,setGymRunning]=useState(false);
+  const[gymSessionId,setGymSessionId]=useState(null);
   const gymTimer=useRef(null);
 
   const getGymExs=s=>(s?.exObjs||[]).filter(e=>parseInt(e.sesMin||e.dur||0)>0);
   const startGym=s=>{
     const exs=getGymExs(s);
     if(!exs.length){alert("Asigna tiempo (Min) a al menos un ejercicio para usar el Modo Gimnasio.");return;}
-    setGymMode(true);setGymIdx(0);setGymRunning(false);
+    setGymMode(true);setGymIdx(0);setGymRunning(false);setGymSessionId(s.id);
     setGymSec(parseInt(exs[0].sesMin||exs[0].dur||5)*60);
   };
   const stopGym=()=>{setGymMode(false);setGymRunning(false);clearInterval(gymTimer.current);};
@@ -1566,7 +1568,7 @@ function Entrenamientos(){
 
   // Gym Mode overlay
   if(gymMode){
-    const s=sessions.find(x=>x.id===exp);
+    const s=sessions.find(x=>x.id===gymSessionId);
     const exs=getGymExs(s);const ex=exs[gymIdx]||{};
     const durSec=parseInt(ex.sesMin||ex.dur||5)*60;
     const pct=durSec>0?gymSec/durSec*100:100;
@@ -1614,13 +1616,15 @@ function Entrenamientos(){
   }
 
   const saveSession=s=>{
-    if(editSes){
+    if(editSes?.id){
+      // Editar sesión existente
       setSessions(prev=>prev.map(x=>x.id===s.id?s:x));
       setEditSes(null);
     } else {
-      const id=sessions.length?Math.max(...sessions.map(x=>x.id))+1:1;
-      setSessions(prev=>[...prev,{...s,id}]);
-      setShowAdd(false);
+      // Nueva sesión (o desde plantilla)
+      const newId=Date.now();
+      setSessions(prev=>[...prev,{...s,id:newId}]);
+      setShowAdd(false);setEditSes(null);
     }
   };
 
@@ -1633,7 +1637,13 @@ function Entrenamientos(){
   const doSaveTemplate=sid=>{
     if(!tplName.trim())return;
     const s=sessions.find(x=>x.id===sid);if(!s)return;
-    setSesionTemplates(prev=>[...prev,{id:Date.now(),name:tplName.trim(),type:s.type,dur:s.dur,title:s.title,exs:Array.isArray(s.exs)?s.exs.join("\n"):s.exs||"",exObjs:s.exObjs||[],notes:s.notes||"",images:s.images||[]}]);
+    setSesionTemplates(prev=>[...prev,{
+      id:Date.now(),name:tplName.trim(),
+      type:s.type,dur:s.dur,title:s.title,
+      exs:[],// deprecated, now all in exObjs
+      exObjs:(s.exObjs||[]).map(e=>({...e,sesNotes:"",sesMin:e.sesMin||e.dur||""})),
+      notes:s.notes||"",images:[],
+    }]);
     setSaveAsTemplate(null);setTplName("");
   };
   const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
