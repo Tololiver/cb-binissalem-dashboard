@@ -4561,91 +4561,104 @@ function ShotChart(){
   const[view,setView]=useState("court");
   const lastTap=useRef(0);
 
-  // ── Half-court geometry (landscape, basket at bottom) ─────
-  const CW=560,CH=370;
-  const BX=280,BY=305;          // basket centre
-  const R3=185;                  // 3pt arc radius px
-  const PAINT={x:200,y:145,w:160,h:160}; // paint box (bottom = BY)
-  const FT_Y=PAINT.y;           // FT line (top of paint) = 145
-  const FT_R=62;                 // FT circle radius px
-  const CL_X=125,CR_X=435;      // corner 3pt line X
-  const cDX=BX-CL_X;            // 155
-  const cDY=Math.sqrt(R3*R3-cDX*cDX); // ≈105
-  const CORNER_Y=BY-cDY;        // ≈200 — where arc meets corner lines
+  // ── Shot Chart court — exact same logic as Pizarra dCourt ──
+  // Pizarra: CW=820,CH=500, basket at RY=BL-42, key KW=190,KH=235
+  // Shot chart scaled down: CW=560,CH=380
+  const SCW=560,SCH=380;
+  const SC_m=10;                      // margin
+  const SC_CX=SCW/2;                  // 280  horizontal centre
+  const SC_BL=SCH-SC_m;              // 370  baseline y
+  const SC_KW=160,SC_KH=200;         // key dimensions
+  const SC_KX=SC_CX-SC_KW/2;        // 200  key left x
+  const SC_KY=SC_BL-SC_KH;          // 170  key top y  (= FT line)
+  const SC_FTR=SC_KW/2;             // 80   FT circle radius
+  const SC_RY=SC_BL-35;             // 335  rim y
+  const SC_C3=SC_m+68;              // 78   corner 3 line x
+  const SC_C3h=120;                 // corner line height above baseline
+  // 3pt radius: same formula as Pizarra
+  const SC_dx=SC_CX-SC_C3;
+  const SC_dy=SC_RY-(SC_BL-SC_C3h);
+  const SC_R3=Math.round(Math.sqrt(SC_dx*SC_dx+SC_dy*SC_dy));
 
   const zoneName=({x,y})=>{
-    const d=Math.sqrt((x-BX)**2+(y-BY)**2);
-    const inP=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y>=PAINT.y&&y<=PAINT.y+PAINT.h;
-    if(inP&&d<65)return"TL";
+    const d=Math.sqrt((x-SC_CX)**2+(y-SC_RY)**2);
+    const inP=x>=SC_KX&&x<=SC_KX+SC_KW&&y>=SC_KY&&y<=SC_BL;
+    if(inP&&d<55)return"TL";
     if(inP)return"T2_PAINT";
-    if(y>CORNER_Y&&(x<CL_X||x>CR_X))return"T3"; // corner 3
-    if(d>R3)return"T3";
-    if(x<BX-75)return"T2_LEFT";
-    if(x>BX+75)return"T2_RIGHT";
+    const isCorner=y>SC_BL-SC_C3h&&(x<SC_C3||x>SCW-SC_C3);
+    if(isCorner)return"T3";
+    if(d>SC_R3)return"T3";
+    if(x<SC_CX-65)return"T2_LEFT";
+    if(x>SC_CX+65)return"T2_RIGHT";
     return"T2_MID";
   };
 
+  const CW=SCW,CH=SCH; // aliases for canvas attrs
+
   const drawCourt=ctx=>{
-    ctx.clearRect(0,0,CW,CH);
-    // Floor colour
-    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#D4902A";
-    ctx.fillRect(0,0,CW,CH);
-    const LINE=th.mode==="dark"?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.9)";
-    ctx.strokeStyle=LINE;
+    ctx.clearRect(0,0,SCW,SCH);
+    // Floor
+    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#ecfdf5";
+    ctx.fillRect(0,0,SCW,SCH);
+    const LINE=th.mode==="dark"?"rgba(255,255,255,.55)":"rgba(30,58,95,.55)";
+    ctx.strokeStyle=LINE;ctx.lineWidth=2;
 
-    // Outer boundary
-    ctx.lineWidth=2.5;ctx.strokeRect(3,3,CW-6,CH-6);
+    // Boundary
+    ctx.strokeRect(SC_m,SC_m,SCW-SC_m*2,SCH-SC_m*2);
 
-    // Paint box
-    ctx.lineWidth=2;ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
+    // Key / paint
+    ctx.strokeRect(SC_KX,SC_KY,SC_KW,SC_KH);
 
-    // Key blocks (4 on each side)
-    for(let i=1;i<=4;i++){
-      const ky=PAINT.y+i*(PAINT.h/5);
-      ctx.fillStyle=LINE;
-      ctx.fillRect(PAINT.x,ky,5,13);
-      ctx.fillRect(PAINT.x+PAINT.w-5,ky,5,13);
-    }
+    // Key blocks (3 marks on each side, like Pizarra)
+    [.28,.54,.78].forEach(r=>{
+      const hy=SC_KY+SC_KH*r;
+      ctx.beginPath();ctx.moveTo(SC_KX,hy);ctx.lineTo(SC_KX-10,hy);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(SC_KX+SC_KW,hy);ctx.lineTo(SC_KX+SC_KW+10,hy);ctx.stroke();
+    });
 
-    // FT circle — solid half (away from basket, toward backcourt)
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.arc(BX,FT_Y,FT_R,Math.PI,0,false); // top half
-    ctx.stroke();
-    // Dashed half (toward basket)
-    ctx.setLineDash([6,5]);
-    ctx.beginPath();
-    ctx.arc(BX,FT_Y,FT_R,0,Math.PI,false); // bottom half
-    ctx.stroke();
+    // FT circle — solid half (above FT line, anticlockwise=true like Pizarra)
+    ctx.beginPath();ctx.arc(SC_CX,SC_KY,SC_FTR,Math.PI,0,true);ctx.stroke();
+    // Dashed half inside key (anticlockwise=false like Pizarra)
+    ctx.setLineDash([7,5]);
+    ctx.beginPath();ctx.arc(SC_CX,SC_KY,SC_FTR,Math.PI,0,false);ctx.stroke();
     ctx.setLineDash([]);
 
-    // ── 3-POINT LINE ─────────────────────────────────────────
-    ctx.lineWidth=2.5;
+    // Rim circle
+    ctx.beginPath();ctx.arc(SC_CX,SC_RY,12,0,Math.PI*2);
+    ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
+    ctx.strokeStyle=LINE;ctx.lineWidth=2;
 
-    // Corner straight lines (from baseline up to where arc starts)
+    // Backboard (horizontal bar below basket toward baseline)
+    ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(SC_CX-30,SC_BL-18);ctx.lineTo(SC_CX+30,SC_BL-18);ctx.stroke();
+    ctx.lineWidth=2;
+
+    // Rim catch arc (small arc under rim, like Pizarra)
+    ctx.beginPath();ctx.arc(SC_CX,SC_RY,30,Math.PI,0,false);ctx.stroke();
+
+    // ── 3-POINT LINE — exact same formula as Pizarra ──────────
+    ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;
+    // Corner straight lines
     ctx.beginPath();
-    ctx.moveTo(CL_X,CH-3);ctx.lineTo(CL_X,CORNER_Y);
-    ctx.moveTo(CR_X,CH-3);ctx.lineTo(CR_X,CORNER_Y);
+    ctx.moveTo(SC_C3,SC_BL);ctx.lineTo(SC_C3,SC_BL-SC_C3h);
+    ctx.moveTo(SCW-SC_C3,SC_BL);ctx.lineTo(SCW-SC_C3,SC_BL-SC_C3h);
     ctx.stroke();
+    // Arc — same atan2 formula as Pizarra
+    const a1=Math.atan2((SC_BL-SC_C3h)-SC_RY,SC_C3-SC_CX);
+    const a2=Math.atan2((SC_BL-SC_C3h)-SC_RY,(SCW-SC_C3)-SC_CX);
+    ctx.beginPath();ctx.arc(SC_CX,SC_RY,SC_R3,a1,a2,false);ctx.stroke();
 
-    // Arc centred on basket, sweeping from left corner UP over backcourt to right corner
-    const aL=Math.atan2(CORNER_Y-BY,CL_X-BX); // ≈ -2.55 rad  (upper-left)
-    const aR=Math.atan2(CORNER_Y-BY,CR_X-BX); // ≈ -0.59 rad  (upper-right)
-    ctx.beginPath();
-    ctx.arc(BX,BY,R3,aL,aR,false); // clockwise → passes through -π/2 (UP) ✓
-    ctx.stroke();
-
-    // ── BASKET ───────────────────────────────────────────────
-    // Backboard (below basket, toward baseline)
-    ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(BX-30,BY+14);ctx.lineTo(BX+30,BY+14);ctx.stroke();
-    // Rim
-    ctx.lineWidth=2.5;
-    ctx.beginPath();ctx.arc(BX,BY,15,0,Math.PI*2);ctx.stroke();
-    // Centre dot
-    ctx.fillStyle=LINE;
-    ctx.beginPath();ctx.arc(BX,BY,5,0,Math.PI*2);ctx.fill();
+    // Zone text labels
+    ctx.fillStyle=th.mode==="dark"?"#475569":"#94a3b8";
+    ctx.font="bold 10px 'Barlow Condensed',sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText("ZONA 2",SC_CX,SC_KY+70);
+    ctx.fillStyle="#3b82f6";
+    ctx.fillText("T3",SC_CX,SC_RY-SC_R3+18);
+    ctx.fillText("T3",38,240);
+    ctx.fillText("T3",522,240);
   };
+
 
   const drawShots=ctx=>{
     const fil=shots.filter(s=>{
