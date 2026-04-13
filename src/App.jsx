@@ -1341,14 +1341,25 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
 function SesionForm({session,ejercicios,onSave,onCancel}){
   const{th}=useTheme();
   const isEdit=!!session;
+
+  // Migrate legacy exs (textarea) to unified exObjs on load
+  const migrateExObjs=()=>{
+    const objs=session?.exObjs||[];
+    const legacy=Array.isArray(session?.exs)?session.exs:((session?.exs||"").split("\n").filter(Boolean));
+    const freeFromLegacy=legacy.map((line,i)=>{
+      const parts=line.split("|");const hasTime=parts.length>1&&/^\d+$/.test(parts[0].trim());
+      return{type:"free",id:"legacy_"+i,name:hasTime?parts.slice(1).join("|").trim():line.trim(),desc:"",sesMin:hasTime?parts[0].trim():""};
+    });
+    return [...objs.map(e=>e.type?e:{...e,type:"catalog"}),...freeFromLegacy];
+  };
+
   const[f,setF]=useState({
     date:session?.date||"",
     time:session?.time||"",
     type:session?.type||"Técnico",
     dur:session?.dur||90,
     title:session?.title||"",
-    exs:Array.isArray(session?.exs)?session.exs.join("\n"):session?.exs||"",
-    exObjs:session?.exObjs||[], // ejercicios del catálogo incluidos
+    exObjs:migrateExObjs(),
     notes:session?.notes||"",
     images:session?.images||[],
   });
@@ -1356,22 +1367,35 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   const[viewEx,setViewEx]=useState(null);
 
   const addExFromCatalog=ids=>{
-    const toAdd=ids.map(id=>ejercicios.find(e=>e.id===id)).filter(Boolean);
-    setF(prev=>({...prev,exObjs:[...prev.exObjs,...toAdd.filter(e=>!prev.exObjs.some(o=>o.id===e.id))]}));
+    const toAdd=ids.map(id=>ejercicios.find(e=>e.id===id)).filter(Boolean)
+      .filter(e=>!f.exObjs.some(o=>o.id===e.id))
+      .map(e=>({...e,type:"catalog",sesMin:e.dur||"",sesNotes:""}));
+    setF(prev=>({...prev,exObjs:[...prev.exObjs,...toAdd]}));
   };
-  const removeExObj=id=>setF(prev=>({...prev,exObjs:prev.exObjs.filter(e=>e.id!==id)}));
+  const addFreeEx=()=>{
+    const newEx={type:"free",id:"free_"+Date.now(),name:"",desc:"",sesMin:"",sesNotes:""};
+    setF(prev=>({...prev,exObjs:[...prev.exObjs,newEx]}));
+  };
+  const updateEx=(idx,field,val)=>setF(prev=>({...prev,exObjs:prev.exObjs.map((e,i)=>i===idx?{...e,[field]:val}:e)}));
+  const removeEx=idx=>setF(prev=>({...prev,exObjs:prev.exObjs.filter((_,i)=>i!==idx)}));
+  const moveEx=(idx,dir)=>setF(prev=>{
+    const a=[...prev.exObjs];const t=idx+dir;
+    if(t<0||t>=a.length)return prev;
+    [a[idx],a[t]]=[a[t],a[idx]];return{...prev,exObjs:a};
+  });
 
   const save=()=>{
     if(!f.title||!f.date)return;
-    const exsList=f.exs.split("\n").filter(Boolean);
     onSave({
       ...(session||{}),
       id:session?.id||Date.now(),
       date:f.date,time:f.time,type:f.type,dur:+f.dur,
-      title:f.title,exs:exsList,exObjs:f.exObjs,
+      title:f.title,exs:[],exObjs:f.exObjs,
       notes:f.notes,images:f.images,
     });
   };
+
+  const totalMin=f.exObjs.reduce((a,e)=>a+(parseInt(e.sesMin)||0),0);
 
   return <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640",position:"relative"}}>
     {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
@@ -1386,65 +1410,103 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     </div>
     <div style={{marginBottom:12}}><Lbl>Título</Lbl><input type="text" value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder="Título de la sesión"/></div>
 
-    {/* Ejercicios del catálogo */}
+    {/* ── Lista unificada de ejercicios ── */}
     <div style={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-        <Lbl>Ejercicios del catálogo</Lbl>
-        <button onClick={()=>setShowPicker(true)} style={{display:"flex",alignItems:"center",gap:5,padding:"3px 12px",borderRadius:6,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-          <Plus size={11}/>Añadir del catálogo
-        </button>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <Lbl style={{margin:0}}>Ejercicios</Lbl>
+          {f.exObjs.length>0&&<span style={{fontSize:11,color:th.muted,fontFamily:"DM Mono"}}>
+            {f.exObjs.length} ejerc. · {totalMin} min planificados
+          </span>}
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setShowPicker(true)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:6,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <Plus size={11}/>Del catálogo
+          </button>
+          <button onClick={addFreeEx} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:6,border:"1px solid rgba(59,130,246,.4)",background:"rgba(59,130,246,.07)",cursor:"pointer",fontSize:11,color:"#3b82f6",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <Plus size={11}/>Ejercicio libre
+          </button>
+        </div>
       </div>
+
       {f.exObjs.length===0
-        ?<p style={{fontSize:11,color:th.muted}}>Sin ejercicios del catálogo. Usa el botón para seleccionar.</p>
-        :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+        ?<div style={{padding:"20px",textAlign:"center",background:th.card2,borderRadius:10,border:`1px dashed ${th.border2}`}}>
+          <p style={{fontSize:12,color:th.muted,marginBottom:6}}>Sin ejercicios. Añade del catálogo o crea uno libre.</p>
+          <p style={{fontSize:11,color:th.muted}}>Los ejercicios con tiempo asignado activan el <strong>Modo Gimnasio</strong> con timer automático.</p>
+        </div>
+        :<div style={{display:"flex",flexDirection:"column",gap:8}}>
           {f.exObjs.map((ex,idx)=>{
-            const c=CC[ex.cat]||"#f97316";
-            const updateEx=(field,val)=>setF(prev=>({...prev,exObjs:prev.exObjs.map((e,i)=>i===idx?{...e,[field]:val}:e)}));
-            return <div key={ex.id} style={{display:"grid",gridTemplateColumns:"64px 1fr auto",gap:8,padding:"10px 10px",background:th.card2,borderRadius:8,border:`1px solid ${c}40`,alignItems:"start"}}>
-              {/* Tiempo */}
-              <div>
-                <p style={{fontSize:9,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Min.</p>
+            const isFree=ex.type==="free";
+            const c=isFree?"#3b82f6":(CC[ex.cat]||"#f97316");
+            return <div key={ex.id||idx} style={{display:"grid",gridTemplateColumns:"56px 1fr 28px",gap:8,padding:"12px",background:th.card2,borderRadius:10,border:`1px solid ${c}35`,alignItems:"start"}}>
+
+              {/* Timer */}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                <p style={{fontSize:8,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase",letterSpacing:.5}}>Min</p>
                 <input type="text" inputMode="numeric" maxLength={3}
-                  value={ex.sesMin||ex.dur||""}
-                  onChange={e=>{if(/^\d*$/.test(e.target.value))updateEx("sesMin",e.target.value);}}
+                  value={ex.sesMin||""}
+                  onChange={e=>{if(/^\d*$/.test(e.target.value))updateEx(idx,"sesMin",e.target.value);}}
                   placeholder="—"
-                  style={{width:"100%",textAlign:"center",fontFamily:"DM Mono",fontSize:16,fontWeight:700,color:c,borderRadius:7,border:`1.5px solid ${c}60`,background:c+"0d",padding:"6px 4px"}}/>
+                  style={{width:48,textAlign:"center",fontFamily:"DM Mono",fontSize:18,fontWeight:700,color:c,borderRadius:7,border:`2px solid ${c}50`,background:c+"0d",padding:"6px 2px"}}/>
+                {ex.sesMin&&<p style={{fontSize:8,color:th.muted,textAlign:"center"}}>⏱ timer</p>}
               </div>
-              {/* Ejercicio + notas */}
+
+              {/* Contenido */}
               <div style={{minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,cursor:"pointer"}} onClick={()=>setViewEx(ex)}>
-                  {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:28,height:28,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
-                  <div style={{minWidth:0}}>
-                    <p style={{fontSize:13,color:th.text,fontWeight:700,fontFamily:"Barlow Condensed",lineHeight:1.1}}>{ex.name}</p>
-                    <p style={{fontSize:10,color:c}}>{ex.cat}{ex.diff?` · ${ex.diff}`:""}</p>
-                  </div>
-                </div>
-                <textarea
-                  value={ex.sesNotes||""}
-                  onChange={e=>updateEx("sesNotes",e.target.value)}
-                  placeholder="Descripción, variantes, instrucciones para esta sesión…"
-                  rows={2}
-                  style={{width:"100%",fontSize:11,lineHeight:1.5,resize:"vertical",borderRadius:6,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text,padding:"5px 8px",fontFamily:"inherit"}}/>
+                {isFree
+                  ? /* Ejercicio libre — inputs editables */
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:9,fontFamily:"Barlow Condensed",fontWeight:700,color:"#3b82f6",textTransform:"uppercase",background:"rgba(59,130,246,.1)",padding:"1px 6px",borderRadius:4,flexShrink:0}}>Libre</span>
+                        <input
+                          value={ex.name}
+                          onChange={e=>updateEx(idx,"name",e.target.value)}
+                          placeholder="Título del ejercicio…"
+                          style={{flex:1,fontSize:13,fontWeight:700,fontFamily:"Barlow Condensed",color:th.text,border:"none",borderBottom:`1px solid ${th.border2}`,background:"transparent",padding:"2px 0",outline:"none"}}/>
+                      </div>
+                      <textarea
+                        value={ex.desc||""}
+                        onChange={e=>updateEx(idx,"desc",e.target.value)}
+                        placeholder="Descripción, variantes, instrucciones…"
+                        rows={2}
+                        style={{width:"100%",fontSize:11,lineHeight:1.5,resize:"vertical",borderRadius:6,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text,padding:"5px 8px",fontFamily:"inherit"}}/>
+                    </div>
+                  : /* Ejercicio del catálogo */
+                    <div>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5,cursor:"pointer"}} onClick={()=>setViewEx(ex)}>
+                        {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:26,height:26,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                        <div style={{minWidth:0}}>
+                          <p style={{fontSize:13,color:th.text,fontWeight:700,fontFamily:"Barlow Condensed",lineHeight:1.1}}>{ex.name}</p>
+                          <p style={{fontSize:10,color:c}}>{ex.cat}{ex.diff?` · ${ex.diff}`:""}</p>
+                        </div>
+                        <span style={{fontSize:9,fontFamily:"Barlow Condensed",fontWeight:700,color:c,textTransform:"uppercase",background:c+"12",padding:"1px 6px",borderRadius:4,flexShrink:0,marginLeft:"auto"}}>Catálogo</span>
+                      </div>
+                      <textarea
+                        value={ex.sesNotes||""}
+                        onChange={e=>updateEx(idx,"sesNotes",e.target.value)}
+                        placeholder="Notas para esta sesión: variantes, énfasis, instrucciones…"
+                        rows={2}
+                        style={{width:"100%",fontSize:11,lineHeight:1.5,resize:"vertical",borderRadius:6,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text,padding:"5px 8px",fontFamily:"inherit"}}/>
+                    </div>
+                }
               </div>
-              {/* Acciones */}
-              <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"center",paddingTop:2}}>
-                <button onClick={()=>setF(prev=>{const a=[...prev.exObjs];if(idx>0){[a[idx-1],a[idx]]=[a[idx],a[idx-1]];}return{...prev,exObjs:a};})} disabled={idx===0} style={{width:22,height:22,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,cursor:"pointer",fontSize:10,color:th.muted,opacity:idx===0?.3:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>
-                <button onClick={()=>setF(prev=>{const a=[...prev.exObjs];if(idx<a.length-1){[a[idx],a[idx+1]]=[a[idx+1],a[idx]];}return{...prev,exObjs:a};})} disabled={idx===f.exObjs.length-1} style={{width:22,height:22,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,cursor:"pointer",fontSize:10,color:th.muted,opacity:idx===f.exObjs.length-1?.3:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↓</button>
-                <button onClick={()=>removeExObj(ex.id)} style={{width:22,height:22,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={11}/></button>
+
+              {/* Controles orden + borrar */}
+              <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"center",paddingTop:4}}>
+                <button onClick={()=>moveEx(idx,-1)} disabled={idx===0}
+                  style={{width:22,height:22,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card,cursor:"pointer",fontSize:11,color:th.muted,opacity:idx===0?.25:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>
+                <button onClick={()=>moveEx(idx,1)} disabled={idx===f.exObjs.length-1}
+                  style={{width:22,height:22,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card,cursor:"pointer",fontSize:11,color:th.muted,opacity:idx===f.exObjs.length-1?.25:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↓</button>
+                <button onClick={()=>removeEx(idx)}
+                  style={{width:22,height:22,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2}}><Trash2 size={11}/></button>
               </div>
             </div>;
           })}
-          <p style={{fontSize:10,color:th.muted,marginTop:2}}>💡 El campo <strong>Min.</strong> define el tiempo en el Modo Gimnasio. Usa las flechas para reordenar.</p>
+          <p style={{fontSize:10,color:th.muted,marginTop:2}}>💡 Asigna minutos a cada ejercicio para activar el timer en el <strong>Modo Gimnasio</strong>. Usa ↑↓ para reordenar.</p>
         </div>}
     </div>
 
-    <div style={{marginBottom:12}}>
-      <Lbl>Ejercicios adicionales libres</Lbl>
-      <p style={{fontSize:10,color:th.muted,marginBottom:5}}>Formato: <code style={{background:th.card2,padding:"1px 4px",borderRadius:3}}>15 | Calentamiento con balón, dribling dinámico</code> (tiempo en minutos | descripción)</p>
-      <textarea rows={4} value={f.exs} onChange={e=>setF(p=>({...p,exs:e.target.value}))}
-        placeholder={"10 | Calentamiento — carrera, estiramiento dinámico\n15 | Tiro en suspensión desde esquinas\n20 | 3 vs 3 con portador\n5 | Vuelta a la calma"}
-        style={{fontFamily:"DM Mono",fontSize:12,lineHeight:1.7,resize:"vertical"}}/></div>
-    <div style={{marginBottom:12}}><Lbl>Notas</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones, observaciones…"/></div>
+    <div style={{marginBottom:12}}><Lbl>Notas de la sesión</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones, observaciones…"/></div>
     <div style={{marginBottom:16}}><Lbl>Imágenes de la sesión (hasta 4)</Lbl><ImageUploader images={f.images} setImages={imgs=>setF(p=>({...p,images:imgs}))}/></div>
     <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
   </div>;
@@ -1466,11 +1528,12 @@ function Entrenamientos(){
   const[gymRunning,setGymRunning]=useState(false);
   const gymTimer=useRef(null);
 
+  const getGymExs=s=>(s?.exObjs||[]).filter(e=>parseInt(e.sesMin||e.dur||0)>0);
   const startGym=s=>{
-    const exs=s.exObjs||[];if(!exs.length)return;
+    const exs=getGymExs(s);
+    if(!exs.length){alert("Asigna tiempo (Min) a al menos un ejercicio para usar el Modo Gimnasio.");return;}
     setGymMode(true);setGymIdx(0);setGymRunning(false);
-    const dur=exs[0]?.sesMin?parseInt(exs[0].sesMin)*60:exs[0]?.dur?parseInt(exs[0].dur)*60:300;
-    setGymSec(dur);
+    setGymSec(parseInt(exs[0].sesMin||exs[0].dur||5)*60);
   };
   const stopGym=()=>{setGymMode(false);setGymRunning(false);clearInterval(gymTimer.current);};
 
@@ -1493,21 +1556,22 @@ function Entrenamientos(){
   const gymNextEx=(s,exs)=>{
     const next=gymIdx+1;
     if(next>=exs.length){stopGym();return;}
-    setGymIdx(next);const dur=exs[next]?.sesMin?parseInt(exs[next].sesMin)*60:exs[next]?.dur?parseInt(exs[next].dur)*60:300;
-    setGymSec(dur);setGymRunning(false);
+    setGymIdx(next);setGymSec(parseInt(exs[next].sesMin||exs[next].dur||5)*60);setGymRunning(false);
   };
   const gymPrevEx=(s,exs)=>{
     const prev=gymIdx-1;if(prev<0)return;
-    setGymIdx(prev);const dur=exs[prev]?.sesMin?parseInt(exs[prev].sesMin)*60:exs[prev]?.dur?parseInt(exs[prev].dur)*60:300;
-    setGymSec(dur);setGymRunning(false);
+    setGymIdx(prev);setGymSec(parseInt(exs[prev].sesMin||exs[prev].dur||5)*60);setGymRunning(false);
   };
   const fmt=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
   // Gym Mode overlay
   if(gymMode){
     const s=sessions.find(x=>x.id===exp);
-    const exs=s?.exObjs||[];const ex=exs[gymIdx]||{};
-    const pct=ex.sesMin?gymSec/(parseInt(ex.sesMin)*60)*100:ex.dur?gymSec/(parseInt(ex.dur)*60)*100:100;
+    const exs=getGymExs(s);const ex=exs[gymIdx]||{};
+    const durSec=parseInt(ex.sesMin||ex.dur||5)*60;
+    const pct=durSec>0?gymSec/durSec*100:100;
+    const exName=ex.name||(ex.type==="free"?"Ejercicio libre":"Ejercicio");
+    const exDesc=ex.desc||ex.sesNotes||"";
     return <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:9999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       {/* Header */}
       <div style={{position:"absolute",top:20,left:20,right:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1516,8 +1580,8 @@ function Entrenamientos(){
       </div>
       {/* Ejercicio actual */}
       <p style={{fontFamily:"Barlow Condensed",fontSize:20,color:"#f97316",fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:8}}>Ejercicio {gymIdx+1} / {exs.length}</p>
-      <h1 style={{fontFamily:"Barlow Condensed",fontSize:52,fontWeight:700,color:"#f8fafc",textAlign:"center",marginBottom:6,lineHeight:1}}>{ex.name||"Ejercicio"}</h1>
-      <p style={{fontSize:16,color:"#64748b",marginBottom:32,textAlign:"center"}}>{ex.cat||""}{ex.diff?" · "+ex.diff:""}</p>
+      <h1 style={{fontFamily:"Barlow Condensed",fontSize:52,fontWeight:700,color:"#f8fafc",textAlign:"center",marginBottom:6,lineHeight:1}}>{exName}</h1>
+      <p style={{fontSize:16,color:"#64748b",marginBottom:32,textAlign:"center"}}>{ex.cat||""}{ex.diff?" · "+ex.diff:ex.type==="free"?"Ejercicio libre":""}</p>
       {/* Timer */}
       <div style={{position:"relative",width:200,height:200,marginBottom:32}}>
         <svg width="200" height="200" style={{transform:"rotate(-90deg)"}}>
@@ -1542,10 +1606,10 @@ function Entrenamientos(){
       {/* Siguiente */}
       {gymIdx<exs.length-1&&<div style={{padding:"10px 24px",borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"rgba(255,255,255,.04)"}}>
         <p style={{fontSize:11,color:"#64748b",textAlign:"center",marginBottom:2}}>Siguiente</p>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#94a3b8"}}>{exs[gymIdx+1]?.name}</p>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#94a3b8"}}>{exs[gymIdx+1]?.name||"Ejercicio libre"}</p>
       </div>}
       {/* Descripción */}
-      {ex.desc&&<p style={{fontSize:13,color:"#475569",marginTop:20,maxWidth:400,textAlign:"center",lineHeight:1.6}}>{ex.desc}</p>}
+      {exDesc&&<p style={{fontSize:13,color:"#475569",marginTop:20,maxWidth:400,textAlign:"center",lineHeight:1.6}}>{exDesc}</p>}
     </div>;
   }
 
@@ -1669,7 +1733,7 @@ function Entrenamientos(){
               <button onClick={()=>setEditSes(s)} title="Editar" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
               <button onClick={()=>setSaveAsTemplate(s.id)} title="Guardar como plantilla" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}}><Copy size={13}/></button>
               <button onClick={()=>exportPDF(s)} title="PDF" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
-              {(s.exObjs||[]).length>0&&<button onClick={()=>startGym(s)} title="Modo Gimnasio" style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.1)",cursor:"pointer",color:"#10b981",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12}}>▶ Gimnasio</button>}
+              {(s.exObjs||[]).length>0&&<button onClick={()=>startGym(s)} title="Modo Gimnasio" style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.1)",cursor:"pointer",color:"#10b981",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12}}>▶ Gimnasio {getGymExs(s).length>0?"("+getGymExs(s).length+"ex)":""}</button>}
               <Trash2 size={13} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setSessions(p=>p.filter(x=>x.id!==s.id))}/>
               <ChevronRight size={14} color={th.muted} style={{transform:op?"rotate(90deg)":"none",transition:"transform .2s"}}/>
             </div>
