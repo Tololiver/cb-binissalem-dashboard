@@ -4561,100 +4561,94 @@ function ShotChart(){
   const[view,setView]=useState("court");
   const lastTap=useRef(0);
 
-  // Court geometry — basket at BOTTOM (same orientation as Pizarra)
-  const CW=520,CH=460;
-  const BY=400,BX=260;    // basket center near bottom
-  const R3=220;            // 3pt arc radius
-  const CL_X=125,CR_X=395;// corner 3pt line X positions
-  const PAINT={x:170,y:BY-180,w:180,h:180}; // paint above basket
-  const FT_Y=PAINT.y;     // FT line = top of paint = 220
-  const cornerDY=Math.sqrt(R3*R3-(BX-CL_X)*(BX-CL_X)); // ≈174
-  const CORNER_Y=BY-cornerDY; // y where arc meets corner lines ≈226
+  // ── Half-court geometry (landscape, basket at bottom) ─────
+  const CW=560,CH=370;
+  const BX=280,BY=305;          // basket centre
+  const R3=185;                  // 3pt arc radius px
+  const PAINT={x:200,y:145,w:160,h:160}; // paint box (bottom = BY)
+  const FT_Y=PAINT.y;           // FT line (top of paint) = 145
+  const FT_R=62;                 // FT circle radius px
+  const CL_X=125,CR_X=435;      // corner 3pt line X
+  const cDX=BX-CL_X;            // 155
+  const cDY=Math.sqrt(R3*R3-cDX*cDX); // ≈105
+  const CORNER_Y=BY-cDY;        // ≈200 — where arc meets corner lines
 
   const zoneName=({x,y})=>{
-    const dist=Math.sqrt((x-BX)*(x-BX)+(y-BY)*(y-BY));
-    const inPaint=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y>=PAINT.y&&y<=PAINT.y+PAINT.h;
-    if(inPaint&&dist<70)return"TL";
-    if(inPaint)return"T2_PAINT";
+    const d=Math.sqrt((x-BX)**2+(y-BY)**2);
+    const inP=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y>=PAINT.y&&y<=PAINT.y+PAINT.h;
+    if(inP&&d<65)return"TL";
+    if(inP)return"T2_PAINT";
     if(y>CORNER_Y&&(x<CL_X||x>CR_X))return"T3"; // corner 3
-    if(dist>R3)return"T3"; // arc 3
-    if(x<BX-70)return"T2_LEFT";
-    if(x>BX+70)return"T2_RIGHT";
+    if(d>R3)return"T3";
+    if(x<BX-75)return"T2_LEFT";
+    if(x>BX+75)return"T2_RIGHT";
     return"T2_MID";
   };
 
   const drawCourt=ctx=>{
     ctx.clearRect(0,0,CW,CH);
-    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#ecfdf5";
+    // Floor colour
+    ctx.fillStyle=th.mode==="dark"?"#1e293b":"#D4902A";
     ctx.fillRect(0,0,CW,CH);
+    const LINE=th.mode==="dark"?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.9)";
+    ctx.strokeStyle=LINE;
 
-    // Court outline
-    ctx.strokeStyle=th.mode==="dark"?"#334155":"#94a3b8";
-    ctx.lineWidth=2;ctx.strokeRect(1,1,CW-2,CH-2);
+    // Outer boundary
+    ctx.lineWidth=2.5;ctx.strokeRect(3,3,CW-6,CH-6);
 
-    // Paint / key
-    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";
+    // Paint box
     ctx.lineWidth=2;ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
 
-    // Key blocks along paint sides
-    ctx.fillStyle=th.mode==="dark"?"#334155":"#94a3b8";
+    // Key blocks (4 on each side)
     for(let i=1;i<=4;i++){
       const ky=PAINT.y+i*(PAINT.h/5);
-      ctx.fillRect(PAINT.x,ky,5,14);
-      ctx.fillRect(PAINT.x+PAINT.w-5,ky,5,14);
+      ctx.fillStyle=LINE;
+      ctx.fillRect(PAINT.x,ky,5,13);
+      ctx.fillRect(PAINT.x+PAINT.w-5,ky,5,13);
     }
 
-    // FT circle — solid upper half (away from basket, above FT line)
-    ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;
+    // FT circle — solid half (away from basket, toward backcourt)
+    ctx.lineWidth=2;
     ctx.beginPath();
-    ctx.arc(BX,FT_Y,62,Math.PI,0,false); // clockwise from left through TOP to right
+    ctx.arc(BX,FT_Y,FT_R,Math.PI,0,false); // top half
     ctx.stroke();
-    // Dashed lower half (toward basket, inside paint)
-    ctx.setLineDash([5,4]);
+    // Dashed half (toward basket)
+    ctx.setLineDash([6,5]);
     ctx.beginPath();
-    ctx.arc(BX,FT_Y,62,0,Math.PI,false); // clockwise from right through BOTTOM to left
+    ctx.arc(BX,FT_Y,FT_R,0,Math.PI,false); // bottom half
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // ── 3-POINT LINE ──────────────────────────────────────────
-    ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;
+    // ── 3-POINT LINE ─────────────────────────────────────────
+    ctx.lineWidth=2.5;
 
-    // Corner lines: from baseline UPWARD to where arc starts
+    // Corner straight lines (from baseline up to where arc starts)
     ctx.beginPath();
-    ctx.moveTo(CL_X,CH);ctx.lineTo(CL_X,CORNER_Y);
-    ctx.moveTo(CR_X,CH);ctx.lineTo(CR_X,CORNER_Y);
+    ctx.moveTo(CL_X,CH-3);ctx.lineTo(CL_X,CORNER_Y);
+    ctx.moveTo(CR_X,CH-3);ctx.lineTo(CR_X,CORNER_Y);
     ctx.stroke();
 
-    // Arc from left corner sweeping UP through backcourt to right corner
-    const angL=Math.atan2(CORNER_Y-BY,CL_X-BX); // ≈ -2.24 rad (upper-left)
-    const angR=Math.atan2(CORNER_Y-BY,CR_X-BX); // ≈ -0.91 rad (upper-right)
+    // Arc centred on basket, sweeping from left corner UP over backcourt to right corner
+    const aL=Math.atan2(CORNER_Y-BY,CL_X-BX); // ≈ -2.55 rad  (upper-left)
+    const aR=Math.atan2(CORNER_Y-BY,CR_X-BX); // ≈ -0.59 rad  (upper-right)
     ctx.beginPath();
-    ctx.arc(BX,BY,R3,angL,angR,false); // clockwise → passes through -π/2 (UP) ✓
+    ctx.arc(BX,BY,R3,aL,aR,false); // clockwise → passes through -π/2 (UP) ✓
     ctx.stroke();
 
-    // ── BASKET ────────────────────────────────────────────────
-    // Backboard below basket
-    ctx.strokeStyle="#f97316";ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(BX-28,BY+12);ctx.lineTo(BX+28,BY+12);ctx.stroke();
+    // ── BASKET ───────────────────────────────────────────────
+    // Backboard (below basket, toward baseline)
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(BX-30,BY+14);ctx.lineTo(BX+30,BY+14);ctx.stroke();
     // Rim
-    ctx.beginPath();ctx.arc(BX,BY,14,0,Math.PI*2);
-    ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
-    ctx.beginPath();ctx.arc(BX,BY,5,0,Math.PI*2);
-    ctx.fillStyle="#f97316";ctx.fill();
-
-    // Zone labels
-    ctx.font="bold 10px 'Barlow Condensed',sans-serif";
-    ctx.textAlign="center";
-    ctx.fillStyle=th.mode==="dark"?"#475569":"#94a3b8";
-    ctx.fillText("ZONA 2",BX,FT_Y+55);
-    ctx.fillStyle="#3b82f6";
-    ctx.fillText("T3",BX,BY-R3+22);
-    ctx.fillText("T3",55,220);
-    ctx.fillText("T3",465,220);
+    ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(BX,BY,15,0,Math.PI*2);ctx.stroke();
+    // Centre dot
+    ctx.fillStyle=LINE;
+    ctx.beginPath();ctx.arc(BX,BY,5,0,Math.PI*2);ctx.fill();
   };
 
   const drawShots=ctx=>{
-    const filtered=shots.filter(s=>{
+    const fil=shots.filter(s=>{
       if(filterPid!=="all"&&String(s.pid)!==String(filterPid))return false;
       if(filterMatch!=="all"&&String(s.matchId)!==filterMatch)return false;
       return true;
@@ -4662,27 +4656,26 @@ function ShotChart(){
     if(showHeat){
       const hc=document.createElement("canvas");hc.width=CW;hc.height=CH;
       const hx=hc.getContext("2d");
-      filtered.forEach(s=>{
+      fil.forEach(s=>{
         const g=hx.createRadialGradient(s.x,s.y,0,s.x,s.y,40);
-        const col=s.made?"rgba(16,185,129,":"rgba(239,68,68,";
-        g.addColorStop(0,col+"0.4)");g.addColorStop(1,col+"0)");
+        g.addColorStop(0,(s.made?"rgba(16,185,129,":"rgba(239,68,68,")+"0.45)");
+        g.addColorStop(1,(s.made?"rgba(16,185,129,":"rgba(239,68,68,")+"0)");
         hx.fillStyle=g;hx.fillRect(s.x-40,s.y-40,80,80);
       });
-      ctx.drawImage(hc,0,0);
+      ctx.globalAlpha=0.7;ctx.drawImage(hc,0,0);ctx.globalAlpha=1;
     }
-    filtered.forEach(s=>{
+    fil.forEach(s=>{
       const r=showNums&&s.pid?9:7;
       ctx.beginPath();ctx.arc(s.x,s.y,r,0,Math.PI*2);
       ctx.fillStyle=s.made?"#10b981":"#ef4444";
-      ctx.globalAlpha=0.9;ctx.fill();ctx.globalAlpha=1;
+      ctx.globalAlpha=0.92;ctx.fill();ctx.globalAlpha=1;
       ctx.strokeStyle="#fff";ctx.lineWidth=1.5;ctx.stroke();
       if(showNums&&s.pid){
         const pl=players.find(p=>String(p.id)===String(s.pid));
         if(pl){
           ctx.font="bold 8px 'DM Mono',monospace";
           ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="middle";
-          ctx.fillText(pl.num,s.x,s.y);
-          ctx.textBaseline="alphabetic";
+          ctx.fillText(pl.num,s.x,s.y);ctx.textBaseline="alphabetic";
         }
       } else if(!s.made){
         ctx.strokeStyle="#fff";ctx.lineWidth=1.5;
@@ -4702,19 +4695,16 @@ function ShotChart(){
 
   const getPos=e=>{
     const rect=cr.current.getBoundingClientRect();
-    const scaleX=CW/rect.width,scaleY=CH/rect.height;
     const touch=e.touches?e.touches[0]:e;
-    return{x:(touch.clientX-rect.left)*scaleX,y:(touch.clientY-rect.top)*scaleY};
+    return{x:(touch.clientX-rect.left)*CW/rect.width,y:(touch.clientY-rect.top)*CH/rect.height};
   };
 
   const handleTap=e=>{
     e.preventDefault();
-    const now=Date.now();const isDouble=now-lastTap.current<350;
-    lastTap.current=now;
+    const now=Date.now();const dbl=now-lastTap.current<350;lastTap.current=now;
     const{x,y}=getPos(e);
-    const z=zoneName({x,y});
-    const pid=filterPid==="all"?null:filterPid;
-    setShots(prev=>[...prev,{id:Date.now(),x,y,made:isDouble,zone:z,pid,matchId:filterMatch==="all"?null:filterMatch}]);
+    setShots(prev=>[...prev,{id:Date.now(),x,y,made:dbl,zone:zoneName({x,y}),
+      pid:filterPid==="all"?null:filterPid,matchId:filterMatch==="all"?null:filterMatch}]);
   };
 
   const filtered=shots.filter(s=>{
@@ -4728,20 +4718,17 @@ function ShotChart(){
   const zones=["T2_PAINT","T2_LEFT","T2_MID","T2_RIGHT","T3","TL"];
   const zoneLabel={"T2_PAINT":"Pintura","T2_LEFT":"T2 Izq","T2_MID":"T2 Centro","T2_RIGHT":"T2 Der","T3":"Triples","TL":"TL"};
 
-  // Stats por jugador
   const playerStats=players.filter(p=>p.active).map(p=>{
-    const pShots=shots.filter(s=>String(s.pid)===String(p.id));
-    const pMade=pShots.filter(s=>s.made).length;
-    const t2=pShots.filter(s=>s.zone!=="T3"&&s.zone!=="TL");
-    const t3=pShots.filter(s=>s.zone==="T3");
-    return{p,total:pShots.length,made:pMade,pct:pShots.length?Math.round(pMade/pShots.length*100):null,
+    const ps=shots.filter(s=>String(s.pid)===String(p.id));
+    const pm=ps.filter(s=>s.made).length;
+    const t2=ps.filter(s=>s.zone!=="T3"&&s.zone!=="TL");
+    const t3=ps.filter(s=>s.zone==="T3");
+    return{p,total:ps.length,made:pm,pct:ps.length?Math.round(pm/ps.length*100):null,
       t2m:t2.filter(s=>s.made).length,t2i:t2.length,t3m:t3.filter(s=>s.made).length,t3i:t3.length};
   }).filter(s=>s.total>0).sort((a,b)=>b.total-a.total);
 
   return <div>
     <SH title="Shot Chart" sub="1 clic = fallo · 2 clics rápidos = acierto"/>
-
-    {/* Filtros y controles */}
     <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
       <select value={filterPid} onChange={e=>setFilterPid(e.target.value)} style={{fontSize:11}}>
         <option value="all">Todos los jugadores</option>
@@ -4751,35 +4738,33 @@ function ShotChart(){
         <option value="all">Todos los partidos</option>
         {matches.map(m=><option key={m.id} value={m.id}>{m.date} vs {m.rival}</option>)}
       </select>
-      <div style={{display:"flex",gap:4,marginLeft:4}}>
+      <div style={{display:"flex",gap:4}}>
         {[["court","🏀 Pista"],["stats","📊 Stats"]].map(([v,l])=>(
           <button key={v} onClick={()=>setView(v)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700,background:view===v?"#f97316":th.card2,color:view===v?"#fff":th.sub}}>{l}</button>
         ))}
       </div>
-      <button onClick={()=>setShowHeat(!showHeat)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:showHeat?"rgba(249,115,22,.12)":th.card2,color:showHeat?"#f97316":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}>🌡 Calor</button>
-      <button onClick={()=>setShowNums(!showNums)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:showNums?"rgba(59,130,246,.12)":th.card2,color:showNums?"#3b82f6":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}># Dorsales</button>
+      <button onClick={()=>setShowHeat(h=>!h)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:showHeat?"rgba(249,115,22,.12)":th.card2,color:showHeat?"#f97316":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}>🌡 Calor</button>
+      <button onClick={()=>setShowNums(n=>!n)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:showNums?"rgba(59,130,246,.12)":th.card2,color:showNums?"#3b82f6":th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700}}># Dorsales</button>
       <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-        <button onClick={()=>setShots(prev=>prev.slice(0,-1))} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>↩</button>
+        <button onClick={()=>setShots(p=>p.slice(0,-1))} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>↩</button>
         <button onClick={()=>setShots([])} disabled={!shots.length} style={{padding:"4px 10px",borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",fontSize:11,cursor:"pointer",opacity:shots.length?1:.4}}>Limpiar</button>
       </div>
     </div>
 
-    {view==="court"&&<div style={{display:"grid",gridTemplateColumns:"1fr 200px",gap:14}}>
-      {/* Canvas */}
+    {view==="court"&&<div style={{display:"grid",gridTemplateColumns:"1fr 190px",gap:14}}>
       <div className="card" style={{padding:12}}>
         <div style={{borderRadius:8,overflow:"hidden",lineHeight:0,border:`1px solid ${th.border}`}}>
           <canvas ref={cr} width={CW} height={CH} style={{width:"100%",height:"auto",display:"block",cursor:"crosshair",touchAction:"none"}}
             onClick={handleTap} onTouchEnd={handleTap}/>
         </div>
         <p style={{fontSize:10,color:th.muted,marginTop:6,textAlign:"center"}}>
-          🟢 Acierto (2 clics) &nbsp; 🔴 Fallo (1 clic) &nbsp;·&nbsp; # = dorsal del tirador
+          🟢 Acierto (2 clics) &nbsp;🔴 Fallo (1 clic) &nbsp;·&nbsp; # = dorsal
         </p>
       </div>
-      {/* Stats sidebar */}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         <div className="card" style={{padding:14,textAlign:"center"}}>
-          <p style={{fontFamily:"DM Mono",fontSize:36,fontWeight:700,color:pct>=50?"#10b981":"#ef4444",lineHeight:1}}>{total?pct+"%":"—"}</p>
-          <p style={{fontSize:10,color:th.muted,marginTop:3}}>Efectividad global</p>
+          <p style={{fontFamily:"DM Mono",fontSize:34,fontWeight:700,color:pct>=50?"#10b981":"#ef4444",lineHeight:1}}>{total?pct+"%":"—"}</p>
+          <p style={{fontSize:10,color:th.muted,marginTop:3}}>Efectividad</p>
           <p style={{fontFamily:"DM Mono",fontSize:12,color:th.sub,marginTop:4}}>{made}/{total} tiros</p>
         </div>
         <div className="card" style={{padding:14}}>
@@ -4800,32 +4785,32 @@ function ShotChart(){
               <p style={{fontSize:8,color:th.muted,marginTop:1}}>{zM}/{zS.length}</p>
             </div>;
           })}
-          {!filtered.length&&<p style={{fontSize:10,color:th.muted}}>Sin tiros registrados</p>}
+          {!filtered.length&&<p style={{fontSize:10,color:th.muted}}>Haz clic en la pista para añadir tiros</p>}
         </div>
       </div>
     </div>}
 
     {view==="stats"&&<div className="card" style={{overflow:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}>
         <thead>
           <tr style={{background:th.tableHead}}>
-            {["Jugador","Tiros","Aciertos","% Total","T2 int","T2 met","% T2","T3 int","T3 met","% T3"].map(h=>(
-              <th key={h} style={{padding:"8px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5,fontWeight:700}}>{h}</th>
+            {["Jugador","Tiros","Aciert.","% Tot","T2 int","T2 met","% T2","T3 int","T3 met","% T3"].map(h=>(
+              <th key={h} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",fontWeight:700}}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {playerStats.length===0&&<tr><td colSpan={10} style={{padding:24,textAlign:"center",color:th.muted,fontSize:12}}>Sin tiros registrados. Ve a la vista Pista y añade tiros filtrando por jugador.</td></tr>}
+          {playerStats.length===0&&<tr><td colSpan={10} style={{padding:24,textAlign:"center",color:th.muted,fontSize:12}}>Sin tiros registrados. Ve a Pista, selecciona un jugador y añade sus tiros.</td></tr>}
           {playerStats.map(({p,total,made,pct,t2m,t2i,t3m,t3i})=>(
             <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
               <td style={{padding:"8px 10px"}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:24,height:24,borderRadius:12,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
+                  <div style={{width:22,height:22,borderRadius:11,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
                   <span style={{fontSize:12,color:th.text,fontFamily:"Barlow Condensed",fontWeight:700}}>{p.name.split(" ")[0]}</span>
                 </div>
               </td>
               {[total,made,pct!=null?pct+"%":"—",t2i,t2m,t2i?Math.round(t2m/t2i*100)+"%":"—",t3i,t3m,t3i?Math.round(t3m/t3i*100)+"%":"—"].map((v,i)=>(
-                <td key={i} style={{padding:"8px 10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,
+                <td key={i} style={{padding:"8px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,
                   color:String(v).includes("%")?(parseInt(v)>=50?"#10b981":"#ef4444"):th.text,fontWeight:String(v).includes("%")?700:400}}>
                   {v}
                 </td>
@@ -4834,12 +4819,10 @@ function ShotChart(){
           ))}
         </tbody>
       </table>
-      {playerStats.length>0&&<div style={{padding:"10px 16px",borderTop:`1px solid ${th.border}`,fontSize:11,color:th.muted}}>
-        Total equipo: {filtered.length} tiros · {made} aciertos · {pct}% efectividad
-      </div>}
     </div>}
   </div>;
 }
+
 
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
