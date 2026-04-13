@@ -4561,24 +4561,23 @@ function ShotChart(){
   const[view,setView]=useState("court");
   const lastTap=useRef(0);
 
-  // Court geometry — basket at TOP, baseline at BOTTOM
-  const CW=520,CH=440;
-  const PAINT={x:170,y:0,w:180,h:180};
-  const BX=260,BY=184;  // basket center (middle of paint bottom)
-  const R3=220;          // 3pt arc radius in canvas px
-  const CL_X=125,CR_X=395; // corner 3pt line X positions
-  const cornerDY=Math.sqrt(R3*R3-(BX-CL_X)*(BX-CL_X));
-  const CORNER_Y=BY+cornerDY; // y where arc meets corner lines ≈ 358
+  // Court geometry — basket at BOTTOM (same orientation as Pizarra)
+  const CW=520,CH=460;
+  const BY=400,BX=260;    // basket center near bottom
+  const R3=220;            // 3pt arc radius
+  const CL_X=125,CR_X=395;// corner 3pt line X positions
+  const PAINT={x:170,y:BY-180,w:180,h:180}; // paint above basket
+  const FT_Y=PAINT.y;     // FT line = top of paint = 220
+  const cornerDY=Math.sqrt(R3*R3-(BX-CL_X)*(BX-CL_X)); // ≈174
+  const CORNER_Y=BY-cornerDY; // y where arc meets corner lines ≈226
 
   const zoneName=({x,y})=>{
     const dist=Math.sqrt((x-BX)*(x-BX)+(y-BY)*(y-BY));
     const inPaint=x>=PAINT.x&&x<=PAINT.x+PAINT.w&&y>=PAINT.y&&y<=PAINT.y+PAINT.h;
     if(inPaint&&dist<70)return"TL";
     if(inPaint)return"T2_PAINT";
-    // Corner 3: below CORNER_Y outside the corner lines
-    if(y>CORNER_Y&&(x<CL_X||x>CR_X))return"T3";
-    // Arc 3
-    if(dist>R3)return"T3";
+    if(y>CORNER_Y&&(x<CL_X||x>CR_X))return"T3"; // corner 3
+    if(dist>R3)return"T3"; // arc 3
     if(x<BX-70)return"T2_LEFT";
     if(x>BX+70)return"T2_RIGHT";
     return"T2_MID";
@@ -4586,7 +4585,6 @@ function ShotChart(){
 
   const drawCourt=ctx=>{
     ctx.clearRect(0,0,CW,CH);
-    // Floor
     ctx.fillStyle=th.mode==="dark"?"#1e293b":"#ecfdf5";
     ctx.fillRect(0,0,CW,CH);
 
@@ -4598,55 +4596,61 @@ function ShotChart(){
     ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";
     ctx.lineWidth=2;ctx.strokeRect(PAINT.x,PAINT.y,PAINT.w,PAINT.h);
 
-    // Key blocks
+    // Key blocks along paint sides
     ctx.fillStyle=th.mode==="dark"?"#334155":"#94a3b8";
     for(let i=1;i<=4;i++){
-      ctx.fillRect(PAINT.x,PAINT.y+i*34,5,14);
-      ctx.fillRect(PAINT.x+PAINT.w-5,PAINT.y+i*34,5,14);
+      const ky=PAINT.y+i*(PAINT.h/5);
+      ctx.fillRect(PAINT.x,ky,5,14);
+      ctx.fillRect(PAINT.x+PAINT.w-5,ky,5,14);
     }
 
-    // FT circle — upper half solid
+    // FT circle — solid upper half (away from basket, above FT line)
     ctx.strokeStyle=th.mode==="dark"?"#475569":"#64748b";ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(BX,PAINT.y+PAINT.h,62,Math.PI,0);ctx.stroke();
-    // lower half dashed
+    ctx.beginPath();
+    ctx.arc(BX,FT_Y,62,Math.PI,0,false); // clockwise from left through TOP to right
+    ctx.stroke();
+    // Dashed lower half (toward basket, inside paint)
     ctx.setLineDash([5,4]);
-    ctx.beginPath();ctx.arc(BX,PAINT.y+PAINT.h,62,0,Math.PI);ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(BX,FT_Y,62,0,Math.PI,false); // clockwise from right through BOTTOM to left
+    ctx.stroke();
     ctx.setLineDash([]);
 
-    // ── 3-POINT LINE (correct geometry) ──────────────────────
+    // ── 3-POINT LINE ──────────────────────────────────────────
     ctx.strokeStyle="#3b82f6";ctx.lineWidth=2.5;
 
-    // Corner lines: vertical from baseline up to where arc begins
+    // Corner lines: from baseline UPWARD to where arc starts
     ctx.beginPath();
     ctx.moveTo(CL_X,CH);ctx.lineTo(CL_X,CORNER_Y);
     ctx.moveTo(CR_X,CH);ctx.lineTo(CR_X,CORNER_Y);
     ctx.stroke();
 
-    // Arc centered on basket, from left corner to right corner going BELOW
-    const angL=Math.atan2(CORNER_Y-BY,CL_X-BX); // ≈ 2.24 rad
-    const angR=Math.atan2(CORNER_Y-BY,CR_X-BX); // ≈ 0.91 rad
+    // Arc from left corner sweeping UP through backcourt to right corner
+    const angL=Math.atan2(CORNER_Y-BY,CL_X-BX); // ≈ -2.24 rad (upper-left)
+    const angR=Math.atan2(CORNER_Y-BY,CR_X-BX); // ≈ -0.91 rad (upper-right)
     ctx.beginPath();
-    ctx.arc(BX,BY,R3,angL,angR,true); // anticlockwise → passes through bottom
+    ctx.arc(BX,BY,R3,angL,angR,false); // clockwise → passes through -π/2 (UP) ✓
     ctx.stroke();
 
     // ── BASKET ────────────────────────────────────────────────
+    // Backboard below basket
+    ctx.strokeStyle="#f97316";ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(BX-28,BY+12);ctx.lineTo(BX+28,BY+12);ctx.stroke();
+    // Rim
     ctx.beginPath();ctx.arc(BX,BY,14,0,Math.PI*2);
     ctx.strokeStyle="#f97316";ctx.lineWidth=2.5;ctx.stroke();
     ctx.beginPath();ctx.arc(BX,BY,5,0,Math.PI*2);
     ctx.fillStyle="#f97316";ctx.fill();
-    // Backboard
-    ctx.strokeStyle="#f97316";ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(BX-28,BY-10);ctx.lineTo(BX+28,BY-10);ctx.stroke();
 
-    // ── ZONE LABELS ───────────────────────────────────────────
+    // Zone labels
     ctx.font="bold 10px 'Barlow Condensed',sans-serif";
     ctx.textAlign="center";
     ctx.fillStyle=th.mode==="dark"?"#475569":"#94a3b8";
-    ctx.fillText("ZONA 2",BX,PAINT.y+PAINT.h-28);
+    ctx.fillText("ZONA 2",BX,FT_Y+55);
     ctx.fillStyle="#3b82f6";
-    ctx.fillText("T3",BX,BY+R3-20);     // bottom center (near arc bottom)
-    ctx.fillText("T3",62,280);           // left wing
-    ctx.fillText("T3",460,280);          // right wing
+    ctx.fillText("T3",BX,BY-R3+22);
+    ctx.fillText("T3",55,220);
+    ctx.fillText("T3",465,220);
   };
 
   const drawShots=ctx=>{
