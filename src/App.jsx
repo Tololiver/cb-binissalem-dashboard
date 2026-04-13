@@ -4239,6 +4239,109 @@ function BasketballIQ(){
 /* ══════════════════════════════════════════════════════════
    BLOQUE E — Informes personalizados
 ══════════════════════════════════════════════════════════ */
+/* ── Formulario de informe — componente de nivel superior para evitar pérdida de foco ── */
+function InformesEditForm({form,setForm,onSave,onCancel,aiLoading,aiMsg,correctWithAI,cats,th}){
+  const taRef=useRef(null);
+
+  // Insert formatting at cursor
+  const insertFormat=(prefix,suffix="")=>{
+    const ta=taRef.current;if(!ta)return;
+    const start=ta.selectionStart,end=ta.selectionEnd;
+    const sel=form.content.slice(start,end);
+    const before=form.content.slice(0,start);
+    const after=form.content.slice(end);
+    const newText=before+prefix+sel+suffix+after;
+    setForm(f=>({...f,content:newText}));
+    // Restore cursor after state update
+    requestAnimationFrame(()=>{
+      ta.focus();
+      const cur=start+prefix.length+(sel?sel.length:0)+(suffix&&!sel?0:suffix.length);
+      ta.setSelectionRange(
+        start+prefix.length,
+        start+prefix.length+(sel?sel.length:0)
+      );
+    });
+  };
+
+  const FmtBtn=({label,title,onClick})=>(
+    <button type="button" onClick={onClick} title={title}
+      style={{padding:"3px 10px",borderRadius:5,border:`1px solid`,borderColor:"rgba(255,255,255,.12)",
+        background:"rgba(255,255,255,.06)",cursor:"pointer",fontSize:12,fontFamily:"inherit",
+        color:"#94a3b8",lineHeight:1.4}}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 160px",gap:12,marginBottom:12}}>
+        <div><Lbl>Título</Lbl>
+          <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Título del informe"/>
+        </div>
+        <div><Lbl>Categoría</Lbl>
+          <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+            {cats.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{marginBottom:10}}>
+        {/* Header de contenido */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <Lbl>Contenido</Lbl>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            {aiMsg&&<span style={{fontSize:11,color:aiMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{aiMsg}</span>}
+            <Btn onClick={correctWithAI} disabled={aiLoading} variant="ghost" sm
+              icon={aiLoading?<Loader size={12} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={12}/>}>
+              {aiLoading?"Revisando…":"IA: Corregir"}
+            </Btn>
+          </div>
+        </div>
+
+        {/* Barra de formato */}
+        <div style={{display:"flex",gap:5,marginBottom:6,padding:"6px 8px",background:"rgba(0,0,0,.15)",borderRadius:"8px 8px 0 0",border:`1px solid ${th.border2}`,borderBottom:"none",flexWrap:"wrap"}}>
+          <FmtBtn label="B" title="Negrita (**texto**)" onClick={()=>insertFormat("**","**")}/>
+          <FmtBtn label="I" title="Cursiva (_texto_)" onClick={()=>insertFormat("_","_")}/>
+          <FmtBtn label="H1" title="Título grande (# Título)" onClick={()=>insertFormat("# ")}/>
+          <FmtBtn label="H2" title="Subtítulo (## Sección)" onClick={()=>insertFormat("## ")}/>
+          <div style={{width:1,background:"rgba(255,255,255,.1)",margin:"0 2px"}}/>
+          <FmtBtn label="— lista" title="Elemento de lista" onClick={()=>insertFormat("- ")}/>
+          <FmtBtn label="↵ línea" title="Salto de párrafo" onClick={()=>{
+            const ta=taRef.current;if(!ta)return;
+            const start=ta.selectionStart;
+            const before=form.content.slice(0,start);
+            const after=form.content.slice(start);
+            setForm(f=>({...f,content:before+"\n\n"+after}));
+            requestAnimationFrame(()=>{ta.focus();ta.setSelectionRange(start+2,start+2);});
+          }}/>
+          <div style={{width:1,background:"rgba(255,255,255,.1)",margin:"0 2px"}}/>
+          <span style={{fontSize:10,color:"#64748b",alignSelf:"center",marginLeft:2}}>
+            Markdown: **negrita** _cursiva_ # título
+          </span>
+        </div>
+
+        {/* Textarea principal */}
+        <textarea
+          ref={taRef}
+          rows={16}
+          value={form.content}
+          onChange={e=>setForm(f=>({...f,content:e.target.value}))}
+          onKeyDown={e=>{
+            // Tab → inserta espacios sin perder foco
+            if(e.key==="Tab"){e.preventDefault();insertFormat("  ");}
+          }}
+          placeholder={"Escribe tu informe aquí…\n\nUsa la barra de formato o escribe markdown directamente:\n**negrita**  _cursiva_  # Título  ## Sección\n- elemento de lista"}
+          style={{fontFamily:"DM Mono",fontSize:12,lineHeight:1.8,borderRadius:"0 0 8px 8px",resize:"vertical",width:"100%"}}/>
+      </div>
+
+      <div style={{display:"flex",gap:8}}>
+        <Btn onClick={onSave}>Guardar</Btn>
+        <Btn onClick={onCancel} variant="ghost">Cancelar</Btn>
+      </div>
+    </div>
+  );
+}
+
 function Informes(){
   const{th}=useTheme();const{apiKey}=useData();
   const[informes,setInformes]=useState([]);
@@ -4289,39 +4392,14 @@ function Informes(){
     w.document.close();setTimeout(()=>w.print(),400);
   };
 
-  const EditForm=({onSave,onCancel})=>(
-    <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 160px",gap:12,marginBottom:12}}>
-        <div><Lbl>Título</Lbl><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Título del informe"/></div>
-        <div><Lbl>Categoría</Lbl><select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{cats.map(c=><option key={c}>{c}</option>)}</select></div>
-      </div>
-      <div style={{marginBottom:10}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <Lbl>Contenido</Lbl>
-          <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            {aiMsg&&<span style={{fontSize:11,color:aiMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{aiMsg}</span>}
-            <Btn onClick={correctWithAI} disabled={aiLoading} variant="ghost" sm
-              icon={aiLoading?<Loader size={12} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={12}/>}>
-              {aiLoading?"Revisando…":"IA: Corregir texto"}
-            </Btn>
-          </div>
-        </div>
-        <textarea rows={14} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))}
-          placeholder={"Escribe tu informe aquí…\n\nPuedes usar formato markdown:\n# Título\n## Sección\n**negrita** · - lista"}
-          style={{fontFamily:"DM Mono",fontSize:12,lineHeight:1.7}}/>
-        <p style={{fontSize:10,color:th.muted,marginTop:4}}>Soporta formato markdown. El botón IA corrige gramática, tono y estilo manteniendo los datos.</p>
-      </div>
-      <div style={{display:"flex",gap:8}}><Btn onClick={onSave}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
-    </div>
-  );
-
+  const formProps={form,setForm,onCancel:()=>{setShowNew(false);setEditId(null);},aiLoading,aiMsg,correctWithAI,cats,th};
   const catColors={Táctico:"#3b82f6",Partido:"#f97316",Jugador:"#10b981",Temporada:"#8b5cf6",Otro:"#64748b"};
 
   return <div>
     <SH title="Informes" sub="Crear · Editar · Exportar PDF · Corrección IA"
       right={<Btn onClick={()=>{setShowNew(true);setEditId(null);setForm({title:"",category:"Táctico",content:"",date:new Date().toISOString().split("T")[0]});}} icon={<Plus size={14}/>}>Nuevo informe</Btn>}/>
 
-    {showNew&&!editId&&<EditForm onSave={saveNew} onCancel={()=>setShowNew(false)}/>}
+    {showNew&&!editId&&<InformesEditForm {...formProps} onSave={saveNew}/>}
 
     {informes.length===0&&!showNew&&<div className="card" style={{padding:48,textAlign:"center"}}>
       <FileText size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/>
@@ -4331,7 +4409,7 @@ function Informes(){
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
       {informes.map(r=>{
         const c=catColors[r.category]||"#64748b";
-        if(editId===r.id)return <EditForm key={r.id} onSave={saveEdit} onCancel={()=>setEditId(null)}/>;
+        if(editId===r.id)return <InformesEditForm key={r.id} {...formProps} onSave={saveEdit}/>;
         return <div key={r.id} className="card" style={{padding:0,overflow:"hidden",borderLeft:`4px solid ${c}`}}>
           <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:12}}>
             <div style={{flex:1}}>
