@@ -3168,7 +3168,7 @@ function IAAsistente(){
 
       const rivalIntro=(rivalName?"Rival: "+rivalName+".\n":"")+(rivalText?"Información general:\n"+rivalText+"\n\n":"")+(rpStr?"Jugadores conocidos:\n"+rpStr+"\n\n":"");
       const playsRec=playsCtx?"\n6. JUGADAS DE NUESTRO PLAYBOOK recomendadas — analiza cuáles encajan mejor contra este rival y por qué":"";
-      const jsonInstr=!hasManualPlayers?"\nAdemás, si encuentras jugadores identificables, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
+      const jsonInstr=!hasManualPlayers?"\nAdemás, si encuentras jugadores identificables, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nIMPORTANTE: Excluye cualquier entrada que no sea un jugador real con nombre y apellido (ej: 'J Jugadors/es inscrits/es a mà', 'Jugador anónimo', entradas administrativas, totales de equipo, etc.).\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
       const promptText=rivalIntro+"Genera el informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR (con datos concretos)\n5. JUGADAS CLAVE a preparar"+playsRec+jsonInstr+"\n\nSé específico y práctico."+playsCtx;
       content.push({type:"text",text:promptText});
 
@@ -3204,16 +3204,36 @@ function IAAsistente(){
             try{
               const parsed=JSON.parse(jsonStr);
               if(Array.isArray(parsed)&&parsed.length>0){
-                extractedPlayers=parsed.map((p,i)=>({
-                  id:Date.now()+i,
-                  num:p.num||String(i+1),
-                  name:(p.name||`Jugador ${i+1}`).trim(),
-                  pj:p.pj||"",pt:p.pt||"",min:p.min||"",
-                  tl_i:p.tl_i||"",tl_m:p.tl_m||"",
-                  t2_i:p.t2_i||"",t2_m:p.t2_m||"",
-                  t3_i:p.t3_i||"",t3_m:p.t3_m||"",
-                  fc:p.fc||"",
-                }));
+                // Filter out anonymous/administrative entries
+                const ANON_PATTERNS=[
+                  /jugador[s]?\s*\/?\s*es\s+inscrits/i,  // "J Jugadors/es inscrits/es a mà"
+                  /inscrit[s]?\s*\/?\s*es/i,
+                  /a\s+m[àa]/i,                           // "a mà"
+                  /^jugador\s+an[oò]nim/i,
+                  /^total/i,
+                  /^\s*j\s+jugador/i,
+                ];
+                const isAnon=name=>{
+                  const n=(name||"").trim();
+                  if(!n||n.length<3)return true;
+                  // Must have at least 2 words (first name + surname)
+                  const words=n.split(/\s+/).filter(Boolean);
+                  if(words.length<2)return true;
+                  return ANON_PATTERNS.some(re=>re.test(n));
+                };
+                extractedPlayers=parsed
+                  .filter(p=>!isAnon(p.name))
+                  .map((p,i)=>({
+                    id:Date.now()+i,
+                    num:p.num||String(i+1),
+                    name:(p.name||`Jugador ${i+1}`).trim(),
+                    pj:p.pj||"",pt:p.pt||"",min:p.min||"",
+                    tl_i:p.tl_i||"",tl_m:p.tl_m||"",
+                    t2_i:p.t2_i||"",t2_m:p.t2_m||"",
+                    t3_i:p.t3_i||"",t3_m:p.t3_m||"",
+                    fc:p.fc||"",
+                  }));
+                if(extractedPlayers.length===0)extractedPlayers=null;
                 // Eliminar el bloque PLAYERS_JSON del texto visible
                 fullText=fullText.slice(0,pjIdx).trim();
               }
@@ -3404,6 +3424,21 @@ function IAAsistente(){
 
         {/* Resultado generado */}
         {rivalLoading&&<div style={{textAlign:"center",padding:"40px 0"}}><Loader size={28} color="#f97316" style={{animation:"spin 1s linear infinite",margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:13}}>La IA está analizando…</p></div>}
+
+        {/* Top 10 — siempre visible si hay datos, independiente del informe IA */}
+        {!rivalLoading&&(()=>{
+          const allP=(rivalResult?.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
+            .filter(p=>p.name&&(parseInt(p.pt)||parseInt(p.pj)||parseInt(p.min)||parseInt(p.tl_i)||parseInt(p.t2_i)||parseInt(p.t3_i)||parseInt(p.fc)));
+          if(!allP.length)return null;
+          const ranked=[...allP].map(p=>{
+            const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
+            const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
+            const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);const tli=Math.max(parseInt(p.tl_i)||1,1);
+            return{...p,_ppg:Math.round(pt/pj*10)/10,_score:pt/pj+((t2m/t2i+t3m/t3i+tlm/tli)/3)*8};
+          }).sort((a,b)=>b._score-a._score).slice(0,10);
+          return <Top10Table players={ranked} th={th}/>;
+        })()}
+
         {rivalResult&&!rivalLoading&&(
           rivalResult.error
           ?<div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{rivalResult.error}</div>
@@ -3424,19 +3459,6 @@ function IAAsistente(){
             {rivalResult.playersExtracted&&<div style={{background:"rgba(139,92,246,.07)",border:"1px solid rgba(139,92,246,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#8b5cf6",display:"flex",alignItems:"center",gap:6}}>
               <Users size={13}/>Jugadores detectados automáticamente por la IA — revisa la tabla y edita si es necesario
             </div>}
-            {/* Top 10 jugadores — ranking profesional */}
-            {(()=>{
-              const allP=(rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
-                .filter(p=>p.name&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i||p.fc));
-              if(!allP.length)return null;
-              const ranked=[...allP].map(p=>{
-                const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
-                const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
-                const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);const tli=Math.max(parseInt(p.tl_i)||1,1);
-                return{...p,_ppg:Math.round(pt/pj*10)/10,_score:pt/pj+((t2m/t2i+t3m/t3i+tlm/tli)/3)*8};
-              }).sort((a,b)=>b._score-a._score).slice(0,10);
-              return <Top10Table players={ranked} th={th}/>;
-            })()}
             <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{rivalResult.text}</div>
           </div>
         )}
