@@ -6,7 +6,7 @@ import {
   Sun, Moon, Plus, Check, X, Activity, Target, Upload, ChevronRight, ChevronLeft,
   Trash2, RotateCcw, Edit2, Trophy, Shield, Wifi, WifiOff, Loader, Link,
   Search, ExternalLink, Globe, Save, Star, Zap, Image, FileText, Printer,
-  Copy, Brain, ChevronDown
+  Copy, Brain, ChevronDown, Camera
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
@@ -2881,24 +2881,64 @@ function Calendario(){
 /* ── PDF export helper ── */
 function exportToPDF(title,content,subtitle,playersTable){
   const w=window.open("","_blank");
-  const pTable=playersTable&&playersTable.length>0?(
-    '<div class="section"><div class="section-title">Estadísticas de jugadores</div>'
-    +'<table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL int</th><th>TL met</th><th>T2 int</th><th>T2 met</th><th>T3 int</th><th>T3 met</th><th>FC</th></tr></thead>'
-    +'<tbody>'+playersTable.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>
-      '<tr>'
-      +'<td>'+(p.num||"")+'</td><td class="left">'+(p.name||"")+'</td>'
-      +'<td>'+(p.pj||"—")+'</td><td>'+(p.pt||"—")+'</td><td>'+(p.min||"—")+'</td>'
-      +'<td>'+(p.tl_i||"—")+'</td><td>'+(p.tl_m||"—")+'</td>'
-      +'<td>'+(p.t2_i||"—")+'</td><td>'+(p.t2_m||"—")+'</td>'
-      +'<td>'+(p.t3_i||"—")+'</td><td>'+(p.t3_m||"—")+'</td>'
-      +'<td>'+(p.fc||"—")+'</td>'
-      +'</tr>'
-    ).join("")+'</tbody></table></div>'
+  const validPlayers=(playersTable||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i));
+
+  // Score each player for top 5 (pts/min weighted)
+  const scored=validPlayers.map(p=>{
+    const pt=parseInt(p.pt)||0;const pj=parseInt(p.pj)||1;const min=parseInt(p.min)||1;
+    const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
+    const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);
+    const tli=Math.max(parseInt(p.tl_i)||1,1);
+    const pct=(t2m/t2i+t3m/t3i+tlm/tli)/3;
+    return{...p,_score:pt/pj+(pct*10)};
+  }).sort((a,b)=>b._score-a._score);
+  const top5=scored.slice(0,5);
+
+  const top5Html=top5.length>0?(
+    '<div class="top5-section">'
+    +'<div class="section-title" style="color:#1e3a5f;border-left:4px solid #f97316;padding-left:10px;margin-bottom:14px">⭐ Top 5 Jugadores Clave</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px">'
+    +top5.map((p,i)=>{
+      const efTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
+      const efT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
+      const efT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+      return '<div style="background:'+(i===0?"#fff7ed":"#f8fafc")+';border:2px solid '+(i===0?"#f97316":"#e2e8f0")+';border-radius:10px;padding:12px;text-align:center">'
+        +'<div style="font-size:18px;font-weight:800;color:#f97316;font-family:Barlow Condensed">'+(i===0?"🥇 ":"")+(p.num||"")+'</div>'
+        +'<div style="font-size:12px;font-weight:700;color:#1e3a5f;margin:4px 0;font-family:Barlow Condensed">'+(p.name||"")+'</div>'
+        +'<div style="font-size:20px;font-weight:800;color:#f97316;font-family:DM Mono">'+(p.pt||"0")+'</div>'
+        +'<div style="font-size:9px;color:#64748b;margin-bottom:6px">PTS/pj: '+(parseInt(p.pt)&&parseInt(p.pj)?Math.round(parseInt(p.pt)/parseInt(p.pj)*10)/10:"—")+'</div>'
+        +'<div style="font-size:9px;color:#374151;line-height:1.6">TL:'+efTL+' · T2:'+efT2+' · T3:'+efT3+'</div>'
+        +'</div>';
+    }).join("")
+    +'</div>'
+    +'</div>'
   ):"";
+
+  const pTable=validPlayers.length>0?(
+    '<div class="section"><div class="section-title">Estadísticas completas del equipo rival</div>'
+    +'<table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL-I</th><th>TL-M</th><th>%TL</th><th>T2-I</th><th>T2-M</th><th>%T2</th><th>T3-I</th><th>T3-M</th><th>%T3</th><th>FC</th></tr></thead>'
+    +'<tbody>'+scored.map((p,i)=>{
+      const isTop=i<5;
+      const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
+      const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
+      const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+      return '<tr style="background:'+(isTop?"#fff7ed":"")+';">'
+        +'<td style="font-weight:'+(isTop?"700":"400")+';color:'+(isTop?"#f97316":"inherit")+'">'+(isTop?"⭐ ":"")+(p.num||"")+'</td>'
+        +'<td class="left" style="font-weight:'+(isTop?"700":"400")+';color:'+(isTop?"#1e3a5f":"inherit")+'">'+(p.name||"")+'</td>'
+        +'<td>'+(p.pj||"—")+'</td><td style="font-weight:700;color:#f97316">'+(p.pt||"—")+'</td><td>'+(p.min||"—")+'</td>'
+        +'<td>'+(p.tl_i||"—")+'</td><td>'+(p.tl_m||"—")+'</td><td>'+pctTL+'</td>'
+        +'<td>'+(p.t2_i||"—")+'</td><td>'+(p.t2_m||"—")+'</td><td>'+pctT2+'</td>'
+        +'<td>'+(p.t3_i||"—")+'</td><td>'+(p.t3_m||"—")+'</td><td>'+pctT3+'</td>'
+        +'<td>'+(p.fc||"—")+'</td>'
+        +'</tr>';
+    }).join("")+'</tbody></table></div>'
+  ):"";
+
   w.document.write(pdfOpen(title)
     +pdfHeader(title,subtitle||new Date().toLocaleDateString("es"))
+    +top5Html
     +pTable
-    +mdToHtml(content)
+    +'<div class="section">'+mdToHtml(content)+'</div>'
     +pdfClose()
   );
   w.document.close();setTimeout(()=>w.print(),400);
@@ -3228,6 +3268,37 @@ function IAAsistente(){
             {rivalResult.playersExtracted&&<div style={{background:"rgba(139,92,246,.07)",border:"1px solid rgba(139,92,246,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#8b5cf6",display:"flex",alignItems:"center",gap:6}}>
               <Users size={13}/>Jugadores detectados automáticamente por la IA — revisa la tabla y edita si es necesario
             </div>}
+            {/* Top 5 jugadores */}
+            {(()=>{
+              const allP=(rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
+                .filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i));
+              if(!allP.length)return null;
+              const scored=[...allP].map(p=>{
+                const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
+                return{...p,_ppg:Math.round(pt/pj*10)/10};
+              }).sort((a,b)=>b._ppg-a._ppg);
+              const top5=scored.slice(0,5);
+              return <div style={{marginBottom:14}}>
+                <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
+                  ⭐ Top 5 Jugadores Clave — incluidos en el PDF
+                </p>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                  {top5.map((p,i)=>{
+                    const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%" :"—";
+                    const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+                    return <div key={p.id||i} style={{background:i===0?"rgba(249,115,22,.1)":th.card2,border:`2px solid ${i===0?"#f97316":th.border}`,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                      <div style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:800,color:"#f97316"}}>
+                        {i===0?"🥇 ":""}{p.num||"—"}
+                      </div>
+                      <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.text,margin:"4px 0",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+                      <p style={{fontFamily:"DM Mono",fontSize:22,fontWeight:700,color:"#f97316",lineHeight:1}}>{p.pt||"0"}</p>
+                      <p style={{fontSize:9,color:th.muted,marginBottom:4}}>{p._ppg} pts/PJ</p>
+                      <p style={{fontSize:9,color:th.sub}}>T2:{pctT2} · T3:{pctT3}</p>
+                    </div>;
+                  })}
+                </div>
+              </div>;
+            })()}
             <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{rivalResult.text}</div>
           </div>
         )}
@@ -3250,6 +3321,26 @@ function IAAsistente(){
               </button>
             </div>
           </div>
+          {/* Top 5 jugadores del informe guardado */}
+          {(()=>{
+            const allP=(selScout.players||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i));
+            if(!allP.length)return null;
+            const top5=[...allP].map(p=>({...p,_ppg:Math.round((parseInt(p.pt)||0)/Math.max(parseInt(p.pj)||1,1)*10)/10}))
+              .sort((a,b)=>b._ppg-a._ppg).slice(0,5);
+            return <div style={{marginBottom:14}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>⭐ Top 5 Jugadores Clave</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                {top5.map((p,i)=>(
+                  <div key={i} style={{background:i===0?"rgba(249,115,22,.1)":th.card2,border:`2px solid ${i===0?"#f97316":th.border}`,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:800,color:"#f97316"}}>{i===0?"🥇 ":""}{p.num||"—"}</div>
+                    <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.text,margin:"3px 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+                    <p style={{fontFamily:"DM Mono",fontSize:20,fontWeight:700,color:"#f97316",lineHeight:1}}>{p.pt||"0"}</p>
+                    <p style={{fontSize:9,color:th.muted}}>{p._ppg} pts/PJ</p>
+                  </div>
+                ))}
+              </div>
+            </div>;
+          })()}
           {/* Jugadores guardados */}
           {selScout.players&&selScout.players.some(p=>p.pt||p.pj||p.tl_i||p.t2_i||(p.name&&!p.name.match(/^Jugador \d+$/)))&&
             <div style={{marginBottom:14,overflow:"auto"}}>
@@ -4838,6 +4929,191 @@ function ShotChart(){
 }
 
 
+/* ══════════════════════════════════════════════════════════
+   CLASIFICACIÓN — tabla editable + actualización por imagen IA
+══════════════════════════════════════════════════════════ */
+const INIT_CLASIFICACION=[
+  {pos:1,equip:"CB CONSELL SFE19",         j:8,g:5,p:3,np:0,pe:0,pf:502,pc:485,pts:13},
+  {pos:2,equip:"ESPORLES BC",              j:7,g:5,p:2,np:0,pe:0,pf:460,pc:405,pts:12},
+  {pos:3,equip:"SA POBLA BC A MIQUEL SAMPOL TREBALLS D'OBRA",j:8,g:4,p:4,np:0,pe:0,pf:523,pc:552,pts:12},
+  {pos:4,equip:"CB SON COTONER",           j:7,g:5,p:2,np:0,pe:0,pf:497,pc:418,pts:12},
+  {pos:5,equip:"CB BINISSALEM BLAU - FORN NOU A",j:7,g:3,p:4,np:0,pe:0,pf:452,pc:474,pts:10},
+  {pos:6,equip:"GUIDO SITGER BASQUET SON SERVERA",j:8,g:2,p:6,np:0,pe:0,pf:476,pc:521,pts:10},
+  {pos:7,equip:"BC SANTANYÍ - CONSTRUCCIONES HLG MALLORCA",j:7,g:2,p:5,np:0,pe:0,pf:411,pc:466,pts:9},
+];
+const MY_TEAM="CB BINISSALEM";
+
+function Clasificacion(){
+  const{th}=useTheme();const{apiKey}=useData();
+  const[tabla,setTabla]=useState(INIT_CLASIFICACION);
+  const[editIdx,setEditIdx]=useState(null);
+  const[editRow,setEditRow]=useState(null);
+  const[addRow,setAddRow]=useState(false);
+  const[newRow,setNewRow]=useState({equip:"",j:0,g:0,p:0,np:0,pe:0,pf:0,pc:0,pts:0});
+  const[aiLoading,setAiLoading]=useState(false);
+  const[aiMsg,setAiMsg]=useState(null);
+  const[liga,setLiga]=useState("3a Autonòmica Masculina - Mallorca");
+  const[temporada,setTemporada]=useState("2025/26");
+  const imgRef=useRef();
+
+  const sorted=[...tabla].sort((a,b)=>b.pts-a.pts||b.g-a.g||(a.pc-a.pf)-(b.pc-b.pf));
+
+  const startEdit=(row,i)=>{setEditIdx(i);setEditRow({...row});};
+  const saveEdit=()=>{
+    setTabla(prev=>prev.map((r,i)=>i===editIdx?{...editRow}:r));
+    setEditIdx(null);setEditRow(null);
+  };
+  const delRow=i=>setTabla(prev=>prev.filter((_,j)=>j!==i));
+  const addNewRow=()=>{
+    const pos=tabla.length+1;
+    setTabla(prev=>[...prev,{...newRow,pos,pts:newRow.pts||newRow.g*2+newRow.p}]);
+    setNewRow({equip:"",j:0,g:0,p:0,np:0,pe:0,pf:0,pc:0,pts:0});setAddRow(false);
+  };
+
+  // Update from image via AI
+  const importFromImage=async e=>{
+    const file=e.target.files[0];if(!file)return;
+    if(!apiKey){setAiMsg("❌ Configura tu API Key en ⚙️ Ajustes.");e.target.value="";return;}
+    setAiLoading(true);setAiMsg("Leyendo clasificación de la imagen…");
+    try{
+      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const mt=file.type.includes("pdf")?"application/pdf":"image/jpeg";
+      const contentBlock=mt==="application/pdf"
+        ?{type:"document",source:{type:"base64",media_type:mt,data:base64}}
+        :{type:"image",source:{type:"base64",media_type:mt,data:base64}};
+      const data=await callClaude(apiKey,{
+        model:"claude-sonnet-4-20250514",max_tokens:2000,
+        messages:[{role:"user",content:[
+          contentBlock,
+          {type:"text",text:"Extrae la clasificación de baloncesto de esta imagen/tabla. Para cada equipo extrae: posición, nombre, J (jugados), G (ganados), P (perdidos), NP (no presentados o similar), PE (puntos en contra extra o protestados), PF (puntos a favor), PC (puntos en contra), PTS (puntos clasificación).\n\nDevuelve ÚNICAMENTE JSON válido en una sola línea sin markdown:\n{\"equipos\":[{\"pos\":1,\"equip\":\"NOMBRE\",\"j\":8,\"g\":5,\"p\":3,\"np\":0,\"pe\":0,\"pf\":502,\"pc\":485,\"pts\":13}]}\n\nSi algún campo no existe usa 0."}
+        ]}]
+      });
+      const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
+      const js=txt.slice(txt.indexOf("{"),txt.lastIndexOf("}")+1);
+      const parsed=JSON.parse(js.replace(/[\r\n]+/g," "));
+      if(parsed.equipos?.length){
+        setTabla(parsed.equipos);
+        setAiMsg("✅ "+parsed.equipos.length+" equipos importados");
+      } else setAiMsg("⚠️ No se encontraron equipos");
+    }catch(err){setAiMsg("❌ Error: "+err.message?.slice(0,50));}
+    setAiLoading(false);e.target.value="";
+    setTimeout(()=>setAiMsg(null),5000);
+  };
+
+  const COLS=["J","G","P","NP","PE","PF","PC","PTS"];
+  const FIELDS=["j","g","p","np","pe","pf","pc","pts"];
+
+  const NI=({field,wide})=>(
+    <input type="text" inputMode="numeric" maxLength={4}
+      value={editRow[field]||""}
+      onChange={e=>{if(/^\d*$/.test(e.target.value))setEditRow(r=>({...r,[field]:e.target.value}));}}
+      style={{width:wide?52:44,textAlign:"center",fontFamily:"DM Mono",fontSize:12,padding:"3px 2px",
+        borderRadius:5,border:"1px solid #f97316",background:"rgba(249,115,22,.08)",color:th.text}}/>
+  );
+
+  return <div>
+    <SH title="Clasificación" sub={liga+" · "+temporada}
+      right={<div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <input ref={imgRef} type="file" accept="image/*,.pdf" style={{display:"none"}} onChange={importFromImage}/>
+        <Btn onClick={()=>imgRef.current?.click()} variant="ghost" disabled={aiLoading}
+          icon={aiLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Camera size={13}/>}>
+          {aiLoading?"Leyendo…":"Actualizar con foto"}
+        </Btn>
+        <Btn onClick={()=>setAddRow(true)} icon={<Plus size={13}/>} sm>Añadir equipo</Btn>
+      </div>}/>
+
+    {/* Liga / temporada */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,marginBottom:14}}>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <input value={liga} onChange={e=>setLiga(e.target.value)} style={{flex:1,fontSize:12}} placeholder="Nombre de la liga"/>
+        <input value={temporada} onChange={e=>setTemporada(e.target.value)} style={{width:90,fontSize:12}} placeholder="Temporada"/>
+      </div>
+      {aiMsg&&<span style={{fontSize:11,color:aiMsg.startsWith("✅")?"#10b981":aiMsg.startsWith("⚠️")?"#f59e0b":"#ef4444",alignSelf:"center"}}>{aiMsg}</span>}
+    </div>
+
+    {/* Añadir equipo */}
+    {addRow&&<div className="card" style={{padding:14,marginBottom:12,borderColor:"#f9731640"}}>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <input value={newRow.equip} onChange={e=>setNewRow(r=>({...r,equip:e.target.value}))}
+          placeholder="Nombre del equipo" style={{flex:1,minWidth:200,fontSize:12}}/>
+        {FIELDS.map((f,i)=>(
+          <div key={f} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+            <span style={{fontSize:9,color:th.muted,fontFamily:"Barlow Condensed",textTransform:"uppercase"}}>{COLS[i]}</span>
+            <input type="text" inputMode="numeric" maxLength={4} value={newRow[f]||""}
+              onChange={e=>{if(/^\d*$/.test(e.target.value))setNewRow(r=>({...r,[f]:e.target.value}));}}
+              style={{width:44,textAlign:"center",fontFamily:"DM Mono",fontSize:12,padding:"3px 2px",borderRadius:5,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text}}/>
+          </div>
+        ))}
+        <Btn onClick={addNewRow} sm>Añadir</Btn>
+        <Btn onClick={()=>setAddRow(false)} variant="ghost" sm>✗</Btn>
+      </div>
+    </div>}
+
+    {/* Tabla */}
+    <div className="card" style={{overflow:"auto",padding:0}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:680}}>
+        <thead>
+          <tr style={{background:"linear-gradient(135deg,#0891b2,#06b6d4)"}}>
+            <th style={{padding:"12px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:12,color:"#fff",fontWeight:700,width:40}}>#</th>
+            <th style={{padding:"12px 16px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:12,color:"#fff",fontWeight:700}}>Equip</th>
+            {COLS.map(c=><th key={c} style={{padding:"12px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:12,color:"#fff",fontWeight:700,minWidth:38}}>{c}</th>)}
+            <th style={{width:60}}/>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row,i)=>{
+            const isUs=row.equip.toUpperCase().includes(MY_TEAM);
+            const isEdit=editIdx!==null&&tabla.indexOf(row)===editIdx;
+            const bg=isUs?"rgba(249,115,22,.08)":i%2===0?th.card:th.card2;
+            if(isEdit)return(
+              <tr key={i} style={{background:"rgba(249,115,22,.12)",borderTop:`1px solid ${th.border}`}}>
+                <td style={{padding:"6px 10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{i+1}</td>
+                <td style={{padding:"6px 10px"}}>
+                  <input value={editRow.equip} onChange={e=>setEditRow(r=>({...r,equip:e.target.value}))}
+                    style={{width:"100%",fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700}}/>
+                </td>
+                {FIELDS.map(f=><td key={f} style={{padding:"4px 4px",textAlign:"center"}}><NI field={f}/></td>)}
+                <td style={{padding:"4px 8px"}}>
+                  <div style={{display:"flex",gap:4}}>
+                    <button onClick={saveEdit} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #10b981",background:"rgba(16,185,129,.1)",color:"#10b981",cursor:"pointer",fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700}}>✓</button>
+                    <button onClick={()=>setEditIdx(null)} style={{padding:"3px 6px",borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,color:th.muted,cursor:"pointer",fontSize:11}}>✗</button>
+                  </div>
+                </td>
+              </tr>
+            );
+            return(
+              <tr key={i} style={{background:bg,borderTop:`1px solid ${th.border}`,transition:"background .1s"}} className="hrow">
+                <td style={{padding:"12px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:i<3?"#f97316":th.muted}}>{i+1}</td>
+                <td style={{padding:"12px 16px"}}>
+                  <span style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:isUs?700:500,color:isUs?"#f97316":th.text}}>
+                    {isUs&&<span style={{marginRight:6}}>🏀</span>}{row.equip}
+                  </span>
+                </td>
+                {FIELDS.map(f=><td key={f} style={{padding:"12px 10px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,
+                  color:f==="pts"?(isUs?"#f97316":"#0891b2"):th.text,
+                  fontWeight:f==="pts"?700:400}}>{row[f]??0}</td>)}
+                <td style={{padding:"8px 8px"}}>
+                  <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                    <button onClick={()=>startEdit(row,tabla.indexOf(row))} style={{width:22,height:22,borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.muted,display:"flex",alignItems:"center",justifyContent:"center"}}><Edit2 size={10}/></button>
+                    <button onClick={()=>delRow(tabla.indexOf(row))} style={{width:22,height:22,borderRadius:5,border:"none",background:"transparent",cursor:"pointer",color:"#ef4444",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={10}/></button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Leyenda */}
+    <div style={{display:"flex",gap:16,marginTop:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:10,color:th.muted,fontFamily:"Barlow Condensed"}}>J=Jugados · G=Ganados · P=Perdidos · NP=No Presentados · PE=Puntos extra · PF=Puntos a favor · PC=Puntos en contra · PTS=Puntos clasificación</span>
+      <span style={{fontSize:10,color:"#f97316",fontFamily:"Barlow Condensed",fontWeight:700}}>🏀 = Tu equipo</span>
+    </div>
+    <p style={{fontSize:11,color:th.muted,marginTop:6}}>Actualiza la clasificación subiendo una foto o captura de pantalla de la web de tu federación con el botón "Actualizar con foto".</p>
+  </div>;
+}
+
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
@@ -4860,9 +5136,10 @@ const NAV=[
   {id:"iq",       label:"Basketball IQ", icon:Target},
   {id:"informes", label:"Informes",       icon:FileText},
   {id:"buscador", label:"Buscador IA",    icon:Search},
+  {id:"clasificacion",label:"Clasificación",icon:Trophy},
   {id:"recursos", label:"Recursos",       icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,recursos:Recursos};
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
