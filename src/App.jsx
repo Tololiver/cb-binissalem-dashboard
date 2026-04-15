@@ -2964,7 +2964,7 @@ function Calendario(){
 /* ── PDF export helper ── */
 function exportToPDF(title,content,subtitle,playersTable){
   const w=window.open("","_blank");
-  const validPlayers=(playersTable||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i));
+  const validPlayers=(playersTable||[]).filter(p=>p.name&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i||p.fc));
 
   // Score players: pts/pj primary, shooting pct secondary
   const scored=validPlayers.map(p=>{
@@ -3106,11 +3106,18 @@ function IAAsistente(){
   // Stats de jugadores del rival para scouting
   const emptyRP=()=>({pj:"",pt:"",min:"",tl_i:"",tl_m:"",t2_i:"",t2_m:"",t3_i:"",t3_m:"",fc:""});
   const defaultRP=()=>[
-    {id:1,num:"4", name:"Jugador 1",...emptyRP()},
-    {id:2,num:"7", name:"Jugador 2",...emptyRP()},
-    {id:3,num:"11",name:"Jugador 3",...emptyRP()},
-    {id:4,num:"14",name:"Jugador 4",...emptyRP()},
-    {id:5,num:"21",name:"Jugador 5",...emptyRP()},
+    {id:1, num:"4", name:"Jugador 1", ...emptyRP()},
+    {id:2, num:"7", name:"Jugador 2", ...emptyRP()},
+    {id:3, num:"11",name:"Jugador 3", ...emptyRP()},
+    {id:4, num:"14",name:"Jugador 4", ...emptyRP()},
+    {id:5, num:"21",name:"Jugador 5", ...emptyRP()},
+    {id:6, num:"8", name:"Jugador 6", ...emptyRP()},
+    {id:7, num:"15",name:"Jugador 7", ...emptyRP()},
+    {id:8, num:"3", name:"Jugador 8", ...emptyRP()},
+    {id:9, num:"23",name:"Jugador 9", ...emptyRP()},
+    {id:10,num:"33",name:"Jugador 10",...emptyRP()},
+    {id:11,num:"9", name:"Jugador 11",...emptyRP()},
+    {id:12,num:"17",name:"Jugador 12",...emptyRP()},
   ];
   const[rivalPlayers,setRivalPlayers]=useState(defaultRP());
   const setRP=(id,field,val)=>setRivalPlayers(prev=>prev.map(p=>p.id===id?{...p,[field]:val}:p));
@@ -3420,7 +3427,7 @@ function IAAsistente(){
             {/* Top 10 jugadores — ranking profesional */}
             {(()=>{
               const allP=(rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
-                .filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i));
+                .filter(p=>p.name&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i||p.fc));
               if(!allP.length)return null;
               const ranked=[...allP].map(p=>{
                 const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
@@ -3454,7 +3461,7 @@ function IAAsistente(){
           </div>
           {/* Top 10 jugadores del informe guardado */}
           {(()=>{
-            const allP=(selScout.players||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i));
+            const allP=(selScout.players||[]).filter(p=>p.name&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i||p.fc));
             if(!allP.length)return null;
             const ranked=[...allP].map(p=>{
               const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
