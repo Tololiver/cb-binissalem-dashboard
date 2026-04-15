@@ -2966,65 +2966,131 @@ function exportToPDF(title,content,subtitle,playersTable){
   const w=window.open("","_blank");
   const validPlayers=(playersTable||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i));
 
-  // Score each player for top 5 (pts/min weighted)
+  // Score players: pts/pj primary, shooting pct secondary
   const scored=validPlayers.map(p=>{
-    const pt=parseInt(p.pt)||0;const pj=parseInt(p.pj)||1;const min=parseInt(p.min)||1;
+    const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
     const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
     const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);
     const tli=Math.max(parseInt(p.tl_i)||1,1);
     const pct=(t2m/t2i+t3m/t3i+tlm/tli)/3;
-    return{...p,_score:pt/pj+(pct*10)};
+    return{...p,_ppg:Math.round(pt/pj*10)/10,_score:pt/pj+(pct*8)};
   }).sort((a,b)=>b._score-a._score);
-  const top5=scored.slice(0,5);
+  const top10=scored.slice(0,10);
 
-  const top5Html=top5.length>0?(
-    '<div class="top5-section">'
-    +'<div class="section-title" style="color:#1e3a5f;border-left:4px solid #f97316;padding-left:10px;margin-bottom:14px">⭐ Top 5 Jugadores Clave</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px">'
-    +top5.map((p,i)=>{
-      const efTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
-      const efT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
-      const efT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
-      return '<div style="background:'+(i===0?"#fff7ed":"#f8fafc")+';border:2px solid '+(i===0?"#f97316":"#e2e8f0")+';border-radius:10px;padding:12px;text-align:center">'
-        +'<div style="font-size:18px;font-weight:800;color:#f97316;font-family:Barlow Condensed">'+(i===0?"🥇 ":"")+(p.num||"")+'</div>'
-        +'<div style="font-size:12px;font-weight:700;color:#1e3a5f;margin:4px 0;font-family:Barlow Condensed">'+(p.name||"")+'</div>'
-        +'<div style="font-size:20px;font-weight:800;color:#f97316;font-family:DM Mono">'+(p.pt||"0")+'</div>'
-        +'<div style="font-size:9px;color:#64748b;margin-bottom:6px">PTS/pj: '+(parseInt(p.pt)&&parseInt(p.pj)?Math.round(parseInt(p.pt)/parseInt(p.pj)*10)/10:"—")+'</div>'
-        +'<div style="font-size:9px;color:#374151;line-height:1.6">TL:'+efTL+' · T2:'+efT2+' · T3:'+efT3+'</div>'
-        +'</div>';
-    }).join("")
-    +'</div>'
-    +'</div>'
-  ):"";
-
-  const pTable=validPlayers.length>0?(
-    '<div class="section"><div class="section-title">Estadísticas completas del equipo rival</div>'
-    +'<table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>TL-I</th><th>TL-M</th><th>%TL</th><th>T2-I</th><th>T2-M</th><th>%T2</th><th>T3-I</th><th>T3-M</th><th>%T3</th><th>FC</th></tr></thead>'
-    +'<tbody>'+scored.map((p,i)=>{
-      const isTop=i<5;
+  const top10Html=top10.length>0?(
+    '<div style="margin-bottom:22px">'
+    +'<div style="font-family:Barlow Condensed,Arial;font-size:13px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:1px;border-left:4px solid #f97316;padding-left:10px;margin-bottom:12px">Top 10 Jugadores Rivales</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:Arial,sans-serif">'
+    +'<thead><tr style="background:#1e3a5f;color:#fff">'
+    +'<th style="padding:8px 10px;text-align:center;width:34px">Pos</th>'
+    +'<th style="padding:8px 8px;text-align:center;width:30px">#</th>'
+    +'<th style="padding:8px 12px;text-align:left">Jugador</th>'
+    +'<th style="padding:8px 8px;text-align:center">PJ</th>'
+    +'<th style="padding:8px 8px;text-align:center">PT</th>'
+    +'<th style="padding:8px 8px;text-align:center">Pts/PJ</th>'
+    +'<th style="padding:8px 8px;text-align:center">Min</th>'
+    +'<th style="padding:8px 8px;text-align:center">%TL</th>'
+    +'<th style="padding:8px 8px;text-align:center">%T2</th>'
+    +'<th style="padding:8px 8px;text-align:center">%T3</th>'
+    +'<th style="padding:8px 8px;text-align:center">FC</th>'
+    +'</tr></thead><tbody>'
+    +top10.map((p,i)=>{
+      const isTop3=i<3;
+      const bg=i===0?"#fff3e6":i===1?"#fff7ed":i===2?"#fffbf5":i%2===0?"#f8fafc":"#ffffff";
+      const nameColor=isTop3?"#c2410c":"#1e293b";
+      const ptColor=isTop3?"#ea580c":"#374151";
       const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
       const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
       const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
-      return '<tr style="background:'+(isTop?"#fff7ed":"")+';">'
-        +'<td style="font-weight:'+(isTop?"700":"400")+';color:'+(isTop?"#f97316":"inherit")+'">'+(isTop?"⭐ ":"")+(p.num||"")+'</td>'
-        +'<td class="left" style="font-weight:'+(isTop?"700":"400")+';color:'+(isTop?"#1e3a5f":"inherit")+'">'+(p.name||"")+'</td>'
-        +'<td>'+(p.pj||"—")+'</td><td style="font-weight:700;color:#f97316">'+(p.pt||"—")+'</td><td>'+(p.min||"—")+'</td>'
-        +'<td>'+(p.tl_i||"—")+'</td><td>'+(p.tl_m||"—")+'</td><td>'+pctTL+'</td>'
-        +'<td>'+(p.t2_i||"—")+'</td><td>'+(p.t2_m||"—")+'</td><td>'+pctT2+'</td>'
-        +'<td>'+(p.t3_i||"—")+'</td><td>'+(p.t3_m||"—")+'</td><td>'+pctT3+'</td>'
-        +'<td>'+(p.fc||"—")+'</td>'
+      return '<tr style="background:'+bg+';border-left:3px solid '+(isTop3?"#f97316":"transparent")+';border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:9px 10px;text-align:center;font-weight:700;font-size:13px;color:'+(isTop3?"#f97316":"#94a3b8")+'">'+(i+1)+'.</td>'
+        +'<td style="padding:9px 8px;text-align:center;font-family:DM Mono,monospace;font-weight:'+(isTop3?700:400)+';color:'+nameColor+'">'+(p.num||"—")+'</td>'
+        +'<td style="padding:9px 12px;font-weight:'+(isTop3?700:400)+';color:'+nameColor+'">'+(p.name||"—")+'</td>'
+        +'<td style="padding:9px 8px;text-align:center;color:#64748b">'+(p.pj||"—")+'</td>'
+        +'<td style="padding:9px 8px;text-align:center;font-weight:700;color:'+ptColor+'">'+(p.pt||"—")+'</td>'
+        +'<td style="padding:9px 8px;text-align:center;color:'+ptColor+'">'+(p._ppg||"—")+'</td>'
+        +'<td style="padding:9px 8px;text-align:center;color:#64748b">'+(p.min||"—")+'</td>'
+        +'<td style="padding:9px 8px;text-align:center">'+pctTL+'</td>'
+        +'<td style="padding:9px 8px;text-align:center">'+pctT2+'</td>'
+        +'<td style="padding:9px 8px;text-align:center">'+pctT3+'</td>'
+        +'<td style="padding:9px 8px;text-align:center;color:#64748b">'+(p.fc||"—")+'</td>'
         +'</tr>';
+    }).join("")+'</tbody></table></div>'
+  ):"";
+
+  const pTable=validPlayers.length>top10.length?(
+    '<div class="section"><div class="section-title">Estadísticas completas del equipo rival</div>'
+    +'<table><thead><tr><th>#</th><th style="text-align:left">Jugador</th><th>PJ</th><th>PT</th><th>Min</th><th>%TL</th><th>%T2</th><th>%T3</th><th>FC</th></tr></thead>'
+    +'<tbody>'+scored.slice(10).map(p=>{
+      const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
+      const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
+      const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+      return '<tr><td>'+(p.num||"")+'</td><td class="left">'+(p.name||"")+'</td>'
+        +'<td>'+(p.pj||"—")+'</td><td>'+(p.pt||"—")+'</td><td>'+(p.min||"—")+'</td>'
+        +'<td>'+pctTL+'</td><td>'+pctT2+'</td><td>'+pctT3+'</td><td>'+(p.fc||"—")+'</td></tr>';
     }).join("")+'</tbody></table></div>'
   ):"";
 
   w.document.write(pdfOpen(title)
     +pdfHeader(title,subtitle||new Date().toLocaleDateString("es"))
-    +top5Html
+    +top10Html
     +pTable
     +'<div class="section">'+mdToHtml(content)+'</div>'
     +pdfClose()
   );
   w.document.close();setTimeout(()=>w.print(),400);
+}
+
+/* ── Top 10 ranking component — reutilizable ──────────────── */
+function Top10Table({players,th}){
+  const cols=[
+    {h:"Pos",w:36,align:"center"},
+    {h:"#",w:32,align:"center"},
+    {h:"Jugador",w:"auto",align:"left"},
+    {h:"PJ",w:40,align:"center"},
+    {h:"PT",w:44,align:"center"},
+    {h:"Pts/PJ",w:52,align:"center"},
+    {h:"Min",w:44,align:"center"},
+    {h:"%TL",w:44,align:"center"},
+    {h:"%T2",w:44,align:"center"},
+    {h:"%T3",w:44,align:"center"},
+    {h:"FC",w:36,align:"center"},
+  ];
+  return <div style={{marginBottom:16,overflow:"auto"}}>
+    <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8,borderLeft:"3px solid #f97316",paddingLeft:8}}>
+      Top 10 Jugadores Rivales — incluidos en el PDF
+    </p>
+    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:580}}>
+      <thead>
+        <tr style={{background:"#1e3a5f"}}>
+          {cols.map(c=><th key={c.h} style={{padding:"8px 8px",textAlign:c.align,fontFamily:"Barlow Condensed",fontSize:10,color:"#fff",fontWeight:700,textTransform:"uppercase",letterSpacing:.5,width:c.w!=="auto"?c.w:undefined}}>{c.h}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {players.map((p,i)=>{
+          const isTop3=i<3;
+          const bg=isTop3?`rgba(249,115,22,${0.1-i*0.025})`:i%2===0?th.card:th.card2;
+          const nameColor=isTop3?"#f97316":th.text;
+          const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
+          const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
+          const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+          return <tr key={p.id||i} style={{background:bg,borderTop:`1px solid ${th.border}`,borderLeft:`3px solid ${isTop3?"#f97316":"transparent"}`}}>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:isTop3?"#f97316":th.muted}}>{i+1}.</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,fontWeight:isTop3?700:400,color:nameColor}}>{p.num||"—"}</td>
+            <td style={{padding:"9px 12px",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:isTop3?700:500,color:nameColor}}>{p.name||"—"}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{p.pj||"—"}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:14,fontWeight:700,color:isTop3?"#f97316":th.text}}>{p.pt||"—"}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:isTop3?"#f97316":th.sub}}>{p._ppg||"—"}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{p.min||"—"}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{pctTL}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{pctT2}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.text}}>{pctT3}</td>
+            <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{p.fc||"—"}</td>
+          </tr>;
+        })}
+      </tbody>
+    </table>
+  </div>;
 }
 
 function IAAsistente(){
@@ -3351,36 +3417,18 @@ function IAAsistente(){
             {rivalResult.playersExtracted&&<div style={{background:"rgba(139,92,246,.07)",border:"1px solid rgba(139,92,246,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#8b5cf6",display:"flex",alignItems:"center",gap:6}}>
               <Users size={13}/>Jugadores detectados automáticamente por la IA — revisa la tabla y edita si es necesario
             </div>}
-            {/* Top 5 jugadores */}
+            {/* Top 10 jugadores — ranking profesional */}
             {(()=>{
               const allP=(rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
                 .filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i));
               if(!allP.length)return null;
-              const scored=[...allP].map(p=>{
+              const ranked=[...allP].map(p=>{
                 const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
-                return{...p,_ppg:Math.round(pt/pj*10)/10};
-              }).sort((a,b)=>b._ppg-a._ppg);
-              const top5=scored.slice(0,5);
-              return <div style={{marginBottom:14}}>
-                <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
-                  ⭐ Top 5 Jugadores Clave — incluidos en el PDF
-                </p>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                  {top5.map((p,i)=>{
-                    const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%" :"—";
-                    const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
-                    return <div key={p.id||i} style={{background:i===0?"rgba(249,115,22,.1)":th.card2,border:`2px solid ${i===0?"#f97316":th.border}`,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
-                      <div style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:800,color:"#f97316"}}>
-                        {i===0?"🥇 ":""}{p.num||"—"}
-                      </div>
-                      <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.text,margin:"4px 0",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
-                      <p style={{fontFamily:"DM Mono",fontSize:22,fontWeight:700,color:"#f97316",lineHeight:1}}>{p.pt||"0"}</p>
-                      <p style={{fontSize:9,color:th.muted,marginBottom:4}}>{p._ppg} pts/PJ</p>
-                      <p style={{fontSize:9,color:th.sub}}>T2:{pctT2} · T3:{pctT3}</p>
-                    </div>;
-                  })}
-                </div>
-              </div>;
+                const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
+                const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);const tli=Math.max(parseInt(p.tl_i)||1,1);
+                return{...p,_ppg:Math.round(pt/pj*10)/10,_score:pt/pj+((t2m/t2i+t3m/t3i+tlm/tli)/3)*8};
+              }).sort((a,b)=>b._score-a._score).slice(0,10);
+              return <Top10Table players={ranked} th={th}/>;
             })()}
             <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{rivalResult.text}</div>
           </div>
@@ -3404,25 +3452,17 @@ function IAAsistente(){
               </button>
             </div>
           </div>
-          {/* Top 5 jugadores del informe guardado */}
+          {/* Top 10 jugadores del informe guardado */}
           {(()=>{
             const allP=(selScout.players||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.tl_i||p.t2_i||p.t3_i));
             if(!allP.length)return null;
-            const top5=[...allP].map(p=>({...p,_ppg:Math.round((parseInt(p.pt)||0)/Math.max(parseInt(p.pj)||1,1)*10)/10}))
-              .sort((a,b)=>b._ppg-a._ppg).slice(0,5);
-            return <div style={{marginBottom:14}}>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>⭐ Top 5 Jugadores Clave</p>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                {top5.map((p,i)=>(
-                  <div key={i} style={{background:i===0?"rgba(249,115,22,.1)":th.card2,border:`2px solid ${i===0?"#f97316":th.border}`,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
-                    <div style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:800,color:"#f97316"}}>{i===0?"🥇 ":""}{p.num||"—"}</div>
-                    <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.text,margin:"3px 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
-                    <p style={{fontFamily:"DM Mono",fontSize:20,fontWeight:700,color:"#f97316",lineHeight:1}}>{p.pt||"0"}</p>
-                    <p style={{fontSize:9,color:th.muted}}>{p._ppg} pts/PJ</p>
-                  </div>
-                ))}
-              </div>
-            </div>;
+            const ranked=[...allP].map(p=>{
+              const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
+              const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
+              const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);const tli=Math.max(parseInt(p.tl_i)||1,1);
+              return{...p,_ppg:Math.round(pt/pj*10)/10,_score:pt/pj+((t2m/t2i+t3m/t3i+tlm/tli)/3)*8};
+            }).sort((a,b)=>b._score-a._score).slice(0,10);
+            return <Top10Table players={ranked} th={th}/>;
           })()}
           {/* Jugadores guardados */}
           {selScout.players&&selScout.players.some(p=>p.pt||p.pj||p.tl_i||p.t2_i||(p.name&&!p.name.match(/^Jugador \d+$/)))&&
