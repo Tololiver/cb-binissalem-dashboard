@@ -1528,41 +1528,108 @@ function Entrenamientos(){
   const[gymSec,setGymSec]=useState(0);
   const[gymRunning,setGymRunning]=useState(false);
   const[gymSessionId,setGymSessionId]=useState(null);
+  const[gymAutoAdv,setGymAutoAdv]=useState(false); // transitioning to next
   const gymTimer=useRef(null);
+  const wakeLock=useRef(null);
+  const gymIdxRef=useRef(0); // ref to avoid stale closure in interval
+  const gymExsRef=useRef([]);
+
+  const acquireWakeLock=async()=>{
+    if("wakeLock" in navigator){
+      try{wakeLock.current=await navigator.wakeLock.request("screen");}catch(e){}
+    }
+  };
+  const releaseWakeLock=()=>{
+    if(wakeLock.current){try{wakeLock.current.release();}catch(e){}wakeLock.current=null;}
+  };
 
   const getGymExs=s=>(s?.exObjs||[]).filter(e=>parseInt(e.sesMin||e.dur||0)>0);
+
   const startGym=s=>{
     const exs=getGymExs(s);
     if(!exs.length){alert("Asigna tiempo (Min) a al menos un ejercicio para usar el Modo Gimnasio.");return;}
-    setGymMode(true);setGymIdx(0);setGymRunning(false);setGymSessionId(s.id);
+    gymExsRef.current=exs;gymIdxRef.current=0;
+    setGymMode(true);setGymIdx(0);setGymRunning(false);setGymSessionId(s.id);setGymAutoAdv(false);
     setGymSec(parseInt(exs[0].sesMin||exs[0].dur||5)*60);
   };
-  const stopGym=()=>{setGymMode(false);setGymRunning(false);clearInterval(gymTimer.current);};
+
+  const stopGym=()=>{
+    setGymMode(false);setGymRunning(false);setGymAutoAdv(false);
+    clearInterval(gymTimer.current);releaseWakeLock();
+  };
+
+  // Play beep sound
+  const playBeep=(freq=880,dur=0.8)=>{
+    try{
+      const ac=new AudioContext();const o=ac.createOscillator();const g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);o.frequency.value=freq;
+      g.gain.setValueAtTime(0.4,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+      o.start();o.stop(ac.currentTime+dur);
+    }catch(e){}
+  };
+
+  // Auto-advance to next exercise
+  const advanceToNext=()=>{
+    const exs=gymExsRef.current;
+    const next=gymIdxRef.current+1;
+    if(next>=exs.length){
+      // All done — play final beep pattern and exit
+      playBeep(660,0.3);
+      setTimeout(()=>playBeep(880,0.3),350);
+      setTimeout(()=>playBeep(1100,0.6),700);
+      setTimeout(()=>stopGym(),1800);
+      return;
+    }
+    gymIdxRef.current=next;
+    setGymIdx(next);setGymAutoAdv(false);
+    setGymSec(parseInt(exs[next].sesMin||exs[next].dur||5)*60);
+    setGymRunning(true); // auto-start next exercise
+  };
 
   useEffect(()=>{
     if(gymRunning){
-      gymTimer.current=setInterval(()=>setGymSec(s=>{
-        if(s<=1){
-          clearInterval(gymTimer.current);setGymRunning(false);
-          if(typeof window!=="undefined"&&window.AudioContext){
-            try{const ac=new AudioContext();const o=ac.createOscillator();const g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.setValueAtTime(0.3,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.8);o.start();o.stop(ac.currentTime+0.8);}catch(e){}
-          }
-          return 0;
+      acquireWakeLock();
+      // Use Date-based timer to survive screen sleep
+      const startTime=Date.now();
+      const startSec=gymSec; // capture current remaining seconds
+      gymTimer.current=setInterval(()=>{
+        const elapsed=Math.floor((Date.now()-startTime)/1000);
+        const remaining=startSec-elapsed;
+        if(remaining<=0){
+          clearInterval(gymTimer.current);
+          setGymRunning(false);setGymAutoAdv(true);
+          setGymSec(0);
+          playBeep(880,0.5);
+          setTimeout(()=>playBeep(1100,0.5),600);
+          // Auto-advance after 2s pause
+          setTimeout(()=>advanceToNext(),2000);
+        } else {
+          setGymSec(remaining);
         }
-        return s-1;
-      }),1000);
-    } else {clearInterval(gymTimer.current);}
+      },500); // poll every 500ms for accuracy after sleep
+    } else {
+      clearInterval(gymTimer.current);
+      if(!gymMode)releaseWakeLock();
+    }
     return()=>clearInterval(gymTimer.current);
   },[gymRunning]);
+
+  // Sync ref when idx changes externally (manual nav)
+  useEffect(()=>{gymIdxRef.current=gymIdx;},[gymIdx]);
 
   const gymNextEx=(s,exs)=>{
     const next=gymIdx+1;
     if(next>=exs.length){stopGym();return;}
-    setGymIdx(next);setGymSec(parseInt(exs[next].sesMin||exs[next].dur||5)*60);setGymRunning(false);
+    gymIdxRef.current=next;gymExsRef.current=exs;
+    setGymIdx(next);setGymSec(parseInt(exs[next].sesMin||exs[next].dur||5)*60);
+    setGymRunning(false);setGymAutoAdv(false);
   };
   const gymPrevEx=(s,exs)=>{
     const prev=gymIdx-1;if(prev<0)return;
-    setGymIdx(prev);setGymSec(parseInt(exs[prev].sesMin||exs[prev].dur||5)*60);setGymRunning(false);
+    gymIdxRef.current=prev;gymExsRef.current=exs;
+    setGymIdx(prev);setGymSec(parseInt(exs[prev].sesMin||exs[prev].dur||5)*60);
+    setGymRunning(false);setGymAutoAdv(false);
   };
   const fmt=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 
@@ -1570,37 +1637,54 @@ function Entrenamientos(){
   if(gymMode){
     const s=sessions.find(x=>x.id===gymSessionId);
     const exs=getGymExs(s);const ex=exs[gymIdx]||{};
+    // Sync exsRef when session loads
+    if(exs.length)gymExsRef.current=exs;
     const durSec=parseInt(ex.sesMin||ex.dur||5)*60;
-    const pct=durSec>0?gymSec/durSec*100:100;
+    const pct=durSec>0?Math.max(0,gymSec/durSec*100):0;
     const exName=ex.name||(ex.type==="free"?"Ejercicio libre":"Ejercicio");
     const exDesc=ex.desc||ex.sesNotes||"";
+    const arcColor=gymAutoAdv?"#10b981":gymSec<30&&gymSec>0?"#ef4444":"#f97316";
     return <div style={{position:"fixed",inset:0,background:"#0f172a",zIndex:9999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
       {/* Header */}
       <div style={{position:"absolute",top:20,left:20,right:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:2}}>Modo Gimnasio</p>
+        <div>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:2}}>Modo Gimnasio</p>
+          {gymRunning&&<p style={{fontSize:10,color:"#10b981",marginTop:2}}>● Activo — pantalla bloqueada</p>}
+        </div>
         <button onClick={stopGym} style={{padding:"6px 16px",borderRadius:8,border:"1px solid rgba(239,68,68,.4)",background:"rgba(239,68,68,.1)",color:"#ef4444",cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:14}}>✕ Salir</button>
       </div>
-      {/* Ejercicio actual */}
+      {/* Ejercicio */}
       <p style={{fontFamily:"Barlow Condensed",fontSize:20,color:"#f97316",fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:8}}>Ejercicio {gymIdx+1} / {exs.length}</p>
       <h1 style={{fontFamily:"Barlow Condensed",fontSize:52,fontWeight:700,color:"#f8fafc",textAlign:"center",marginBottom:6,lineHeight:1}}>{exName}</h1>
-      <p style={{fontSize:16,color:"#64748b",marginBottom:32,textAlign:"center"}}>{ex.cat||""}{ex.diff?" · "+ex.diff:ex.type==="free"?"Ejercicio libre":""}</p>
-      {/* Timer */}
+      <p style={{fontSize:16,color:"#64748b",marginBottom:gymAutoAdv?16:32,textAlign:"center"}}>{ex.cat||""}{ex.diff?" · "+ex.diff:ex.type==="free"?"Ejercicio libre":""}</p>
+      {/* Auto-advance banner */}
+      {gymAutoAdv&&<div style={{background:"rgba(16,185,129,.15)",border:"1px solid rgba(16,185,129,.4)",borderRadius:10,padding:"8px 24px",marginBottom:24,color:"#10b981",fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,letterSpacing:1}}>
+        ✓ Tiempo completado — pasando al siguiente…
+      </div>}
+      {/* Timer ring */}
       <div style={{position:"relative",width:200,height:200,marginBottom:32}}>
         <svg width="200" height="200" style={{transform:"rotate(-90deg)"}}>
           <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="8"/>
-          <circle cx="100" cy="100" r="88" fill="none" stroke={gymSec===0?"#ef4444":"#f97316"} strokeWidth="8"
+          <circle cx="100" cy="100" r="88" fill="none" stroke={arcColor} strokeWidth="8"
             strokeDasharray={2*Math.PI*88} strokeDashoffset={2*Math.PI*88*(1-pct/100)} strokeLinecap="round"
-            style={{transition:"stroke-dashoffset 1s linear"}}/>
+            style={{transition:"stroke-dashoffset 0.5s linear"}}/>
         </svg>
         <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-          <p style={{fontFamily:"DM Mono",fontSize:48,fontWeight:700,color:gymSec<30?"#ef4444":"#f8fafc",lineHeight:1}}>{fmt(gymSec)}</p>
+          <p style={{fontFamily:"DM Mono",fontSize:48,fontWeight:700,color:gymSec<30&&gymSec>0?"#ef4444":gymAutoAdv?"#10b981":"#f8fafc",lineHeight:1}}>
+            {gymAutoAdv?"✓":fmt(gymSec)}
+          </p>
           <p style={{fontSize:12,color:"#64748b",marginTop:4}}>{ex.sesMin?ex.sesMin+" min":ex.dur?ex.dur+" min":"sin límite"}</p>
         </div>
       </div>
       {/* Controles */}
-      <div style={{display:"flex",gap:16,marginBottom:24}}>
+      <div style={{display:"flex",gap:16,marginBottom:24,alignItems:"center"}}>
         <button onClick={()=>gymPrevEx(s,exs)} disabled={gymIdx===0} style={{width:56,height:56,borderRadius:28,border:"1px solid rgba(255,255,255,.15)",background:"rgba(255,255,255,.05)",color:"#fff",fontSize:22,cursor:"pointer",opacity:gymIdx===0?.3:1}}>‹</button>
-        <button onClick={()=>setGymRunning(r=>!r)} style={{width:80,height:80,borderRadius:40,border:"none",background:gymRunning?"#ef4444":"#f97316",color:"#fff",fontSize:28,cursor:"pointer",boxShadow:`0 0 30px ${gymRunning?"#ef444440":"#f9731640"}`}}>
+        <button onClick={()=>{setGymRunning(r=>!r);setGymAutoAdv(false);}}
+          style={{width:80,height:80,borderRadius:40,border:"none",
+            background:gymRunning?"#10b981":gymAutoAdv?"#10b981":"rgba(249,115,22,.9)",
+            color:"#fff",fontSize:28,cursor:"pointer",
+            boxShadow:`0 0 30px ${gymRunning?"rgba(16,185,129,.5)":"rgba(249,115,22,.4)"}`,
+            transition:"background .3s,box-shadow .3s"}}>
           {gymRunning?"⏸":"▶"}
         </button>
         <button onClick={()=>gymNextEx(s,exs)} disabled={gymIdx>=exs.length-1} style={{width:56,height:56,borderRadius:28,border:"1px solid rgba(255,255,255,.15)",background:"rgba(255,255,255,.05)",color:"#fff",fontSize:22,cursor:"pointer",opacity:gymIdx>=exs.length-1?.3:1}}>›</button>
@@ -1610,7 +1694,6 @@ function Entrenamientos(){
         <p style={{fontSize:11,color:"#64748b",textAlign:"center",marginBottom:2}}>Siguiente</p>
         <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#94a3b8"}}>{exs[gymIdx+1]?.name||"Ejercicio libre"}</p>
       </div>}
-      {/* Descripción */}
       {exDesc&&<p style={{fontSize:13,color:"#475569",marginTop:20,maxWidth:400,textAlign:"center",lineHeight:1.6}}>{exDesc}</p>}
     </div>;
   }
@@ -3957,13 +4040,46 @@ function MatchAnalysisBlock({m,players}){
   const analyze=async()=>{
     if(!apiKey){alert("Configura tu API Key en ⚙️ Ajustes.");return;}
     setLoading(true);
-    // Build context
-    const result=m.pts_us!=null?m.pts_us+"-"+m.pts_them:"Sin resultado";
-    const qStr=m.quarters?"Q1:"+m.quarters.us[0]+"-"+m.quarters.them[0]+" Q2:"+m.quarters.us[1]+"-"+m.quarters.them[1]+" Q3:"+m.quarters.us[2]+"-"+m.quarters.them[2]+" Q4:"+m.quarters.us[3]+"-"+m.quarters.them[3]:"";
+
+    // ── Pre-calculate ALL numbers in JS — never let the AI do maths ──
+    const qu=m.quarters?.us||[];const qt=m.quarters?.them||[];
+    const hasQ=qu.length===4&&qu.some(v=>v>0);
+
+    // Quarter-by-quarter with cumulative (first half, etc.)
+    let qLines="";
+    if(hasQ){
+      const q1u=+qu[0]||0,q1t=+qt[0]||0;
+      const q2u=+qu[1]||0,q2t=+qt[1]||0;
+      const q3u=+qu[2]||0,q3t=+qt[2]||0;
+      const q4u=+qu[3]||0,q4t=+qt[3]||0;
+      const h1u=q1u+q2u,h1t=q1t+q2t;
+      const h2u=q3u+q4u,h2t=q3t+q4t;
+      const totU=h1u+h2u,totT=h1t+h2t;
+      const diff=q=>{const d=q[0]-q[1];return d>0?"+"+d+" CB":d<0?d+" (rival +"+Math.abs(d)+")":"empate";};
+      qLines=
+        "PARCIALES POR CUARTO (calculados):\n"
+        +"  Q1: CB "+q1u+" - "+m.rival+" "+q1t+" → diferencia: "+diff([q1u,q1t])+"\n"
+        +"  Q2: CB "+q2u+" - "+m.rival+" "+q2t+" → diferencia: "+diff([q2u,q2t])+"\n"
+        +"  1ª PARTE: CB "+h1u+" - "+m.rival+" "+h1t+" → diferencia: "+diff([h1u,h1t])+"\n"
+        +"  Q3: CB "+q3u+" - "+m.rival+" "+q3t+" → diferencia: "+diff([q3u,q3t])+"\n"
+        +"  Q4: CB "+q4u+" - "+m.rival+" "+q4t+" → diferencia: "+diff([q4u,q4t])+"\n"
+        +"  2ª PARTE: CB "+h2u+" - "+m.rival+" "+h2t+" → diferencia: "+diff([h2u,h2t])+"\n"
+        +"  TOTAL FINAL: CB "+totU+" - "+m.rival+" "+totT+" → diferencia: "+diff([totU,totT])+"\n"
+        +"IMPORTANTE: usa EXACTAMENTE estos números calculados. NO recalcules nada.\n";
+    }
+
+    const finalUs=m.pts_us??null;
+    const finalTh=m.pts_them??null;
+    const resultLine=finalUs!=null
+      ?"CB Binissalem "+finalUs+" - "+m.rival+" "+finalTh
+        +(finalUs>finalTh?" (VICTORIA por "+(finalUs-finalTh)+" puntos)":" (DERROTA por "+(finalTh-finalUs)+" puntos)")
+      :"Sin resultado registrado";
+
     const ourStats=convPlayers.map(p=>{
       const s=pStats[p.id]||{};
-      return "#"+p.num+" "+p.name+" ("+p.pos+"): "+[s.pt&&"PT:"+s.pt,s.min&&"Min:"+s.min,s.t2_m&&"T2:"+s.t2_m+"/"+s.t2_i,s.t3_m&&"T3:"+s.t3_m+"/"+s.t3_i,s.tl_m&&"TL:"+s.tl_m+"/"+s.tl_i,s.fc&&"FC:"+s.fc].filter(Boolean).join(" ");
+      return "#"+p.num+" "+p.name+" ("+p.pos+"): "+[s.pt&&"PT:"+s.pt,s.min&&"Min:"+s.min,s.t2_m!=null&&s.t2_i!=null&&"T2:"+s.t2_m+"/"+s.t2_i,s.t3_m!=null&&s.t3_i!=null&&"T3:"+s.t3_m+"/"+s.t3_i,s.tl_m!=null&&s.tl_i!=null&&"TL:"+s.tl_m+"/"+s.tl_i,s.fc&&"FC:"+s.fc].filter(Boolean).join(" ");
     }).filter(l=>l.includes(":")).join("\n");
+
     const rivStr=rivalPS.filter(p=>p.pt||p.min).map(p=>"#"+p.num+" "+p.name+": "+[p.pt&&"PT:"+p.pt,p.min&&"Min:"+p.min,p.t2_m&&"T2:"+p.t2_m+"/"+p.t2_i,p.t3_m&&"T3:"+p.t3_m+"/"+p.t3_i,p.tl_m&&"TL:"+p.tl_m+"/"+p.tl_i,p.fc&&"FC:"+p.fc].filter(Boolean).join(" ")).join("\n");
 
     try{
@@ -3972,20 +4088,22 @@ function MatchAnalysisBlock({m,players}){
         messages:[{role:"user",content:
           "Eres analista de baloncesto. Analiza este partido de CB Binissalem Sénior A.\n\n"
           +"PARTIDO: CB Binissalem vs "+m.rival+" ("+m.location+") "+m.date+"\n"
-          +"RESULTADO: "+result+(qStr?" | "+qStr:"")+"\n\n"
+          +"RESULTADO FINAL: "+resultLine+"\n\n"
+          +qLines
           +(ourStats?"NUESTRAS ESTADÍSTICAS:\n"+ourStats+"\n\n":"")
           +(rivStr?"ESTADÍSTICAS RIVAL:\n"+rivStr+"\n\n":"")
           +(m.notes?"NOTAS DEL ENTRENADOR:\n"+m.notes+"\n\n":"")
           +"Genera un análisis post-partido completo en español con:\n"
-          +"1. RESUMEN DEL PARTIDO\n"
+          +"1. RESUMEN DEL PARTIDO (usa los resultados exactos proporcionados)\n"
           +"2. PUNTOS POSITIVOS (qué funcionó bien)\n"
           +"3. PUNTOS A MEJORAR (errores y aspectos a trabajar)\n"
           +"4. RENDIMIENTO INDIVIDUAL (destacados positivos y negativos)\n"
           +"5. CONCLUSIONES Y PRÓXIMOS PASOS (qué entrenar esta semana)\n\n"
-          +"Sé específico, usa los datos estadísticos disponibles."
+          +"CRÍTICO: Copia los marcadores EXACTAMENTE como se te proporcionan. No hagas ningún cálculo propio."
         }]
       });
       const text=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
+      const result=finalUs!=null?finalUs+"-"+finalTh:"Sin resultado";
       const analysis={id:Date.now(),matchId:m.id,rival:m.rival,date:m.date,result,text,rivalStats:rivalPS,created:new Date().toISOString()};
       setMatchAnalyses(prev=>[analysis,...prev.filter(a=>a.matchId!==m.id)]);
     }catch(e){alert("Error: "+e.message);}
