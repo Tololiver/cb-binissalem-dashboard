@@ -3339,9 +3339,8 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
 
   const saveScoutReport=()=>{
     if(!rivalResult||rivalResult.error||rivalResult.saved)return;
-    const playersToSave=rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers;
-    // Merge player notes into saved players
-    const playersWithNotes=playersToSave.map(p=>({...p,notes:rivalNotes[p.id]||""}));
+    // Siempre guardar rivalPlayers completo (tiene todos los datos actualizados) + notas
+    const playersWithNotes=rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||""}));
     setScouting(prev=>[{
       id:Date.now(),
       rival:rivalResult.rival||"Sin nombre",
@@ -3358,7 +3357,7 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
   // PDF profesional — bloques verticales, sin símbolos markdown
   const exportScoutPDF=(sc)=>{
     const players=sc.players||[];
-    const validP=players.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i));
+    const validP=players.filter(p=>p.name&&p.name.trim()&&(parseInt(p.pt)||parseInt(p.pj)||parseInt(p.min)||parseInt(p.tl_i)||parseInt(p.t2_i)||parseInt(p.t3_i)||parseInt(p.fc)));
     const scored=validP.map(p=>{
       const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
       const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
@@ -3750,7 +3749,8 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
 
         {/* Top 10 y resultado IA — solo cuando NO hay informe guardado seleccionado */}
         {!selScout&&!rivalLoading&&(()=>{
-          const allP=(rivalResult?.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
+          // Siempre usar rivalPlayers — se actualiza con setRivalPlayers() tras extracción PDF
+          const allP=rivalPlayers
             .filter(p=>p.name&&(parseInt(p.pt)||parseInt(p.pj)||parseInt(p.min)||parseInt(p.tl_i)||parseInt(p.t2_i)||parseInt(p.t3_i)||parseInt(p.fc)));
           if(!allP.length)return null;
           const ranked=[...allP].map(p=>{
@@ -3771,7 +3771,7 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:rivalResult.saved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:rivalResult.saved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Save size={12}/>{rivalResult.saved?"✓ Guardado en historial":"Guardar informe"}
               </button>
-              <button onClick={()=>exportScoutPDF({rival:rivalResult.rival,date:new Date().toISOString().split("T")[0],jornada:rivalJornada,fecha:rivalFecha,lugar:rivalLugar,fase:rivalFase,text:rivalResult.text,players:rivalResult.players&&rivalResult.players.length>0?rivalResult.players.map(p=>({...p,notes:rivalNotes[p.id]||""})):rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||""})),analisisAtaque,analisisDefensa,clavesAtaque,clavesDefensa,rivalMensaje})}
+              <button onClick={()=>exportScoutPDF({rival:rivalResult.rival,date:new Date().toISOString().split("T")[0],jornada:rivalJornada,fecha:rivalFecha,lugar:rivalLugar,fase:rivalFase,text:rivalResult.text,players:rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||""})),analisisAtaque,analisisDefensa,clavesAtaque,clavesDefensa,rivalMensaje})}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Printer size={12}/>Descargar PDF
               </button>
