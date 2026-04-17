@@ -3355,7 +3355,7 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
   };
   const delScout=id=>setScouting(prev=>prev.filter(s=>s.id!==id));
 
-  // PDF profesional al estilo La Zubia
+  // PDF profesional — bloques verticales, sin símbolos markdown
   const exportScoutPDF=(sc)=>{
     const players=sc.players||[];
     const validP=players.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i));
@@ -3368,16 +3368,34 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
 
     const pct=(n,d)=>parseInt(d)?Math.round(parseInt(n)/parseInt(d)*100)+"%":"—";
 
-    // Tabla de jugadores
+    // Strip markdown symbols: **, __, ##, #, leading dashes used as bullets → keep text clean
+    const cleanMd=(txt="")=>txt
+      .replace(/\*\*(.*?)\*\*/g,"$1")   // **bold** → bold
+      .replace(/__(.*?)__/g,"$1")        // __bold__ → bold
+      .replace(/^#{1,3}\s*/gm,"")        // ## headings
+      .replace(/^[-•]\s/gm,"— ")         // - bullet → — bullet
+      .replace(/\n{3,}/g,"\n\n")         // triple+ newlines → double
+      .trim();
+
+    // Section block — vertical, full width
+    const bloque=(titulo,contenido)=>{
+      const txt=cleanMd(contenido||"");
+      if(!txt)return "";
+      return `<div style="break-inside:avoid;margin-bottom:20px">
+        <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-size:14px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:1px;border-left:4px solid #f97316;padding:4px 0 4px 12px;margin-bottom:10px;background:#f8fafc">${titulo}</div>
+        <div style="font-size:12px;line-height:1.85;color:#1e293b;white-space:pre-wrap;padding:0 4px">${txt}</div>
+      </div>`;
+    };
+
+    // ── TOP 10 TABLE ──────────────────────────────────────────────
     const tableHtml=scored.length>0?`
-      <div class="section">
-        <div class="section-title" style="color:#1e3a5f;border-left:4px solid #f97316;padding-left:10px">Top 10 Jugadores Rivales</div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <div style="margin-bottom:24px">
+        <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-size:14px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:1px;border-left:4px solid #f97316;padding:4px 0 4px 12px;margin-bottom:10px;background:#f8fafc">Top 10 Jugadores Rivales</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Arial,sans-serif">
           <thead><tr style="background:#1e3a5f;color:#fff">
-            <th style="padding:7px 8px;text-align:center;width:30px">Pos</th>
-            <th style="padding:7px 6px;text-align:center;width:28px">#</th>
+            <th style="padding:7px 8px;text-align:center;width:28px">Pos</th>
+            <th style="padding:7px 6px;text-align:center;width:26px">#</th>
             <th style="padding:7px 12px;text-align:left">Jugador</th>
-            <th style="padding:7px 8px;text-align:center">Pos</th>
             <th style="padding:7px 8px;text-align:center">PJ</th>
             <th style="padding:7px 8px;text-align:center">PT</th>
             <th style="padding:7px 8px;text-align:center">Pts/PJ</th>
@@ -3387,65 +3405,56 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
             <th style="padding:7px 8px;text-align:center">%T3</th>
             <th style="padding:7px 8px;text-align:center">FC</th>
           </tr></thead>
-          <tbody>
-            ${scored.slice(0,10).map((p,i)=>{
-              const isTop3=i<3;
-              const bg=i===0?"#fff3e6":i===1?"#fff7ed":i===2?"#fffbf5":i%2===0?"#f8fafc":"#fff";
-              return `<tr style="background:${bg};border-left:3px solid ${isTop3?"#f97316":"transparent"};border-bottom:1px solid #e2e8f0">
-                <td style="padding:8px;text-align:center;font-weight:700;color:${isTop3?"#f97316":"#94a3b8"}">${i+1}.</td>
-                <td style="padding:8px 6px;text-align:center;font-weight:${isTop3?700:400};color:${isTop3?"#c2410c":"#374151"}">${p.num||"—"}</td>
-                <td style="padding:8px 12px;font-weight:${isTop3?700:400};color:${isTop3?"#c2410c":"#1e293b"}">${p.name||"—"}</td>
-                <td style="padding:8px;text-align:center;color:#64748b;font-size:10px">${p.pos||"—"}</td>
-                <td style="padding:8px;text-align:center;color:#64748b">${p.pj||"—"}</td>
-                <td style="padding:8px;text-align:center;font-weight:700;color:${isTop3?"#ea580c":"#374151"}">${p.pt||"—"}</td>
-                <td style="padding:8px;text-align:center;color:${isTop3?"#ea580c":"#374151"}">${p._ppg||"—"}</td>
-                <td style="padding:8px;text-align:center;color:#64748b">${p.min||"—"}</td>
-                <td style="padding:8px;text-align:center">${pct(p.tl_m,p.tl_i)}</td>
-                <td style="padding:8px;text-align:center">${pct(p.t2_m,p.t2_i)}</td>
-                <td style="padding:8px;text-align:center">${pct(p.t3_m,p.t3_i)}</td>
-                <td style="padding:8px;text-align:center;color:#64748b">${p.fc||"—"}</td>
-              </tr>`;
-            }).join("")}
-          </tbody>
+          <tbody>${scored.slice(0,10).map((p,i)=>{
+            const isTop3=i<3;
+            const bg=i===0?"#fff3e6":i===1?"#fff7ed":i===2?"#fffbf5":i%2===0?"#f8fafc":"#ffffff";
+            return `<tr style="background:${bg};border-left:3px solid ${isTop3?"#f97316":"transparent"};border-bottom:1px solid #e2e8f0">
+              <td style="padding:8px;text-align:center;font-weight:700;font-size:13px;color:${isTop3?"#f97316":"#94a3b8"}">${i+1}.</td>
+              <td style="padding:8px 6px;text-align:center;font-weight:${isTop3?700:400};color:${isTop3?"#c2410c":"#374151"}">${p.num||"—"}</td>
+              <td style="padding:8px 12px;font-weight:${isTop3?700:400};color:${isTop3?"#c2410c":"#1e293b"}">${p.name||"—"}</td>
+              <td style="padding:8px;text-align:center;color:#64748b">${p.pj||"—"}</td>
+              <td style="padding:8px;text-align:center;font-weight:700;color:${isTop3?"#ea580c":"#374151"}">${p.pt||"—"}</td>
+              <td style="padding:8px;text-align:center;color:${isTop3?"#ea580c":"#374151"}">${p._ppg||"—"}</td>
+              <td style="padding:8px;text-align:center;color:#64748b">${p.min||"—"}</td>
+              <td style="padding:8px;text-align:center">${pct(p.tl_m,p.tl_i)}</td>
+              <td style="padding:8px;text-align:center">${pct(p.t2_m,p.t2_i)}</td>
+              <td style="padding:8px;text-align:center">${pct(p.t3_m,p.t3_i)}</td>
+              <td style="padding:8px;text-align:center;color:#64748b">${p.fc||"—"}</td>
+            </tr>`;
+          }).join("")}</tbody>
         </table>
       </div>`:"";
 
-    // Fichas individuales
-    const fichasHtml=scored.filter(p=>p.notes).map(p=>`
-      <div style="break-inside:avoid;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12px">
-        <div style="background:#1e3a5f;padding:10px 14px;display:flex;align-items:center;gap:12">
-          <div style="width:40px;height:40px;border-radius:20px;background:#f97316;display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,Arial;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${p.num||"?"}</div>
-          <div>
-            <div style="font-family:Barlow Condensed,Arial;font-size:16px;font-weight:700;color:#fff">${p.name}</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.7)">${p.pos||""} &nbsp;·&nbsp; ${p.pt?"PT: "+p.pt:""} ${p._ppg?"("+p._ppg+" pts/pj)":""}</div>
-          </div>
-          <div style="margin-left:auto;text-align:right;color:#fff">
-            ${p.tl_i?`<span style="font-size:10px">TL: ${pct(p.tl_m,p.tl_i)}</span>&nbsp;`:""}
-            ${p.t2_i?`<span style="font-size:10px">T2: ${pct(p.t2_m,p.t2_i)}</span>&nbsp;`:""}
-            ${p.t3_i?`<span style="font-size:10px">T3: ${pct(p.t3_m,p.t3_i)}</span>`:""}
-          </div>
+    // ── FICHAS INDIVIDUALES ───────────────────────────────────────
+    const fichasHtml=scored.filter(p=>p.notes&&p.notes.trim()).map(p=>`
+      <div style="break-inside:avoid;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:14px">
+        <div style="background:#1e3a5f;padding:10px 16px">
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              <td style="width:44px;vertical-align:middle">
+                <div style="width:36px;height:36px;border-radius:18px;background:#f97316;text-align:center;line-height:36px;font-family:Barlow Condensed,Arial;font-size:17px;font-weight:800;color:#fff">${p.num||"?"}</div>
+              </td>
+              <td style="vertical-align:middle;padding-left:8px">
+                <div style="font-family:Barlow Condensed,Arial;font-size:16px;font-weight:700;color:#fff;text-transform:uppercase">${p.name||""}</div>
+                <div style="font-size:10px;color:rgba(255,255,255,.7);margin-top:2px">${[p.pos,p.pt?"PT: "+p.pt+(p._ppg?" ("+p._ppg+" pts/pj)":""):""].filter(Boolean).join("  ·  ")}</div>
+              </td>
+              <td style="text-align:right;vertical-align:middle;color:rgba(255,255,255,.85);font-size:11px;white-space:nowrap">
+                ${[p.tl_i?"TL: "+pct(p.tl_m,p.tl_i):"",p.t2_i?"T2: "+pct(p.t2_m,p.t2_i):"",p.t3_i?"T3: "+pct(p.t3_m,p.t3_i):""].filter(Boolean).join("  ")}
+              </td>
+            </tr>
+          </table>
         </div>
-        <div style="padding:12px 16px;font-size:12px;line-height:1.8;white-space:pre-wrap;color:#1e293b">${p.notes}</div>
+        <div style="padding:12px 16px;font-size:12px;line-height:1.85;color:#1e293b;white-space:pre-wrap;background:#fff">${cleanMd(p.notes)}</div>
       </div>`).join("");
 
-    // Análisis colectivo
-    const seccion=(titulo,contenido,color="#1e3a5f")=>contenido?`
-      <div style="break-inside:avoid;margin-bottom:14px">
-        <div style="font-family:Barlow Condensed,Arial;font-size:13px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;border-left:4px solid #f97316;padding-left:10px;margin-bottom:8px">${titulo}</div>
-        <div style="font-size:12px;line-height:1.8;white-space:pre-wrap;color:#1e293b">${contenido}</div>
-      </div>`:"";
-
-    const analisisHtml=[
-      seccion("Análisis colectivo del rival",sc.text),
-      sc.analisisAtaque||sc.analisisDefensa?`<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr>
-        <td style="width:50%;padding-right:8px;vertical-align:top">${seccion("⚔️ Ataque rival",sc.analisisAtaque)}</td>
-        <td style="width:50%;padding-left:8px;vertical-align:top">${seccion("🛡 Defensa rival",sc.analisisDefensa)}</td>
-      </tr></table>`:"",
-      sc.clavesAtaque||sc.clavesDefensa?`<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr>
-        <td style="width:50%;padding-right:8px;vertical-align:top">${seccion("🏀 Claves — Ataque",sc.clavesAtaque)}</td>
-        <td style="width:50%;padding-left:8px;vertical-align:top">${seccion("💪 Claves — Defensa",sc.clavesDefensa)}</td>
-      </tr></table>`:"",
-      sc.rivalMensaje?`<div style="background:#fff7ed;border:2px solid #f97316;border-radius:8px;padding:14px 18px;font-size:13px;font-style:italic;color:#1e293b;margin-top:14px">${sc.rivalMensaje}</div>`:"",
+    // ── ANÁLISIS COLECTIVO — todos en vertical ────────────────────
+    const analisisBlocks=[
+      bloque("Análisis colectivo del rival",sc.text),
+      bloque("Ataque rival",sc.analisisAtaque),
+      bloque("Defensa rival",sc.analisisDefensa),
+      bloque("Claves del partido — Ataque",sc.clavesAtaque),
+      bloque("Claves del partido — Defensa",sc.clavesDefensa),
+      sc.rivalMensaje?`<div style="background:#fff7ed;border-left:4px solid #f97316;border-radius:4px;padding:14px 18px;font-size:12px;font-style:italic;color:#1e293b;margin-top:8px">${cleanMd(sc.rivalMensaje)}</div>`:"",
     ].filter(Boolean).join("");
 
     const subtitle=[sc.fase,sc.jornada,sc.fecha,sc.lugar].filter(Boolean).join(" · ")||sc.date||"";
@@ -3453,8 +3462,8 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
     w.document.write(pdfOpen(`Scouting — ${sc.rival}`)
       +pdfHeader(`SCOUTING — ${(sc.rival||"").toUpperCase()}`,subtitle)
       +tableHtml
-      +(fichasHtml?`<div class="section"><div class="section-title" style="color:#1e3a5f;border-left:4px solid #f97316;padding-left:10px">Fichas individuales</div>${fichasHtml}</div>`:"")
-      +`<div class="section">${analisisHtml}</div>`
+      +(fichasHtml?`<div style="margin-bottom:24px"><div style="font-family:'Barlow Condensed',Arial,sans-serif;font-size:14px;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:1px;border-left:4px solid #f97316;padding:4px 0 4px 12px;margin-bottom:14px;background:#f8fafc">Fichas individuales</div>${fichasHtml}</div>`:"")
+      +`<div>${analisisBlocks}</div>`
       +pdfClose());
     w.document.close();setTimeout(()=>w.print(),400);
   };
