@@ -3388,9 +3388,15 @@ JUGADORES A VIGILAR:
       </div>`:"";
 
     const analisisHtml=[
-      seccion("Análisis colectivo del rival",sc.text?.slice(0,800)),
-      sc.analisisAtaque||sc.analisisDefensa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">${seccion("⚔️ Ataque rival",sc.analisisAtaque)}${seccion("🛡 Defensa rival",sc.analisisDefensa)}</div>`:"",
-      sc.clavesAtaque||sc.clavesDefensa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">${seccion("🏀 Claves — Ataque",sc.clavesAtaque)}${seccion("💪 Claves — Defensa",sc.clavesDefensa)}</div>`:"",
+      seccion("Análisis colectivo del rival",sc.text),
+      sc.analisisAtaque||sc.analisisDefensa?`<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr>
+        <td style="width:50%;padding-right:8px;vertical-align:top">${seccion("⚔️ Ataque rival",sc.analisisAtaque)}</td>
+        <td style="width:50%;padding-left:8px;vertical-align:top">${seccion("🛡 Defensa rival",sc.analisisDefensa)}</td>
+      </tr></table>`:"",
+      sc.clavesAtaque||sc.clavesDefensa?`<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr>
+        <td style="width:50%;padding-right:8px;vertical-align:top">${seccion("🏀 Claves — Ataque",sc.clavesAtaque)}</td>
+        <td style="width:50%;padding-left:8px;vertical-align:top">${seccion("💪 Claves — Defensa",sc.clavesDefensa)}</td>
+      </tr></table>`:"",
       sc.rivalMensaje?`<div style="background:#fff7ed;border:2px solid #f97316;border-radius:8px;padding:14px 18px;font-size:13px;font-style:italic;color:#1e293b;margin-top:14px">${sc.rivalMensaje}</div>`:"",
     ].filter(Boolean).join("");
 
@@ -3666,8 +3672,8 @@ JUGADORES A VIGILAR:
         {/* Resultado generado */}
         {rivalLoading&&<div style={{textAlign:"center",padding:"40px 0"}}><Loader size={28} color="#f97316" style={{animation:"spin 1s linear infinite",margin:"0 auto 14px",display:"block"}}/><p style={{color:th.muted,fontSize:13}}>La IA está analizando…</p></div>}
 
-        {/* Top 10 — siempre visible si hay datos, independiente del informe IA */}
-        {!rivalLoading&&(()=>{
+        {/* Top 10 y resultado IA — solo cuando NO hay informe guardado seleccionado */}
+        {!selScout&&!rivalLoading&&(()=>{
           const allP=(rivalResult?.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)
             .filter(p=>p.name&&(parseInt(p.pt)||parseInt(p.pj)||parseInt(p.min)||parseInt(p.tl_i)||parseInt(p.t2_i)||parseInt(p.t3_i)||parseInt(p.fc)));
           if(!allP.length)return null;
@@ -3680,7 +3686,7 @@ JUGADORES A VIGILAR:
           return <Top10Table players={ranked} th={th}/>;
         })()}
 
-        {rivalResult&&!rivalLoading&&(
+        {!selScout&&rivalResult&&!rivalLoading&&(
           rivalResult.error
           ?<div style={{background:"rgba(239,68,68,.07)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#ef4444"}}>{rivalResult.error}</div>
           :<div>
