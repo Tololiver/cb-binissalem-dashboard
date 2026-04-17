@@ -3109,6 +3109,7 @@ function IAAsistente(){
   const rivalFileRef=useRef();
   // Fichas individuales — "A tener en cuenta" por jugador (keyed by player id)
   const[rivalNotes,setRivalNotes]=useState({});
+  const[rivalNotesEditing,setRivalNotesEditing]=useState({});
   const setRivalNote=(id,val)=>setRivalNotes(prev=>({...prev,[id]:val}));
   // Análisis colectivo estructurado
   const[analisisAtaque,setAnalisisAtaque]=useState("");
@@ -3138,7 +3139,7 @@ function IAAsistente(){
   const delRP=id=>setRivalPlayers(prev=>prev.filter(p=>p.id!==id));
   const resetRival=()=>{
     setRivalName("");setRivalJornada("");setRivalFecha("");setRivalLugar("");setRivalFase("Liga Regular");
-    setRivalText("");setRivalResult(null);setRivalPlayers(defaultRP());setRivalNotes({});
+    setRivalText("");setRivalResult(null);setRivalPlayers(defaultRP());setRivalNotes({});setRivalNotesEditing({});
     setAnalisisAtaque("");setAnalisisDefensa("");setClavesAtaque("");setClavesDefensa("");setRivalMensaje("");
     setSelScout(null);if(rivalFileRef.current)rivalFileRef.current.value="";
   };
@@ -3171,119 +3172,166 @@ function IAAsistente(){
         const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
         content.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}});
       }
-      const rpStr=hasManualPlayers
-        ?rivalPlayers.filter(p=>p.name.trim()&&(!p.name.match(/^Jugador \d+$/)||p.pt||p.pj)).map(p=>{
-            const pj=p.pj?` PJ:${p.pj}`:"";const pt=p.pt?` PT:${p.pt}`:"";const min=p.min?` Min:${p.min}`:"";
-            const tl=p.tl_m&&p.tl_i?` TL:${p.tl_m}/${p.tl_i}`:"";const t2=p.t2_m&&p.t2_i?` T2:${p.t2_m}/${p.t2_i}`:"";const t3=p.t3_m&&p.t3_i?` T3:${p.t3_m}/${p.t3_i}`:"";
-            const fc=p.fc?` FC:${p.fc}`:"";
-            return `  #${p.num} ${p.name}${pj}${pt}${min}${tl}${t2}${t3}${fc}`;
-          }).join("\n")
-        :"";
+      // Build rich player context for AI
+      const playersForAI=hasManualPlayers
+        ?rivalPlayers.filter(p=>p.name.trim()&&(!p.name.match(/^Jugador \d+$/)||p.pt||p.pj))
+        :[];
+      const rpStr=playersForAI.map(p=>{
+        const pj=p.pj?` PJ:${p.pj}`:"";const pt=p.pt?` PT:${p.pt}`:"";const min=p.min?` Min:${p.min}`:"";
+        const pctTL=parseInt(p.tl_i)?` %TL:${Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)}%`:(p.tl_i?` TL:${p.tl_m}/${p.tl_i}`:"");
+        const pctT2=parseInt(p.t2_i)?` %T2:${Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)}%`:(p.t2_i?` T2:${p.t2_m}/${p.t2_i}`:"");
+        const pctT3=parseInt(p.t3_i)?` %T3:${Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)}%`:(p.t3_i?` T3:${p.t3_m}/${p.t3_i}`:"");
+        const ppg=parseInt(p.pt)&&parseInt(p.pj)?` Pts/pj:${Math.round(parseInt(p.pt)/parseInt(p.pj)*10)/10}`:"";
+        const fc=p.fc?` FC:${p.fc}`:"";
+        const pos=p.pos?` [${p.pos}]`:"";
+        const existingNote=rivalNotes[p.id]?` NOTA_EXISTENTE:"${rivalNotes[p.id].slice(0,100)}":`:"";
+        return `  #${p.num}${pos} ${p.name}${pj}${pt}${ppg}${min}${pctTL}${pctT2}${pctT3}${fc}${existingNote}`;
+      }).join("\n");
 
       const playsCtx=plays&&plays.length>0
         ?"\n\nJugadas disponibles en nuestro Playbook:\n"+plays.map(p=>"- "+p.name+" ("+p.cat+"): "+(p.desc?.slice(0,80)||"")).join("\n")
         :"";
 
-      const rivalIntro=(rivalName?"Rival: "+rivalName+".\n":"")+(rivalJornada?"Jornada: "+rivalJornada+". ":"")+(rivalFecha?"Fecha: "+rivalFecha+". ":"")+(rivalLugar?"Lugar: "+rivalLugar+".\n":"\n")+(rivalFase?"Fase: "+rivalFase+"\n":"")+(rivalText?"Información general:\n"+rivalText+"\n\n":"")+(rpStr?"Estadísticas de jugadores:\n"+rpStr+"\n\n":"");
-      const playsRec=playsCtx?"\n7. JUGADAS RECOMENDADAS — elige jugadas de nuestro Playbook que encajen contra este rival":"";
-      const jsonInstr=!hasManualPlayers?"\nAdemás, si encuentras jugadores identificables, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nIMPORTANTE: Excluye cualquier entrada que no sea un jugador real con nombre y apellido (ej: 'J Jugadors/es inscrits/es a mà', 'Jugador anónimo', entradas administrativas, totales de equipo, etc.).\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
-      const promptText=rivalIntro+`Eres el preparador del CB Binissalem Sénior A. Genera un informe de scouting profesional y estructurado en español con estas secciones EXACTAS (usa los títulos tal cual):
+      const rivalIntro=(rivalName?"Rival: "+rivalName+".\n":"")+(rivalJornada?"Jornada: "+rivalJornada+". ":"")+(rivalFecha?"Fecha: "+rivalFecha+". ":"")+(rivalLugar?"Lugar: "+rivalLugar+".\n":"\n")+(rivalFase?"Fase: "+rivalFase+"\n":"")+(rivalText?"Información general:\n"+rivalText+"\n\n":"")+(rpStr?"Estadísticas de jugadores (con porcentajes calculados):\n"+rpStr+"\n\n":"");
+      const playsRec=playsCtx?"\n- JUGADAS RECOMENDADAS: elige 2-3 jugadas de nuestro Playbook que encajen contra este rival":"";
+      const jsonInstr=!hasManualPlayers?"\n\nAdemás, si encuentras jugadores identificables en el PDF, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nIMPORTANTE: Excluye entradas anónimas (ej: 'J Jugadors/es inscrits/es a mà', totales de equipo, etc.).\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
+
+      const promptText=rivalIntro+`Eres el preparador del CB Binissalem Sénior A. Genera un informe de scouting profesional en español.
+
+Genera EXACTAMENTE estas secciones con estos títulos, sin añadir más:
 
 ANÁLISIS COLECTIVO:
-(Párrafo de contexto del equipo rival: balance, estilo de juego, peligrosidad)
+(2-3 párrafos: balance de temporada, estilo de juego, puntos fuertes y débiles del equipo)
 
 ATAQUE RIVAL:
-(Lista numerada de puntos clave del ataque: sistemas, jugadores tiradores, bloqueos directos, tendencias)
+(8-10 puntos numerados: sistemas ofensivos, bloqueos directos, tiradores, penetradores, tendencias)
 
 DEFENSA RIVAL:
-(Lista numerada de puntos clave de su defensa: sistema, vulnerabilidades, presiones)
+(5-7 puntos numerados: sistema defensivo, vulnerabilidades, zonas débiles, cómo nos pueden presionar)
 
 CLAVES DEL PARTIDO — ATAQUE:
-(Lista numerada de qué debemos hacer nosotros en ataque para ganar)
+(6-8 puntos numerados: qué debemos hacer nosotros en ataque para ganar este partido específico)
 
 CLAVES DEL PARTIDO — DEFENSA:
-(Lista numerada de qué debemos hacer nosotros en defensa para ganar)
+(6-8 puntos numerados: qué debemos hacer nosotros en defensa para ganar este partido)
+`+(playsRec?playsRec+"\n":"")+`
+Después de las secciones anteriores, genera fichas individuales para CADA jugador con estadísticas disponibles. Para cada uno usa EXACTAMENTE este formato (una ficha por jugador):
 
-JUGADORES A VIGILAR:
-(Para cada jugador clave: #dorsal Nombre (posición) — tendencias tácticas específicas, mano preferida, zonas de tiro, cómo defenderle)
-`+playsRec+jsonInstr+"\n\nSé muy específico, usa los datos de estadísticas disponibles, y redacta como un scout profesional de baloncesto."+playsCtx;
+FICHA_INICIO
+NUM: [dorsal]
+NOMBRE: [nombre completo]
+NOTAS:
+- [Análisis ofensivo: mano dominante, zonas de tiro, movimientos favoritos, porcentajes destacados]
+- [Cómo atacarle en defensa: sus debilidades defensivas, cómo explotar sus carencias]
+- [Cómo defenderle en ataque: qué hacer para neutralizarle, qué no hacer]
+- [Situaciones especiales: bloqueos, faltas, tiro libre, transición]
+- [Dato clave con número concreto: ej "TL 75% — muy seguro en la línea"]
+FICHA_FIN
+
+Sé muy específico y usa los datos de estadísticas. Redacta como un scout profesional de baloncesto.`
+      +jsonInstr+playsCtx;
       content.push({type:"text",text:promptText});
 
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1800,messages:[{role:"user",content}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content}]});
       let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
 
-      // Extracción robusta del JSON — limpia saltos de línea dentro del bloque antes de parsear
+      // ── Extraer FICHAS individuales ─────────────────────────────
+      const fichasExtracted={};
+      const fichaRegex=/FICHA_INICIO\s+([\s\S]*?)FICHA_FIN/g;
+      let fichaMatch;
+      while((fichaMatch=fichaRegex.exec(fullText))!==null){
+        const bloque=fichaMatch[1];
+        const numMatch=bloque.match(/NUM:\s*(\S+)/);
+        const nomMatch=bloque.match(/NOMBRE:\s*(.+)/);
+        const notasMatch=bloque.match(/NOTAS:\s*([\s\S]+)/);
+        if(numMatch&&notasMatch){
+          const num=(numMatch[1]||"").trim();
+          const nombre=(nomMatch?nomMatch[1]:"").trim();
+          const notas=notasMatch[1].replace(/FICHA_FIN[\s\S]*/,"").trim();
+          // Match to existing player by num or name
+          const player=rivalPlayers.find(p=>
+            String(p.num)===String(num)||
+            (nombre&&p.name.toLowerCase().includes(nombre.split(" ")[0].toLowerCase()))
+          );
+          if(player){
+            fichasExtracted[player.id]=notas;
+          } else {
+            // Store by num as fallback key
+            fichasExtracted["_num_"+num]=notas;
+          }
+        }
+      }
+      // Auto-fill rivalNotes with extracted fichas (don't overwrite manually entered notes)
+      if(Object.keys(fichasExtracted).length>0){
+        setRivalNotes(prev=>{
+          const updated={...prev};
+          Object.entries(fichasExtracted).forEach(([id,notas])=>{
+            if(!updated[id]||updated[id].trim()===""){// only fill if empty
+              updated[id]=notas;
+            }
+          });
+          return updated;
+        });
+      }
+
+      // ── Extraer secciones del análisis colectivo ────────────────
+      const extractSection=(text,titulo)=>{
+        const re=new RegExp(titulo+"[:\\s]*([\\s\\S]*?)(?=ANÁLISIS COLECTIVO:|ATAQUE RIVAL:|DEFENSA RIVAL:|CLAVES DEL PARTIDO — ATAQUE:|CLAVES DEL PARTIDO — DEFENSA:|JUGADAS RECOMENDADAS:|FICHA_INICIO|PLAYERS_JSON:|$)","i");
+        const m=text.match(re);
+        return m?m[1].trim():"";
+      };
+      const aiColectivo=extractSection(fullText,"ANÁLISIS COLECTIVO:");
+      const aiAtaque=extractSection(fullText,"ATAQUE RIVAL:");
+      const aiDefensa=extractSection(fullText,"DEFENSA RIVAL:");
+      const aiClavesAtaque=extractSection(fullText,"CLAVES DEL PARTIDO — ATAQUE:");
+      const aiClavesDefensa=extractSection(fullText,"CLAVES DEL PARTIDO — DEFENSA:");
+
+      // Auto-fill structured fields only if user hasn't filled them
+      if(aiAtaque&&!analisisAtaque.trim())setAnalisisAtaque(aiAtaque);
+      if(aiDefensa&&!analisisDefensa.trim())setAnalisisDefensa(aiDefensa);
+      if(aiClavesAtaque&&!clavesAtaque.trim())setClavesAtaque(aiClavesAtaque);
+      if(aiClavesDefensa&&!clavesDefensa.trim())setClavesDefensa(aiClavesDefensa);
+
+      // Remove FICHA_ blocks from visible text (keep structured sections)
+      const textClean=fullText.replace(/FICHA_INICIO[\s\S]*?FICHA_FIN/g,"").trim();
+
+      // Extracción robusta del JSON de jugadores (PDF sin stats manuales)
       let extractedPlayers=null;
       if(!hasManualPlayers){
-        const pjIdx=fullText.indexOf("PLAYERS_JSON:");
+        const pjIdx=textClean.indexOf("PLAYERS_JSON:");
         if(pjIdx>=0){
-          // Tomar todo desde PLAYERS_JSON hasta el final y limpiar saltos de línea
-          let raw=fullText.slice(pjIdx+"PLAYERS_JSON:".length).trim();
-          // Eliminar todo lo que no sea el array JSON (texto posterior al bloque)
-          // Buscar el inicio del array
+          let raw=textClean.slice(pjIdx+"PLAYERS_JSON:".length).trim();
           const arrStart=raw.indexOf("[");
           if(arrStart>=0){
             raw=raw.slice(arrStart);
-            // Limpiar saltos de línea dentro del fragmento (los nombres largos los generan)
             raw=raw.replace(/\r?\n/g," ").replace(/\s+/g," ");
-            // Encontrar el ] de cierre del array (robusto: recorrer balanceando)
             let depth=0,end=-1;
             for(let i=0;i<raw.length;i++){
               if(raw[i]==="[")depth++;
               else if(raw[i]==="]"){depth--;if(depth===0){end=i;break;}}
             }
             let jsonStr=end>=0?raw.slice(0,end+1):raw;
-            // Intentar reparar JSON truncado si falta el cierre
-            if(end<0){
-              const lastObj=jsonStr.lastIndexOf("}");
-              if(lastObj>=0)jsonStr=jsonStr.slice(0,lastObj+1)+"]";
-            }
+            if(end<0){const lastObj=jsonStr.lastIndexOf("}");if(lastObj>=0)jsonStr=jsonStr.slice(0,lastObj+1)+"]";}
             try{
               const parsed=JSON.parse(jsonStr);
               if(Array.isArray(parsed)&&parsed.length>0){
-                // Filter out anonymous/administrative entries
-                const ANON_PATTERNS=[
-                  /jugador[s]?\s*\/?\s*es\s+inscrits/i,  // "J Jugadors/es inscrits/es a mà"
-                  /inscrit[s]?\s*\/?\s*es/i,
-                  /a\s+m[àa]/i,                           // "a mà"
-                  /^jugador\s+an[oò]nim/i,
-                  /^total/i,
-                  /^\s*j\s+jugador/i,
-                ];
-                const isAnon=name=>{
-                  const n=(name||"").trim();
-                  if(!n||n.length<3)return true;
-                  // Must have at least 2 words (first name + surname)
-                  const words=n.split(/\s+/).filter(Boolean);
-                  if(words.length<2)return true;
-                  return ANON_PATTERNS.some(re=>re.test(n));
-                };
-                extractedPlayers=parsed
-                  .filter(p=>!isAnon(p.name))
-                  .map((p,i)=>({
-                    id:Date.now()+i,
-                    num:p.num||String(i+1),
-                    name:(p.name||`Jugador ${i+1}`).trim(),
-                    pj:p.pj||"",pt:p.pt||"",min:p.min||"",
-                    tl_i:p.tl_i||"",tl_m:p.tl_m||"",
-                    t2_i:p.t2_i||"",t2_m:p.t2_m||"",
-                    t3_i:p.t3_i||"",t3_m:p.t3_m||"",
-                    fc:p.fc||"",
-                  }));
+                const ANON_PATTERNS=[/jugador[s]?\s*\/?\s*es\s+inscrits/i,/inscrit[s]?\s*\/?\s*es/i,/a\s+m[àa]/i,/^jugador\s+an[oò]nim/i,/^total/i,/^\s*j\s+jugador/i];
+                const isAnon=name=>{const n=(name||"").trim();if(!n||n.length<3)return true;if(n.split(/\s+/).filter(Boolean).length<2)return true;return ANON_PATTERNS.some(re=>re.test(n));};
+                extractedPlayers=parsed.filter(p=>!isAnon(p.name)).map((p,i)=>({
+                  id:Date.now()+i,num:p.num||String(i+1),name:(p.name||`Jugador ${i+1}`).trim(),
+                  pj:p.pj||"",pt:p.pt||"",min:p.min||"",tl_i:p.tl_i||"",tl_m:p.tl_m||"",
+                  t2_i:p.t2_i||"",t2_m:p.t2_m||"",t3_i:p.t3_i||"",t3_m:p.t3_m||"",fc:p.fc||"",
+                }));
                 if(extractedPlayers.length===0)extractedPlayers=null;
-                // Eliminar el bloque PLAYERS_JSON del texto visible
-                fullText=fullText.slice(0,pjIdx).trim();
               }
             }catch(e){console.warn("PLAYERS_JSON parse error:",e.message);}
           }
         }
       }
 
-      if(extractedPlayers&&extractedPlayers.length>0){
-        setRivalPlayers(extractedPlayers);
-      }
+      if(extractedPlayers&&extractedPlayers.length>0){setRivalPlayers(extractedPlayers);}
 
-      setRivalResult({text:fullText,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers,players:extractedPlayers||null});
+      setRivalResult({text:aiColectivo||textClean,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers,players:extractedPlayers||null,fichasCount:Object.keys(fichasExtracted).length});
     }catch(e){setRivalResult({error:e.message});}
     setRivalLoading(false);
     if(rivalFileRef.current)rivalFileRef.current.value="";
@@ -3576,17 +3624,22 @@ JUGADORES A VIGILAR:
         {/* ── FICHAS INDIVIDUALES — A TENER EN CUENTA ─────────── */}
         {rivalPlayers.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).length>0&&(
           <div className="card" style={{padding:20,marginBottom:14}}>
-            <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>
-              Fichas individuales — A tener en cuenta
-            </p>
-            <p style={{fontSize:10,color:th.muted,marginBottom:14}}>Para cada jugador del equipo rival, anota sus tendencias, puntos fuertes/débiles, cómo atacarle y defenderle</p>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5}}>
+                Fichas individuales — A tener en cuenta
+              </p>
+              <span style={{fontSize:10,color:th.muted}}>Clic en ✏️ para editar cada ficha</span>
+            </div>
+            <p style={{fontSize:10,color:th.muted,marginBottom:14}}>Para cada jugador anota sus tendencias, puntos fuertes/débiles, cómo atacarle y defenderle</p>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:12}}>
               {rivalPlayers.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>{
                 const pct2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
                 const pct3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
                 const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
                 const ppg=parseInt(p.pt)&&parseInt(p.pj)?Math.round(parseInt(p.pt)/parseInt(p.pj)*10)/10:null;
-                return <div key={p.id} style={{border:`1px solid ${th.border}`,borderRadius:10,overflow:"hidden"}}>
+                const hasNote=!!(rivalNotes[p.id]||"").trim();
+                const isEditing=rivalNotesEditing&&rivalNotesEditing[p.id];
+                return <div key={p.id} style={{border:`1px solid ${th.border}`,borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column"}}>
                   {/* Header ficha */}
                   <div style={{background:th.tableHead,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
                     <div style={{width:36,height:36,borderRadius:18,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:16,fontWeight:800,color:"#fff",flexShrink:0}}>
@@ -3596,10 +3649,16 @@ JUGADORES A VIGILAR:
                       <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
                       <p style={{fontSize:10,color:th.muted}}>{p.pos||"Posición no indicada"}</p>
                     </div>
-                    {ppg&&<div style={{textAlign:"right"}}>
+                    {ppg&&<div style={{textAlign:"right",marginRight:6}}>
                       <p style={{fontFamily:"DM Mono",fontSize:18,fontWeight:700,color:"#f97316",lineHeight:1}}>{ppg}</p>
                       <p style={{fontSize:9,color:th.muted}}>pts/pj</p>
                     </div>}
+                    <button
+                      onClick={()=>setRivalNotesEditing(prev=>({...prev,[p.id]:!prev?.[p.id]}))}
+                      title={isEditing?"Guardar y ver":"Editar ficha"}
+                      style={{width:28,height:28,borderRadius:7,border:`1px solid ${th.border2}`,background:isEditing?"rgba(249,115,22,.12)":th.card2,cursor:"pointer",color:isEditing?"#f97316":th.muted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0}}>
+                      {isEditing?"✓":"✏️"}
+                    </button>
                   </div>
                   {/* Mini stats */}
                   {(p.pt||p.min||p.tl_i||p.t2_i||p.t3_i)&&(
@@ -3612,14 +3671,22 @@ JUGADORES A VIGILAR:
                       ):null)}
                     </div>
                   )}
-                  {/* Textarea notas */}
-                  <div style={{padding:10}}>
-                    <textarea
-                      rows={4}
-                      value={rivalNotes[p.id]||""}
-                      onChange={e=>setRivalNote(p.id,e.target.value)}
-                      placeholder={"A tener en cuenta:\n- Tendencias de tiro (mano, zona, tipo)\n- Cómo atacarle en defensa\n- Cómo defenderle en ataque\n- Situaciones especiales (BD, faltas…)"}
-                      style={{fontSize:11,lineHeight:1.6,resize:"vertical",width:"100%",fontFamily:"inherit"}}/>
+                  {/* Contenido — modo lectura o edición */}
+                  <div style={{padding:10,flex:1}}>
+                    {isEditing
+                      ?<textarea
+                          autoFocus
+                          value={rivalNotes[p.id]||""}
+                          onChange={e=>setRivalNote(p.id,e.target.value)}
+                          placeholder={"A tener en cuenta:\n- Tendencias de tiro (mano, zona, tipo)\n- Cómo atacarle en defensa\n- Cómo defenderle en ataque\n- Situaciones especiales (BD, faltas…)"}
+                          style={{fontSize:11,lineHeight:1.6,resize:"vertical",width:"100%",fontFamily:"inherit",minHeight:140}}/>
+                      :<div style={{fontSize:11,color:hasNote?th.text:th.muted,lineHeight:1.7,whiteSpace:"pre-wrap",cursor:"pointer",minHeight:80}}
+                          onClick={()=>setRivalNotesEditing(prev=>({...prev,[p.id]:true}))}>
+                          {hasNote
+                            ?rivalNotes[p.id]
+                            :<span style={{fontStyle:"italic",opacity:.7}}>Sin notas — clic aquí o en ✏️ para añadir el análisis táctico de este jugador</span>}
+                        </div>
+                    }
                   </div>
                 </div>;
               })}
@@ -3704,7 +3771,10 @@ JUGADORES A VIGILAR:
               ✅ Informe guardado — visible en el historial de informes
             </div>}
             {rivalResult.playersExtracted&&<div style={{background:"rgba(139,92,246,.07)",border:"1px solid rgba(139,92,246,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#8b5cf6",display:"flex",alignItems:"center",gap:6}}>
-              <Users size={13}/>Jugadores detectados automáticamente por la IA — revisa la tabla y edita si es necesario
+              <Users size={13}/>Jugadores detectados automáticamente del PDF — revisa la tabla y edita si es necesario
+            </div>}
+            {rivalResult.fichasCount>0&&<div style={{background:"rgba(16,185,129,.07)",border:"1px solid rgba(16,185,129,.3)",borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:"#10b981",display:"flex",alignItems:"center",gap:6}}>
+              ✓ {rivalResult.fichasCount} fichas individuales generadas y auto-rellenadas — revisa y edita en la sección "A tener en cuenta"
             </div>}
             <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:480,overflowY:"auto"}}>{rivalResult.text}</div>
           </div>
