@@ -3101,8 +3101,21 @@ function IAAsistente(){
 
   // Análisis rival
   const[rivalName,setRivalName]=useState("");
+  const[rivalJornada,setRivalJornada]=useState("");
+  const[rivalFecha,setRivalFecha]=useState("");
+  const[rivalLugar,setRivalLugar]=useState("");
+  const[rivalFase,setRivalFase]=useState("Liga Regular");
   const[rivalText,setRivalText]=useState("");const[rivalResult,setRivalResult]=useState(null);const[rivalLoading,setRivalLoading]=useState(false);
   const rivalFileRef=useRef();
+  // Fichas individuales — "A tener en cuenta" por jugador (keyed by player id)
+  const[rivalNotes,setRivalNotes]=useState({});
+  const setRivalNote=(id,val)=>setRivalNotes(prev=>({...prev,[id]:val}));
+  // Análisis colectivo estructurado
+  const[analisisAtaque,setAnalisisAtaque]=useState("");
+  const[analisisDefensa,setAnalisisDefensa]=useState("");
+  const[clavesAtaque,setClavesAtaque]=useState("");
+  const[clavesDefensa,setClavesDefensa]=useState("");
+  const[rivalMensaje,setRivalMensaje]=useState("");
   // Stats de jugadores del rival para scouting
   const emptyRP=()=>({pj:"",pt:"",min:"",tl_i:"",tl_m:"",t2_i:"",t2_m:"",t3_i:"",t3_m:"",fc:""});
   const defaultRP=()=>[
@@ -3123,7 +3136,12 @@ function IAAsistente(){
   const setRP=(id,field,val)=>setRivalPlayers(prev=>prev.map(p=>p.id===id?{...p,[field]:val}:p));
   const addRP=()=>setRivalPlayers(prev=>[...prev,{id:Date.now(),num:"",name:`Jugador ${prev.length+1}`,...emptyRP()}]);
   const delRP=id=>setRivalPlayers(prev=>prev.filter(p=>p.id!==id));
-  const resetRival=()=>{setRivalName("");setRivalText("");setRivalResult(null);setRivalPlayers(defaultRP());setSelScout(null);if(rivalFileRef.current)rivalFileRef.current.value="";};
+  const resetRival=()=>{
+    setRivalName("");setRivalJornada("");setRivalFecha("");setRivalLugar("");setRivalFase("Liga Regular");
+    setRivalText("");setRivalResult(null);setRivalPlayers(defaultRP());setRivalNotes({});
+    setAnalisisAtaque("");setAnalisisDefensa("");setClavesAtaque("");setClavesDefensa("");setRivalMensaje("");
+    setSelScout(null);if(rivalFileRef.current)rivalFileRef.current.value="";
+  };
 
   // Generador sesión
   const[sesObj,setSesObj]=useState("");const[sesDur,setSesDur]=useState("90");const[sesFocus,setSesFocus]=useState("Técnico-Táctico");
@@ -3166,10 +3184,29 @@ function IAAsistente(){
         ?"\n\nJugadas disponibles en nuestro Playbook:\n"+plays.map(p=>"- "+p.name+" ("+p.cat+"): "+(p.desc?.slice(0,80)||"")).join("\n")
         :"";
 
-      const rivalIntro=(rivalName?"Rival: "+rivalName+".\n":"")+(rivalText?"Información general:\n"+rivalText+"\n\n":"")+(rpStr?"Jugadores conocidos:\n"+rpStr+"\n\n":"");
-      const playsRec=playsCtx?"\n6. JUGADAS DE NUESTRO PLAYBOOK recomendadas — analiza cuáles encajan mejor contra este rival y por qué":"";
+      const rivalIntro=(rivalName?"Rival: "+rivalName+".\n":"")+(rivalJornada?"Jornada: "+rivalJornada+". ":"")+(rivalFecha?"Fecha: "+rivalFecha+". ":"")+(rivalLugar?"Lugar: "+rivalLugar+".\n":"\n")+(rivalFase?"Fase: "+rivalFase+"\n":"")+(rivalText?"Información general:\n"+rivalText+"\n\n":"")+(rpStr?"Estadísticas de jugadores:\n"+rpStr+"\n\n":"");
+      const playsRec=playsCtx?"\n7. JUGADAS RECOMENDADAS — elige jugadas de nuestro Playbook que encajen contra este rival":"";
       const jsonInstr=!hasManualPlayers?"\nAdemás, si encuentras jugadores identificables, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nIMPORTANTE: Excluye cualquier entrada que no sea un jugador real con nombre y apellido (ej: 'J Jugadors/es inscrits/es a mà', 'Jugador anónimo', entradas administrativas, totales de equipo, etc.).\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
-      const promptText=rivalIntro+"Genera el informe táctico en español:\n1. PUNTOS FUERTES del rival\n2. PUNTOS DÉBILES a explotar\n3. PLAN DE PARTIDO (ataque y defensa)\n4. JUGADORES A VIGILAR (con datos concretos)\n5. JUGADAS CLAVE a preparar"+playsRec+jsonInstr+"\n\nSé específico y práctico."+playsCtx;
+      const promptText=rivalIntro+`Eres el preparador del CB Binissalem Sénior A. Genera un informe de scouting profesional y estructurado en español con estas secciones EXACTAS (usa los títulos tal cual):
+
+ANÁLISIS COLECTIVO:
+(Párrafo de contexto del equipo rival: balance, estilo de juego, peligrosidad)
+
+ATAQUE RIVAL:
+(Lista numerada de puntos clave del ataque: sistemas, jugadores tiradores, bloqueos directos, tendencias)
+
+DEFENSA RIVAL:
+(Lista numerada de puntos clave de su defensa: sistema, vulnerabilidades, presiones)
+
+CLAVES DEL PARTIDO — ATAQUE:
+(Lista numerada de qué debemos hacer nosotros en ataque para ganar)
+
+CLAVES DEL PARTIDO — DEFENSA:
+(Lista numerada de qué debemos hacer nosotros en defensa para ganar)
+
+JUGADORES A VIGILAR:
+(Para cada jugador clave: #dorsal Nombre (posición) — tendencias tácticas específicas, mano preferida, zonas de tiro, cómo defenderle)
+`+playsRec+jsonInstr+"\n\nSé muy específico, usa los datos de estadísticas disponibles, y redacta como un scout profesional de baloncesto."+playsCtx;
       content.push({type:"text",text:promptText});
 
       const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1800,messages:[{role:"user",content}]});
@@ -3254,12 +3291,119 @@ function IAAsistente(){
 
   const saveScoutReport=()=>{
     if(!rivalResult||rivalResult.error||rivalResult.saved)return;
-    // Use players from rivalResult if auto-extracted, otherwise use current rivalPlayers state
     const playersToSave=rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers;
-    setScouting(prev=>[{id:Date.now(),rival:rivalResult.rival||"Sin nombre",date:new Date().toISOString().split("T")[0],text:rivalResult.text,players:playersToSave},...prev]);
+    // Merge player notes into saved players
+    const playersWithNotes=playersToSave.map(p=>({...p,notes:rivalNotes[p.id]||""}));
+    setScouting(prev=>[{
+      id:Date.now(),
+      rival:rivalResult.rival||"Sin nombre",
+      date:new Date().toISOString().split("T")[0],
+      jornada:rivalJornada,fecha:rivalFecha,lugar:rivalLugar,fase:rivalFase,
+      text:rivalResult.text,
+      players:playersWithNotes,
+      analisisAtaque,analisisDefensa,clavesAtaque,clavesDefensa,rivalMensaje,
+    },...prev]);
     setRivalResult(r=>({...r,saved:true}));
   };
   const delScout=id=>setScouting(prev=>prev.filter(s=>s.id!==id));
+
+  // PDF profesional al estilo La Zubia
+  const exportScoutPDF=(sc)=>{
+    const players=sc.players||[];
+    const validP=players.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i));
+    const scored=validP.map(p=>{
+      const pt=parseInt(p.pt)||0;const pj=Math.max(parseInt(p.pj)||1,1);
+      const t2m=parseInt(p.t2_m)||0;const t3m=parseInt(p.t3_m)||0;const tlm=parseInt(p.tl_m)||0;
+      const t2i=Math.max(parseInt(p.t2_i)||1,1);const t3i=Math.max(parseInt(p.t3_i)||1,1);const tli=Math.max(parseInt(p.tl_i)||1,1);
+      return{...p,_ppg:Math.round(pt/pj*10)/10,_score:pt/pj+((t2m/t2i+t3m/t3i+tlm/tli)/3)*8};
+    }).sort((a,b)=>b._score-a._score);
+
+    const pct=(n,d)=>parseInt(d)?Math.round(parseInt(n)/parseInt(d)*100)+"%":"—";
+
+    // Tabla de jugadores
+    const tableHtml=scored.length>0?`
+      <div class="section">
+        <div class="section-title" style="color:#1e3a5f;border-left:4px solid #f97316;padding-left:10px">Top 10 Jugadores Rivales</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="background:#1e3a5f;color:#fff">
+            <th style="padding:7px 8px;text-align:center;width:30px">Pos</th>
+            <th style="padding:7px 6px;text-align:center;width:28px">#</th>
+            <th style="padding:7px 12px;text-align:left">Jugador</th>
+            <th style="padding:7px 8px;text-align:center">Pos</th>
+            <th style="padding:7px 8px;text-align:center">PJ</th>
+            <th style="padding:7px 8px;text-align:center">PT</th>
+            <th style="padding:7px 8px;text-align:center">Pts/PJ</th>
+            <th style="padding:7px 8px;text-align:center">Min</th>
+            <th style="padding:7px 8px;text-align:center">%TL</th>
+            <th style="padding:7px 8px;text-align:center">%T2</th>
+            <th style="padding:7px 8px;text-align:center">%T3</th>
+            <th style="padding:7px 8px;text-align:center">FC</th>
+          </tr></thead>
+          <tbody>
+            ${scored.slice(0,10).map((p,i)=>{
+              const isTop3=i<3;
+              const bg=i===0?"#fff3e6":i===1?"#fff7ed":i===2?"#fffbf5":i%2===0?"#f8fafc":"#fff";
+              return `<tr style="background:${bg};border-left:3px solid ${isTop3?"#f97316":"transparent"};border-bottom:1px solid #e2e8f0">
+                <td style="padding:8px;text-align:center;font-weight:700;color:${isTop3?"#f97316":"#94a3b8"}">${i+1}.</td>
+                <td style="padding:8px 6px;text-align:center;font-weight:${isTop3?700:400};color:${isTop3?"#c2410c":"#374151"}">${p.num||"—"}</td>
+                <td style="padding:8px 12px;font-weight:${isTop3?700:400};color:${isTop3?"#c2410c":"#1e293b"}">${p.name||"—"}</td>
+                <td style="padding:8px;text-align:center;color:#64748b;font-size:10px">${p.pos||"—"}</td>
+                <td style="padding:8px;text-align:center;color:#64748b">${p.pj||"—"}</td>
+                <td style="padding:8px;text-align:center;font-weight:700;color:${isTop3?"#ea580c":"#374151"}">${p.pt||"—"}</td>
+                <td style="padding:8px;text-align:center;color:${isTop3?"#ea580c":"#374151"}">${p._ppg||"—"}</td>
+                <td style="padding:8px;text-align:center;color:#64748b">${p.min||"—"}</td>
+                <td style="padding:8px;text-align:center">${pct(p.tl_m,p.tl_i)}</td>
+                <td style="padding:8px;text-align:center">${pct(p.t2_m,p.t2_i)}</td>
+                <td style="padding:8px;text-align:center">${pct(p.t3_m,p.t3_i)}</td>
+                <td style="padding:8px;text-align:center;color:#64748b">${p.fc||"—"}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>`:"";
+
+    // Fichas individuales
+    const fichasHtml=scored.filter(p=>p.notes).map(p=>`
+      <div style="break-inside:avoid;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12px">
+        <div style="background:#1e3a5f;padding:10px 14px;display:flex;align-items:center;gap:12">
+          <div style="width:40px;height:40px;border-radius:20px;background:#f97316;display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,Arial;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${p.num||"?"}</div>
+          <div>
+            <div style="font-family:Barlow Condensed,Arial;font-size:16px;font-weight:700;color:#fff">${p.name}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.7)">${p.pos||""} &nbsp;·&nbsp; ${p.pt?"PT: "+p.pt:""} ${p._ppg?"("+p._ppg+" pts/pj)":""}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;color:#fff">
+            ${p.tl_i?`<span style="font-size:10px">TL: ${pct(p.tl_m,p.tl_i)}</span>&nbsp;`:""}
+            ${p.t2_i?`<span style="font-size:10px">T2: ${pct(p.t2_m,p.t2_i)}</span>&nbsp;`:""}
+            ${p.t3_i?`<span style="font-size:10px">T3: ${pct(p.t3_m,p.t3_i)}</span>`:""}
+          </div>
+        </div>
+        <div style="padding:12px 16px;font-size:12px;line-height:1.8;white-space:pre-wrap;color:#1e293b">${p.notes}</div>
+      </div>`).join("");
+
+    // Análisis colectivo
+    const seccion=(titulo,contenido,color="#1e3a5f")=>contenido?`
+      <div style="break-inside:avoid;margin-bottom:14px">
+        <div style="font-family:Barlow Condensed,Arial;font-size:13px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;border-left:4px solid #f97316;padding-left:10px;margin-bottom:8px">${titulo}</div>
+        <div style="font-size:12px;line-height:1.8;white-space:pre-wrap;color:#1e293b">${contenido}</div>
+      </div>`:"";
+
+    const analisisHtml=[
+      seccion("Análisis colectivo del rival",sc.text?.slice(0,800)),
+      sc.analisisAtaque||sc.analisisDefensa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">${seccion("⚔️ Ataque rival",sc.analisisAtaque)}${seccion("🛡 Defensa rival",sc.analisisDefensa)}</div>`:"",
+      sc.clavesAtaque||sc.clavesDefensa?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">${seccion("🏀 Claves — Ataque",sc.clavesAtaque)}${seccion("💪 Claves — Defensa",sc.clavesDefensa)}</div>`:"",
+      sc.rivalMensaje?`<div style="background:#fff7ed;border:2px solid #f97316;border-radius:8px;padding:14px 18px;font-size:13px;font-style:italic;color:#1e293b;margin-top:14px">${sc.rivalMensaje}</div>`:"",
+    ].filter(Boolean).join("");
+
+    const subtitle=[sc.fase,sc.jornada,sc.fecha,sc.lugar].filter(Boolean).join(" · ")||sc.date||"";
+    const w=window.open("","_blank");
+    w.document.write(pdfOpen(`Scouting — ${sc.rival}`)
+      +pdfHeader(`SCOUTING — ${(sc.rival||"").toUpperCase()}`,subtitle)
+      +tableHtml
+      +(fichasHtml?`<div class="section"><div class="section-title" style="color:#1e3a5f;border-left:4px solid #f97316;padding-left:10px">Fichas individuales</div>${fichasHtml}</div>`:"")
+      +`<div class="section">${analisisHtml}</div>`
+      +pdfClose());
+    w.document.close();setTimeout(()=>w.print(),400);
+  };
 
   const generateSession=async()=>{
     if(noKey){setSesResult({error:"Configura tu API Key en ⚙️ Ajustes."});return;}
@@ -3349,77 +3493,174 @@ function IAAsistente(){
 
       {/* Contenido principal — ancho completo */}
       <div>
+        {/* ── CABECERA DEL PARTIDO ─────────────────────────────── */}
         <div className="card" style={{padding:20,marginBottom:14}}>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,marginBottom:12}}>Scouting del rival</p>
-          {/* Botón nuevo informe */}
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
-            <button onClick={resetRival}
-              style={{display:"flex",alignItems:"center",gap:6,padding:"5px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5}}>Datos del partido</p>
+            <button onClick={resetRival} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
               <RotateCcw size={12}/>Nuevo informe
             </button>
           </div>
-          <div style={{marginBottom:10}}><Lbl>Nombre del rival</Lbl><input value={rivalName} onChange={e=>setRivalName(e.target.value)} placeholder="Ej: CB Inca A"/></div>
-          <div style={{marginBottom:14}}><Lbl>Información general (sistema, estilo, puntos débiles…)</Lbl>
-            <textarea rows={3} value={rivalText} onChange={e=>setRivalText(e.target.value)} placeholder="Sistema defensivo, jugadores clave, estadísticas, tendencias..."/>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:12}}>
+            <div><Lbl>Rival</Lbl><input value={rivalName} onChange={e=>setRivalName(e.target.value)} placeholder="Ej: CB Inca A"/></div>
+            <div><Lbl>Jornada</Lbl><input value={rivalJornada} onChange={e=>setRivalJornada(e.target.value)} placeholder="J-12"/></div>
+            <div><Lbl>Fecha</Lbl><input type="date" value={rivalFecha} onChange={e=>setRivalFecha(e.target.value)}/></div>
+            <div><Lbl>Lugar</Lbl><input value={rivalLugar} onChange={e=>setRivalLugar(e.target.value)} placeholder="Pabellón…"/></div>
+            <div><Lbl>Fase</Lbl>
+              <select value={rivalFase} onChange={e=>setRivalFase(e.target.value)}>
+                {["Liga Regular","Play-off","Copa","Amistoso","Otro"].map(f=><option key={f}>{f}</option>)}
+              </select>
+            </div>
           </div>
+          <div><Lbl>Información general — contexto, estilo de juego, resultados recientes</Lbl>
+            <textarea rows={3} value={rivalText} onChange={e=>setRivalText(e.target.value)}
+              placeholder="Ej: Equipo rápido en transición, base muy peligroso #9 (20pts/pj), defienden en zona 2-3 cuando pierden…"/>
+          </div>
+        </div>
 
-          {/* Tabla jugadores rival */}
-          <div style={{marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <Lbl>Estadísticas de jugadores del rival (opcional — enriquece el análisis y el PDF)</Lbl>
-              <button onClick={addRP} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:11,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-                <Plus size={11}/>Añadir jugador
+        {/* ── ESTADÍSTICAS DE JUGADORES ────────────────────────── */}
+        <div className="card" style={{padding:20,marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5}}>
+              Estadísticas de jugadores
+            </p>
+            <div style={{display:"flex",gap:8}}>
+              <input ref={rivalFileRef} type="file" accept=".pdf" style={{display:"none"}}/>
+              <button onClick={()=>rivalFileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:11,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <FileText size={11}/>PDF federación
+              </button>
+              <button onClick={addRP} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:11,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                <Plus size={11}/>Añadir fila
               </button>
             </div>
-            <div style={{overflow:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:780}}>
-                <thead>
-                  <tr style={{background:th.tableHead}}>
-                    <th style={{padding:"6px 6px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",whiteSpace:"nowrap"}}>#</th>
-                    <th style={{padding:"6px 8px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>Nombre</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>PJ</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>PT</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase"}}>Min</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",textTransform:"uppercase"}}>TL-I</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",textTransform:"uppercase"}}>TL-M</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",textTransform:"uppercase"}}>T2-I</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",textTransform:"uppercase"}}>T2-M</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase"}}>T3-I</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",textTransform:"uppercase"}}>T3-M</th>
-                    <th style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:"#ef4444",textTransform:"uppercase"}}>FC</th>
-                    <th/>
-                  </tr>
-                </thead>
-                <tbody>{rivalPlayers.map(p=>{
-                  const ni={type:"text",inputMode:"numeric",pattern:"[0-9]*",maxLength:3,style:{width:46,textAlign:"center",fontSize:11,padding:"3px 2px"}};
-                  return <tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
-                    <td style={{padding:"4px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} maxLength={3} style={{width:50,textAlign:"center",fontSize:12,padding:"3px 4px"}}/></td>
-                    <td style={{padding:"4px 6px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:120,fontSize:12}}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.pj} onChange={e=>setRP(p.id,"pj",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.pt} onChange={e=>setRP(p.id,"pt",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.min} onChange={e=>setRP(p.id,"min",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.tl_i} onChange={e=>setRP(p.id,"tl_i",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.tl_m} onChange={e=>setRP(p.id,"tl_m",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t2_i} onChange={e=>setRP(p.id,"t2_i",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t2_m} onChange={e=>setRP(p.id,"t2_m",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t3_i} onChange={e=>setRP(p.id,"t3_i",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.t3_m} onChange={e=>setRP(p.id,"t3_m",e.target.value)}/></td>
-                    <td style={{padding:"4px 3px"}}><input {...ni} value={p.fc} onChange={e=>setRP(p.id,"fc",e.target.value)}/></td>
-                    <td style={{padding:"4px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2}}><Trash2 size={11}/></button></td>
-                  </tr>;
-                })}</tbody>
-              </table>
+          </div>
+          <p style={{fontSize:10,color:th.muted,marginBottom:10}}>Sube el PDF de la federación para autocompletar · O rellena manualmente · Los datos enriquecen el informe IA y el PDF</p>
+          <div style={{overflow:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:820}}>
+              <thead>
+                <tr style={{background:th.tableHead}}>
+                  {["#","Nombre","Pos","PJ","PT","Min","TL-I","TL-M","T2-I","T2-M","T3-I","T3-M","FC",""].map((h,i)=>(
+                    <th key={i} style={{padding:"6px 4px",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",textAlign:i<=2||i===13?"left":"center",whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>{rivalPlayers.map(p=>{
+                const ni={type:"text",inputMode:"numeric",pattern:"[0-9]*",maxLength:3,style:{width:44,textAlign:"center",fontSize:11,padding:"3px 2px",borderRadius:4,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text}};
+                return <tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
+                  <td style={{padding:"3px 4px"}}><input value={p.num} onChange={e=>setRP(p.id,"num",e.target.value)} maxLength={3} style={{width:44,textAlign:"center",fontSize:11,padding:"3px 2px",borderRadius:4,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text}}/></td>
+                  <td style={{padding:"3px 6px"}}><input value={p.name} onChange={e=>setRP(p.id,"name",e.target.value)} style={{width:130,fontSize:11}}/></td>
+                  <td style={{padding:"3px 4px"}}>
+                    <select value={p.pos||""} onChange={e=>setRP(p.id,"pos",e.target.value)} style={{fontSize:10,padding:"2px 3px",width:70}}>
+                      <option value="">—</option>
+                      {["Base","Escolta","Alero","Ala-Pívot","Pívot"].map(pos=><option key={pos}>{pos}</option>)}
+                    </select>
+                  </td>
+                  {["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"].map(f=>(
+                    <td key={f} style={{padding:"3px 2px",textAlign:"center"}}>
+                      <input {...ni} value={p[f]} onChange={e=>setRP(p.id,f,e.target.value)}/>
+                    </td>
+                  ))}
+                  <td style={{padding:"3px 4px"}}><button onClick={()=>delRP(p.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",padding:2}}><Trash2 size={11}/></button></td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── FICHAS INDIVIDUALES — A TENER EN CUENTA ─────────── */}
+        {rivalPlayers.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).length>0&&(
+          <div className="card" style={{padding:20,marginBottom:14}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>
+              Fichas individuales — A tener en cuenta
+            </p>
+            <p style={{fontSize:10,color:th.muted,marginBottom:14}}>Para cada jugador del equipo rival, anota sus tendencias, puntos fuertes/débiles, cómo atacarle y defenderle</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:12}}>
+              {rivalPlayers.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)).map(p=>{
+                const pct2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
+                const pct3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+                const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
+                const ppg=parseInt(p.pt)&&parseInt(p.pj)?Math.round(parseInt(p.pt)/parseInt(p.pj)*10)/10:null;
+                return <div key={p.id} style={{border:`1px solid ${th.border}`,borderRadius:10,overflow:"hidden"}}>
+                  {/* Header ficha */}
+                  <div style={{background:th.tableHead,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:36,height:36,borderRadius:18,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:16,fontWeight:800,color:"#fff",flexShrink:0}}>
+                      {p.num||"?"}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+                      <p style={{fontSize:10,color:th.muted}}>{p.pos||"Posición no indicada"}</p>
+                    </div>
+                    {ppg&&<div style={{textAlign:"right"}}>
+                      <p style={{fontFamily:"DM Mono",fontSize:18,fontWeight:700,color:"#f97316",lineHeight:1}}>{ppg}</p>
+                      <p style={{fontSize:9,color:th.muted}}>pts/pj</p>
+                    </div>}
+                  </div>
+                  {/* Mini stats */}
+                  {(p.pt||p.min||p.tl_i||p.t2_i||p.t3_i)&&(
+                    <div style={{display:"flex",gap:0,borderBottom:`1px solid ${th.border}`,background:th.card2}}>
+                      {[["PJ",p.pj],["PT",p.pt],["Min",p.min],["TL",pctTL],["T2",pct2],["T3",pct3]].map(([l,v])=>v&&v!=="—"?(
+                        <div key={l} style={{flex:1,textAlign:"center",padding:"6px 4px",borderRight:`1px solid ${th.border}`}}>
+                          <p style={{fontFamily:"DM Mono",fontSize:11,fontWeight:600,color:th.text}}>{v}</p>
+                          <p style={{fontSize:9,color:th.muted}}>{l}</p>
+                        </div>
+                      ):null)}
+                    </div>
+                  )}
+                  {/* Textarea notas */}
+                  <div style={{padding:10}}>
+                    <textarea
+                      rows={4}
+                      value={rivalNotes[p.id]||""}
+                      onChange={e=>setRivalNote(p.id,e.target.value)}
+                      placeholder={"A tener en cuenta:\n- Tendencias de tiro (mano, zona, tipo)\n- Cómo atacarle en defensa\n- Cómo defenderle en ataque\n- Situaciones especiales (BD, faltas…)"}
+                      style={{fontSize:11,lineHeight:1.6,resize:"vertical",width:"100%",fontFamily:"inherit"}}/>
+                  </div>
+                </div>;
+              })}
             </div>
           </div>
-          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <input ref={rivalFileRef} type="file" accept=".pdf" style={{display:"none"}}/>
-            <button onClick={()=>rivalFileRef.current?.click()} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:12,color:th.sub,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-              <FileText size={13}/>PDF scouting
-            </button>
-            <Btn onClick={analyzeRival} disabled={rivalLoading} icon={rivalLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
-              {rivalLoading?"Analizando…":"Generar informe"}
-            </Btn>
+        )}
+
+        {/* ── ANÁLISIS COLECTIVO ESTRUCTURADO ─────────────────── */}
+        <div className="card" style={{padding:20,marginBottom:14}}>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5,marginBottom:14}}>
+            Análisis colectivo
+          </p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+            <div>
+              <Lbl>⚔️ Ataque rival — puntos fuertes y sistemas</Lbl>
+              <textarea rows={6} value={analisisAtaque} onChange={e=>setAnalisisAtaque(e.target.value)}
+                placeholder={"1. Sistema principal: bloqueo directo base-pívot\n2. Tiradores: #4 (T3 45%), #21 pop en BD\n3. Penetradores: #9 muy rápido a campo abierto\n4. Rebote ofensivo peligroso con #1 (2.6pp)"}/>
+            </div>
+            <div>
+              <Lbl>🛡 Defensa rival — sistema y vulnerabilidades</Lbl>
+              <textarea rows={6} value={analisisDefensa} onChange={e=>setAnalisisDefensa(e.target.value)}
+                placeholder={"1. Defienden en M-M individual todo el partido\n2. Vulnerables en el roll profundo del pívot\n3. Interiores lentos en el balance defensivo\n4. Pueden poner zona 2-3 si van perdiendo"}/>
+            </div>
+            <div>
+              <Lbl>🏀 Claves del partido — qué hacemos en ATAQUE</Lbl>
+              <textarea rows={6} value={clavesAtaque} onChange={e=>setClavesAtaque(e.target.value)}
+                placeholder={"1. Explotar ventaja interior, meter el balón al poste\n2. Correr en transición antes de que organicen defensa\n3. Atacar el rebote ofensivo con exteriores\n4. Tiro liberado en esquinas tras penetración"}/>
+            </div>
+            <div>
+              <Lbl>💪 Claves del partido — qué hacemos en DEFENSA</Lbl>
+              <textarea rows={6} value={clavesDefensa} onChange={e=>setClavesDefensa(e.target.value)}
+                placeholder={"1. No dejar correr a #9 — balance defensivo siempre\n2. BD de #4 y #21: pasar por delante, no por detrás\n3. Cerrar la derecha de #24 en el poste bajo\n4. Rebote defensivo obligatorio en cada posesión"}/>
+            </div>
           </div>
+          <div>
+            <Lbl>💬 Mensaje motivacional (opcional)</Lbl>
+            <textarea rows={2} value={rivalMensaje} onChange={e=>setRivalMensaje(e.target.value)}
+              placeholder="Ej: Es el partido más importante de la temporada. Tenemos ventaja en el interior y si jugamos nuestro juego los podemos ganar."/>
+          </div>
+        </div>
+
+        {/* ── GENERAR INFORME IA ───────────────────────────────── */}
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
+          <Btn onClick={analyzeRival} disabled={rivalLoading} icon={rivalLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>}>
+            {rivalLoading?"Analizando…":"Generar análisis IA completo"}
+          </Btn>
+          <p style={{fontSize:11,color:th.muted}}>La IA leerá todos los datos y generará el análisis táctico · Requiere API Key configurada</p>
         </div>
 
         {/* Resultado generado */}
@@ -3448,7 +3689,7 @@ function IAAsistente(){
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:rivalResult.saved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:rivalResult.saved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Save size={12}/>{rivalResult.saved?"✓ Guardado en historial":"Guardar informe"}
               </button>
-              <button onClick={()=>exportToPDF(`Scouting — ${rivalResult.rival}`,rivalResult.text,rivalResult.rival,rivalResult.players&&rivalResult.players.length>0?rivalResult.players:rivalPlayers)}
+              <button onClick={()=>exportScoutPDF({rival:rivalResult.rival,date:new Date().toISOString().split("T")[0],jornada:rivalJornada,fecha:rivalFecha,lugar:rivalLugar,fase:rivalFase,text:rivalResult.text,players:rivalResult.players&&rivalResult.players.length>0?rivalResult.players.map(p=>({...p,notes:rivalNotes[p.id]||""})):rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||""})),analisisAtaque,analisisDefensa,clavesAtaque,clavesDefensa,rivalMensaje})}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Printer size={12}/>Descargar PDF
               </button>
@@ -3465,23 +3706,29 @@ function IAAsistente(){
 
         {/* Informe guardado seleccionado */}
         {selScout&&!rivalResult&&<div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text}}>{selScout.rival}</p>
-              <p style={{fontSize:11,color:th.muted}}>{selScout.date}</p>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>exportToPDF(`Scouting — ${selScout.rival}`,selScout.text,selScout.rival,selScout.players||[])}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
-                <Printer size={12}/>PDF
-              </button>
-              <button onClick={()=>setSelScout(null)}
-                style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:12,fontFamily:"Barlow Condensed,sans-serif"}}>
-                ✕ Cerrar
-              </button>
+          {/* Cabecera */}
+          <div className="card" style={{padding:"16px 20px",marginBottom:12,borderTop:"4px solid #1e3a5f"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+              <div>
+                <p style={{fontFamily:"Barlow Condensed",fontSize:24,fontWeight:800,color:th.text,lineHeight:1}}>{selScout.rival}</p>
+                <p style={{fontSize:11,color:th.muted,marginTop:4}}>
+                  {[selScout.fase,selScout.jornada,selScout.fecha,selScout.lugar].filter(Boolean).join(" · ")||selScout.date}
+                </p>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>exportScoutPDF(selScout)}
+                  style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+                  <Printer size={12}/>Descargar PDF
+                </button>
+                <button onClick={()=>setSelScout(null)}
+                  style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.sub,fontSize:12,fontFamily:"Barlow Condensed,sans-serif"}}>
+                  ✕ Cerrar
+                </button>
+              </div>
             </div>
           </div>
-          {/* Top 10 jugadores del informe guardado */}
+
+          {/* Top 10 ranking */}
           {(()=>{
             const allP=(selScout.players||[]).filter(p=>p.name&&(p.pt||p.pj||p.min||p.tl_i||p.t2_i||p.t3_i||p.fc));
             if(!allP.length)return null;
@@ -3493,26 +3740,55 @@ function IAAsistente(){
             }).sort((a,b)=>b._score-a._score).slice(0,10);
             return <Top10Table players={ranked} th={th}/>;
           })()}
-          {/* Jugadores guardados */}
-          {selScout.players&&selScout.players.some(p=>p.pt||p.pj||p.tl_i||p.t2_i||(p.name&&!p.name.match(/^Jugador \d+$/)))&&
-            <div style={{marginBottom:14,overflow:"auto"}}>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Estadísticas de jugadores</p>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:560,fontSize:12}}>
-                <thead><tr style={{background:th.tableHead}}>
-                  {["#","Nombre","PJ","PT","Min","TL-I","TL-M","T2-I","T2-M","T3-I","T3-M","FC"].map((h,i)=>(
-                    <th key={i} style={{padding:"6px 8px",textAlign:i<2?"left":"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>{selScout.players.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)||p.pt||p.pj).map(p=><tr key={p.id} style={{borderTop:`1px solid ${th.border}`}}>
-                  <td style={{padding:"6px 8px",fontFamily:"DM Mono",color:th.muted,textAlign:"center"}}>{p.num||"—"}</td>
-                  <td style={{padding:"6px 8px",fontWeight:600,color:th.text}}>{p.name||"—"}</td>
-                  {["pj","pt","min","tl_i","tl_m","t2_i","t2_m","t3_i","t3_m","fc"].map(f=>(
-                    <td key={f} style={{padding:"6px 8px",fontFamily:"DM Mono",color:p[f]?"#f97316":th.muted,textAlign:"center"}}>{p[f]||"—"}</td>
-                  ))}
-                </tr>)}</tbody>
-              </table>
-            </div>}
-          <div style={{background:th.card2,borderRadius:10,padding:20,border:`1px solid ${th.border}`,fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:400,overflowY:"auto"}}>{selScout.text}</div>
+
+          {/* Fichas individuales con notas */}
+          {(selScout.players||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&p.notes).length>0&&(
+            <div className="card" style={{padding:16,marginBottom:12}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Fichas individuales</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:10}}>
+                {(selScout.players||[]).filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&p.notes).map((p,i)=>(
+                  <div key={i} style={{border:`1px solid ${th.border}`,borderRadius:8,overflow:"hidden"}}>
+                    <div style={{background:th.tableHead,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:30,height:30,borderRadius:15,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0}}>{p.num||"?"}</div>
+                      <div>
+                        <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.text}}>{p.name}</p>
+                        <p style={{fontSize:9,color:th.muted}}>{p.pos||""}</p>
+                      </div>
+                    </div>
+                    <div style={{padding:"10px 12px",fontSize:12,color:th.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{p.notes}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Análisis colectivo estructurado */}
+          {(selScout.analisisAtaque||selScout.analisisDefensa||selScout.clavesAtaque||selScout.clavesDefensa)&&(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+              {[
+                ["⚔️ Ataque rival",selScout.analisisAtaque],
+                ["🛡 Defensa rival",selScout.analisisDefensa],
+                ["🏀 Claves — Ataque",selScout.clavesAtaque],
+                ["💪 Claves — Defensa",selScout.clavesDefensa],
+              ].filter(([,v])=>v).map(([titulo,contenido])=>(
+                <div key={titulo} className="card" style={{padding:14}}>
+                  <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:"#1e3a5f",textTransform:"uppercase",letterSpacing:1,marginBottom:8,borderLeft:"3px solid #f97316",paddingLeft:8}}>{titulo}</p>
+                  <div style={{fontSize:12,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{contenido}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Análisis IA */}
+          {selScout.text&&<div className="card" style={{padding:16,marginBottom:12}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Análisis generado por IA</p>
+            <div style={{fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap",maxHeight:400,overflowY:"auto"}}>{selScout.text}</div>
+          </div>}
+
+          {/* Mensaje motivacional */}
+          {selScout.rivalMensaje&&<div style={{background:"rgba(249,115,22,.06)",border:"1px solid rgba(249,115,22,.25)",borderRadius:8,padding:"14px 18px",fontSize:13,color:th.text,lineHeight:1.7,fontStyle:"italic"}}>
+            {selScout.rivalMensaje}
+          </div>}
         </div>}
       </div>
     </div>}
@@ -3582,8 +3858,29 @@ function IAAsistente(){
    BLOQUE 3 — Modo Partido · Carga Trabajo · Evolución Stats · Informe PDF
 ══════════════════════════════════════════════════════════ */
 
-function ModoPartido(){
-  const{th}=useTheme();const{matches,setMatches,players,setPlayers,apiKey}=useData();
+/* ── QInput / SF — top-level para evitar pérdida de foco en ModoPartido ── */
+function QInput({val,onChange,color="#f97316"}){
+  const{th}=useTheme();
+  return <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3}
+    value={val} onChange={e=>{if(/^\d*$/.test(e.target.value))onChange(e.target.value);}}
+    style={{width:64,height:44,textAlign:"center",fontFamily:"DM Mono",fontSize:18,fontWeight:700,
+      color,padding:"4px",borderRadius:8,border:`2px solid ${val?color:th.border2}`,
+      background:val?color+"0d":th.inputBg}}/>;
+}
+function SF({label,pid,field,small,getStat,setStat,statsCommitted}){
+  const{th}=useTheme();
+  return <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+    <span style={{fontFamily:"Barlow Condensed",fontSize:9,color:th.muted,textTransform:"uppercase",letterSpacing:.3}}>{label}</span>
+    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3}
+      value={getStat(pid,field)} onChange={e=>{if(/^\d*$/.test(e.target.value))setStat(pid,field,e.target.value);}}
+      disabled={statsCommitted}
+      style={{width:small?44:50,height:34,textAlign:"center",fontFamily:"DM Mono",fontSize:13,
+        fontWeight:600,padding:"2px",borderRadius:6,border:`1px solid ${th.border2}`,
+        background:statsCommitted?th.card2:th.inputBg,color:th.text,opacity:statsCommitted?.6:1}}/>
+  </div>;
+}
+
+function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,setPlayers,apiKey}=useData();
   const today=new Date().toISOString().split("T")[0];
   const allSorted=[...matches].sort((a,b)=>b.date.localeCompare(a.date));
   const[sel,setSel]=useState(null);
@@ -3725,20 +4022,7 @@ function ModoPartido(){
     <p style={{color:th.muted,fontSize:13}}>Añade partidos desde la sección Partidos o el Calendario</p>
   </div>;
 
-  const QInput=({val,onChange,color="#f97316"})=>(
-    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} value={val} onChange={e=>{if(/^\d*$/.test(e.target.value))onChange(e.target.value);}}
-      style={{width:64,height:44,textAlign:"center",fontFamily:"DM Mono",fontSize:18,fontWeight:700,color,padding:"4px",borderRadius:8,border:`2px solid ${val?color:th.border2}`,background:val?color+"0d":th.inputBg}}/>
-  );
-
-  const SF=({label,pid,field,small})=>(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-      <span style={{fontFamily:"Barlow Condensed",fontSize:9,color:th.muted,textTransform:"uppercase",letterSpacing:.3}}>{label}</span>
-      <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3}
-        value={getStat(pid,field)} onChange={e=>{if(/^\d*$/.test(e.target.value))setStat(pid,field,e.target.value);}}
-        disabled={statsCommitted}
-        style={{width:small?44:50,height:34,textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:600,padding:"2px",borderRadius:6,border:`1px solid ${th.border2}`,background:statsCommitted?th.card2:th.inputBg,color:th.text,opacity:statsCommitted?.6:1}}/>
-    </div>
-  );
+  // QInput and SF are top-level components (see before ModoPartido)
 
   return <div>
     <SH title="Modo Partido" sub="Cuartos · Estadísticas · Acumulación automática"/>
