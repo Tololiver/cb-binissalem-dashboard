@@ -5356,7 +5356,8 @@ function ShotChart(){
 
   const getPos=e=>{
     const rect=cr.current.getBoundingClientRect();
-    const touch=e.touches?e.touches[0]:e;
+    // touchend: touches[] is empty, use changedTouches instead
+    const touch=e.changedTouches?e.changedTouches[0]:e.touches?e.touches[0]:e;
     return{x:(touch.clientX-rect.left)*CW/rect.width,y:(touch.clientY-rect.top)*CH/rect.height};
   };
 
