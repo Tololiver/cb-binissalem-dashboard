@@ -3346,7 +3346,7 @@ NOTAS:
 - [Cómo defenderle: qué hacer para neutralizarle, guardia, ayudas, presión]
 - [Sus debilidades: carencias técnicas, mano mala, situaciones donde pierde protagonismo]
 - [Situaciones especiales: bloqueos directos, tiros libres, transición, faltas]
-- [Dato clave concreto usando sus estadísticas reales: ej "TL ${pctTL} — evitar enviarle a la línea"]
+- [Dato clave concreto usando sus estadísticas reales: ej "TL 75% — muy seguro en la línea" o "T3 22% — no es tirador"]
 FICHA_FIN
 
 Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadísticos reales.`;
