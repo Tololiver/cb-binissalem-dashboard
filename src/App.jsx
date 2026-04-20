@@ -4250,15 +4250,15 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
                     <div><p style={{fontSize:12,color:th.text,fontWeight:600}}>{p.name.split(" ")[0]}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
                   </div>
                 </td>
-                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="min" label=""/></td>
-                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="pt" label=""/></td>
-                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="tl_i" label="" small/></td>
-                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="tl_m" label="" small/></td>
-                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t2_i" label="" small/></td>
-                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t2_m" label="" small/></td>
-                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t3_i" label="" small/></td>
-                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t3_m" label="" small/></td>
-                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="fc" label="" small/></td>
+                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="min" label="" getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="pt" label="" getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="tl_i" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="tl_m" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t2_i" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t2_m" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t3_i" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 4px",textAlign:"center"}}><SF pid={p.id} field="t3_m" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
+                <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="fc" label="" small getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
               </tr>)}
             </tbody>
           </table>
@@ -5500,6 +5500,15 @@ const INIT_CLASIFICACION=[
 ];
 const MY_TEAM="CB BINISSALEM";
 
+/* ── ClasifNI — input numérico para edición de clasificación, top-level para evitar pérdida de foco ── */
+function ClasifNI({field,wide,editRow,setEditRow,th}){
+  return <input type="text" inputMode="numeric" maxLength={4}
+    value={editRow[field]||""}
+    onChange={e=>{if(/^\d*$/.test(e.target.value))setEditRow(r=>({...r,[field]:e.target.value}));}}
+    style={{width:wide?52:44,textAlign:"center",fontFamily:"DM Mono",fontSize:12,padding:"3px 2px",
+      borderRadius:5,border:"1px solid #f97316",background:"rgba(249,115,22,.08)",color:th.text}}/>;
+}
+
 function Clasificacion(){
   const{th}=useTheme();const{apiKey}=useData();
   const[tabla,setTabla]=useState(INIT_CLASIFICACION);
@@ -5559,14 +5568,6 @@ function Clasificacion(){
 
   const COLS=["J","G","P","NP","PE","PF","PC","PTS"];
   const FIELDS=["j","g","p","np","pe","pf","pc","pts"];
-
-  const NI=({field,wide})=>(
-    <input type="text" inputMode="numeric" maxLength={4}
-      value={editRow[field]||""}
-      onChange={e=>{if(/^\d*$/.test(e.target.value))setEditRow(r=>({...r,[field]:e.target.value}));}}
-      style={{width:wide?52:44,textAlign:"center",fontFamily:"DM Mono",fontSize:12,padding:"3px 2px",
-        borderRadius:5,border:"1px solid #f97316",background:"rgba(249,115,22,.08)",color:th.text}}/>
-  );
 
   return <div>
     <SH title="Clasificación" sub={liga+" · "+temporada}
@@ -5629,7 +5630,7 @@ function Clasificacion(){
                   <input value={editRow.equip} onChange={e=>setEditRow(r=>({...r,equip:e.target.value}))}
                     style={{width:"100%",fontSize:12,fontFamily:"Barlow Condensed",fontWeight:700}}/>
                 </td>
-                {FIELDS.map(f=><td key={f} style={{padding:"4px 4px",textAlign:"center"}}><NI field={f}/></td>)}
+                {FIELDS.map(f=><td key={f} style={{padding:"4px 4px",textAlign:"center"}}><ClasifNI field={f} editRow={editRow} setEditRow={setEditRow} th={th}/></td>)}
                 <td style={{padding:"4px 8px"}}>
                   <div style={{display:"flex",gap:4}}>
                     <button onClick={saveEdit} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #10b981",background:"rgba(16,185,129,.1)",color:"#10b981",cursor:"pointer",fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700}}>✓</button>
