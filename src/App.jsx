@@ -3235,7 +3235,40 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
       const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content}]});
       let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
 
-      // ── Extraer FICHAS individuales ─────────────────────────────
+      // ── Extraer PLAYERS_JSON primero (necesitamos los IDs nuevos para mapear fichas) ──
+      let extractedPlayers=null;
+      if(!hasManualPlayers){
+        const pjIdx=fullText.indexOf("PLAYERS_JSON:");
+        if(pjIdx>=0){
+          let raw=fullText.slice(pjIdx+"PLAYERS_JSON:".length).trim();
+          const arrStart=raw.indexOf("[");
+          if(arrStart>=0){
+            raw=raw.slice(arrStart).replace(/\r?\n/g," ").replace(/\s+/g," ");
+            let depth=0,end=-1;
+            for(let i=0;i<raw.length;i++){if(raw[i]==="[")depth++;else if(raw[i]==="]"){depth--;if(depth===0){end=i;break;}}}
+            let jsonStr=end>=0?raw.slice(0,end+1):raw;
+            if(end<0){const lastObj=jsonStr.lastIndexOf("}");if(lastObj>=0)jsonStr=jsonStr.slice(0,lastObj+1)+"]";}
+            try{
+              const parsed=JSON.parse(jsonStr);
+              if(Array.isArray(parsed)&&parsed.length>0){
+                const ANON=[/jugador[s]?\s*\/?\s*es\s+inscrits/i,/inscrit[s]?\s*\/?\s*es/i,/a\s+m[àa]/i,/^jugador\s+an[oò]nim/i,/^total/i,/^\s*j\s+jugador/i];
+                const isAnon=n=>{const t=(n||"").trim();return !t||t.length<3||t.split(/\s+/).filter(Boolean).length<2||ANON.some(r=>r.test(t));};
+                const ts=Date.now();
+                extractedPlayers=parsed.filter(p=>!isAnon(p.name)).map((p,i)=>({
+                  id:ts+i,num:p.num||String(i+1),name:(p.name||`Jugador ${i+1}`).trim(),
+                  pj:p.pj||"",pt:p.pt||"",min:p.min||"",tl_i:p.tl_i||"",tl_m:p.tl_m||"",
+                  t2_i:p.t2_i||"",t2_m:p.t2_m||"",t3_i:p.t3_i||"",t3_m:p.t3_m||"",fc:p.fc||"",
+                }));
+                if(extractedPlayers.length===0)extractedPlayers=null;
+              }
+            }catch(e){console.warn("PLAYERS_JSON parse:",e.message);}
+          }
+        }
+      }
+      // La fuente de jugadores activos: los recién extraídos O los que ya hay en rivalPlayers
+      const activePlayers=extractedPlayers||rivalPlayers;
+
+      // ── Extraer FICHAS individuales — mapeadas contra activePlayers ──
       const fichasExtracted={};
       const fichaRegex=/FICHA_INICIO\s+([\s\S]*?)FICHA_FIN/g;
       let fichaMatch;
@@ -3248,33 +3281,22 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
           const num=(numMatch[1]||"").trim();
           const nombre=(nomMatch?nomMatch[1]:"").trim();
           const notas=notasMatch[1].replace(/FICHA_FIN[\s\S]*/,"").trim();
-          // Match to existing player by num or name
-          const player=rivalPlayers.find(p=>
+          // Buscar jugador en activePlayers (nuevos IDs)
+          const player=activePlayers.find(p=>
             String(p.num)===String(num)||
-            (nombre&&p.name.toLowerCase().includes(nombre.split(" ")[0].toLowerCase()))
+            (nombre&&p.name.toLowerCase().includes(nombre.split(" ")[0].toLowerCase()))||
+            (nombre&&nombre.toLowerCase().includes(p.name.toLowerCase().split(" ")[0]))
           );
           if(player){
             fichasExtracted[player.id]=notas;
           } else {
-            // Store by num as fallback key
-            fichasExtracted["_num_"+num]=notas;
+            fichasExtracted["_num_"+num]=notas; // fallback por dorsal
           }
         }
       }
-      // Auto-fill rivalNotes with extracted fichas (don't overwrite manually entered notes)
-      if(Object.keys(fichasExtracted).length>0){
-        setRivalNotes(prev=>{
-          const updated={...prev};
-          Object.entries(fichasExtracted).forEach(([id,notas])=>{
-            if(!updated[id]||updated[id].trim()===""){// only fill if empty
-              updated[id]=notas;
-            }
-          });
-          return updated;
-        });
-      }
 
-      // ── Extraer secciones del análisis colectivo ────────────────
+      // Remove FICHA_ blocks from visible text
+      const textClean=fullText.replace(/FICHA_INICIO[\s\S]*?FICHA_FIN/g,"").replace(/PLAYERS_JSON:[\s\S]*/,"").trim();
       const extractSection=(text,titulo)=>{
         const re=new RegExp(titulo+"[:\\s]*([\\s\\S]*?)(?=ANÁLISIS COLECTIVO:|ATAQUE RIVAL:|DEFENSA RIVAL:|CLAVES DEL PARTIDO — ATAQUE:|CLAVES DEL PARTIDO — DEFENSA:|JUGADAS RECOMENDADAS:|FICHA_INICIO|PLAYERS_JSON:|$)","i");
         const m=text.match(re);
@@ -3292,44 +3314,19 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
       if(aiClavesAtaque&&!clavesAtaque.trim())setClavesAtaque(aiClavesAtaque);
       if(aiClavesDefensa&&!clavesDefensa.trim())setClavesDefensa(aiClavesDefensa);
 
-      // Remove FICHA_ blocks from visible text (keep structured sections)
-      const textClean=fullText.replace(/FICHA_INICIO[\s\S]*?FICHA_FIN/g,"").trim();
-
-      // Extracción robusta del JSON de jugadores (PDF sin stats manuales)
-      let extractedPlayers=null;
-      if(!hasManualPlayers){
-        const pjIdx=textClean.indexOf("PLAYERS_JSON:");
-        if(pjIdx>=0){
-          let raw=textClean.slice(pjIdx+"PLAYERS_JSON:".length).trim();
-          const arrStart=raw.indexOf("[");
-          if(arrStart>=0){
-            raw=raw.slice(arrStart);
-            raw=raw.replace(/\r?\n/g," ").replace(/\s+/g," ");
-            let depth=0,end=-1;
-            for(let i=0;i<raw.length;i++){
-              if(raw[i]==="[")depth++;
-              else if(raw[i]==="]"){depth--;if(depth===0){end=i;break;}}
-            }
-            let jsonStr=end>=0?raw.slice(0,end+1):raw;
-            if(end<0){const lastObj=jsonStr.lastIndexOf("}");if(lastObj>=0)jsonStr=jsonStr.slice(0,lastObj+1)+"]";}
-            try{
-              const parsed=JSON.parse(jsonStr);
-              if(Array.isArray(parsed)&&parsed.length>0){
-                const ANON_PATTERNS=[/jugador[s]?\s*\/?\s*es\s+inscrits/i,/inscrit[s]?\s*\/?\s*es/i,/a\s+m[àa]/i,/^jugador\s+an[oò]nim/i,/^total/i,/^\s*j\s+jugador/i];
-                const isAnon=name=>{const n=(name||"").trim();if(!n||n.length<3)return true;if(n.split(/\s+/).filter(Boolean).length<2)return true;return ANON_PATTERNS.some(re=>re.test(n));};
-                extractedPlayers=parsed.filter(p=>!isAnon(p.name)).map((p,i)=>({
-                  id:Date.now()+i,num:p.num||String(i+1),name:(p.name||`Jugador ${i+1}`).trim(),
-                  pj:p.pj||"",pt:p.pt||"",min:p.min||"",tl_i:p.tl_i||"",tl_m:p.tl_m||"",
-                  t2_i:p.t2_i||"",t2_m:p.t2_m||"",t3_i:p.t3_i||"",t3_m:p.t3_m||"",fc:p.fc||"",
-                }));
-                if(extractedPlayers.length===0)extractedPlayers=null;
-              }
-            }catch(e){console.warn("PLAYERS_JSON parse error:",e.message);}
-          }
-        }
+      // Auto-fill rivalNotes with extracted fichas (don't overwrite manually entered notes)
+      if(Object.keys(fichasExtracted).length>0){
+        setRivalNotes(prev=>{
+          const updated={...prev};
+          Object.entries(fichasExtracted).forEach(([id,notas])=>{
+            if(!updated[id]||updated[id].trim()==="") updated[id]=notas;
+          });
+          return updated;
+        });
       }
 
-      if(extractedPlayers&&extractedPlayers.length>0){setRivalPlayers(extractedPlayers);}
+      // Update rivalPlayers if we extracted new ones from PDF
+      if(extractedPlayers&&extractedPlayers.length>0) setRivalPlayers(extractedPlayers);
 
       setRivalResult({text:aiColectivo||textClean,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers,players:extractedPlayers||null,fichasCount:Object.keys(fichasExtracted).length});
     }catch(e){setRivalResult({error:e.message});}
@@ -3340,7 +3337,7 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
   const saveScoutReport=()=>{
     if(!rivalResult||rivalResult.error||rivalResult.saved)return;
     // Siempre guardar rivalPlayers completo (tiene todos los datos actualizados) + notas
-    const playersWithNotes=rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||""}));
+    const playersWithNotes=rivalPlayers.map(p=>{const nk=rivalNotes[p.id]!==undefined?p.id:("_num_"+p.num);return{...p,notes:rivalNotes[nk]||""};});
     setScouting(prev=>[{
       id:Date.now(),
       rival:rivalResult.rival||"Sin nombre",
@@ -3645,7 +3642,8 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
                 const pct3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
                 const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
                 const ppg=parseInt(p.pt)&&parseInt(p.pj)?Math.round(parseInt(p.pt)/parseInt(p.pj)*10)/10:null;
-                const hasNote=!!(rivalNotes[p.id]||"").trim();
+                const _nk=rivalNotes[p.id]!==undefined?p.id:("_num_"+p.num); // fallback por dorsal
+                const hasNote=!!(rivalNotes[_nk]||"").trim();
                 const isEditing=rivalNotesEditing&&rivalNotesEditing[p.id];
                 return <div key={p.id} style={{border:`1px solid ${th.border}`,borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column"}}>
                   {/* Header ficha */}
@@ -3684,14 +3682,14 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
                     {isEditing
                       ?<textarea
                           autoFocus
-                          value={rivalNotes[p.id]||""}
-                          onChange={e=>setRivalNote(p.id,e.target.value)}
+                          value={rivalNotes[_nk]||""}
+                          onChange={e=>setRivalNote(_nk,e.target.value)}
                           placeholder={"A tener en cuenta:\n- Tendencias de tiro (mano, zona, tipo)\n- Cómo atacarle en defensa\n- Cómo defenderle en ataque\n- Situaciones especiales (BD, faltas…)"}
                           style={{fontSize:11,lineHeight:1.6,resize:"vertical",width:"100%",fontFamily:"inherit",minHeight:140}}/>
                       :<div style={{fontSize:11,color:hasNote?th.text:th.muted,lineHeight:1.7,whiteSpace:"pre-wrap",cursor:"pointer",minHeight:80}}
                           onClick={()=>setRivalNotesEditing(prev=>({...prev,[p.id]:true}))}>
                           {hasNote
-                            ?rivalNotes[p.id]
+                            ?rivalNotes[_nk]
                             :<span style={{fontStyle:"italic",opacity:.7}}>Sin notas — clic aquí o en ✏️ para añadir el análisis táctico de este jugador</span>}
                         </div>
                     }
@@ -3771,7 +3769,7 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(16,185,129,.4)",background:rivalResult.saved?"rgba(16,185,129,.15)":"rgba(16,185,129,.07)",cursor:rivalResult.saved?"default":"pointer",color:"#10b981",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Save size={12}/>{rivalResult.saved?"✓ Guardado en historial":"Guardar informe"}
               </button>
-              <button onClick={()=>exportScoutPDF({rival:rivalResult.rival,date:new Date().toISOString().split("T")[0],jornada:rivalJornada,fecha:rivalFecha,lugar:rivalLugar,fase:rivalFase,text:rivalResult.text,players:rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||""})),analisisAtaque,analisisDefensa,clavesAtaque,clavesDefensa,rivalMensaje})}
+              <button onClick={()=>exportScoutPDF({rival:rivalResult.rival,date:new Date().toISOString().split("T")[0],jornada:rivalJornada,fecha:rivalFecha,lugar:rivalLugar,fase:rivalFase,text:rivalResult.text,players:rivalPlayers.map(p=>({...p,notes:rivalNotes[p.id]||rivalNotes["_num_"+p.num]||""})),analisisAtaque,analisisDefensa,clavesAtaque,clavesDefensa,rivalMensaje})}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"1px solid rgba(249,115,22,.4)",background:"rgba(249,115,22,.07)",cursor:"pointer",color:"#f97316",fontSize:12,fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
                 <Printer size={12}/>Descargar PDF
               </button>
