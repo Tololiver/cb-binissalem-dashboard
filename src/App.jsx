@@ -3196,9 +3196,10 @@ function IAAsistente(){
       const playsRec=playsCtx?"\n- JUGADAS RECOMENDADAS: elige 2-3 jugadas de nuestro Playbook que encajen contra este rival":"";
       const jsonInstr=!hasManualPlayers?"\n\nAdemás, si encuentras jugadores identificables en el PDF, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nIMPORTANTE: Excluye entradas anónimas (ej: 'J Jugadors/es inscrits/es a mà', totales de equipo, etc.).\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
 
-      const promptText=rivalIntro+`Eres el preparador del CB Binissalem Sénior A. Genera un informe de scouting profesional en español.
+      // ── LLAMADA 1: Análisis colectivo + secciones + PLAYERS_JSON ──
+      const promptAnalisis=rivalIntro+`Eres el preparador del CB Binissalem Sénior A. Genera un informe de scouting profesional en español.
 
-Genera EXACTAMENTE estas secciones con estos títulos, sin añadir más:
+Genera EXACTAMENTE estas secciones con estos títulos:
 
 ANÁLISIS COLECTIVO:
 (2-3 párrafos: balance de temporada, estilo de juego, puntos fuertes y débiles del equipo)
@@ -3215,25 +3216,11 @@ CLAVES DEL PARTIDO — ATAQUE:
 CLAVES DEL PARTIDO — DEFENSA:
 (6-8 puntos numerados: qué debemos hacer nosotros en defensa para ganar este partido)
 `+(playsRec?playsRec+"\n":"")+`
-Después de las secciones anteriores, genera fichas individuales para CADA jugador con estadísticas disponibles. Para cada uno usa EXACTAMENTE este formato (una ficha por jugador):
+Sé muy específico, usa los datos de estadísticas y redacta como un scout profesional.`+jsonInstr+playsCtx;
 
-FICHA_INICIO
-NUM: [dorsal]
-NOMBRE: [nombre completo]
-NOTAS:
-- [Análisis ofensivo: mano dominante, zonas de tiro, movimientos favoritos, porcentajes destacados]
-- [Cómo atacarle en defensa: sus debilidades defensivas, cómo explotar sus carencias]
-- [Cómo defenderle en ataque: qué hacer para neutralizarle, qué no hacer]
-- [Situaciones especiales: bloqueos, faltas, tiro libre, transición]
-- [Dato clave con número concreto: ej "TL 75% — muy seguro en la línea"]
-FICHA_FIN
-
-Sé muy específico y usa los datos de estadísticas. Redacta como un scout profesional de baloncesto.`
-      +jsonInstr+playsCtx;
-      content.push({type:"text",text:promptText});
-
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content}]});
-      let fullText=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
+      const contentAnalisis=[...content,{type:"text",text:promptAnalisis}];
+      const data1=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:3000,messages:[{role:"user",content:contentAnalisis}]});
+      let fullText=data1.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
 
       // ── Extraer PLAYERS_JSON primero (necesitamos los IDs nuevos para mapear fichas) ──
       let extractedPlayers=null;
@@ -3327,6 +3314,68 @@ Sé muy específico y usa los datos de estadísticas. Redacta como un scout prof
 
       // Update rivalPlayers if we extracted new ones from PDF
       if(extractedPlayers&&extractedPlayers.length>0) setRivalPlayers(extractedPlayers);
+
+      // ── LLAMADA 2: Fichas individuales (llamada separada para no recortar) ──
+      const fichasPlayers=extractedPlayers||rivalPlayers.filter(p=>p.name&&!p.name.match(/^Jugador \d+$/)&&(p.pt||p.pj||p.min));
+      if(fichasPlayers.length>0){
+        // Top 10 por pts/pj para no exceder tokens
+        const fichasTop=fichasPlayers.map(p=>({...p,_ppg:parseInt(p.pt)&&parseInt(p.pj)?parseInt(p.pt)/Math.max(parseInt(p.pj),1):0}))
+          .sort((a,b)=>b._ppg-a._ppg).slice(0,10);
+        const fichasContext=fichasTop.map(p=>{
+          const pctTL=parseInt(p.tl_i)?Math.round(parseInt(p.tl_m)/parseInt(p.tl_i)*100)+"%":"—";
+          const pctT2=parseInt(p.t2_i)?Math.round(parseInt(p.t2_m)/parseInt(p.t2_i)*100)+"%":"—";
+          const pctT3=parseInt(p.t3_i)?Math.round(parseInt(p.t3_m)/parseInt(p.t3_i)*100)+"%":"—";
+          const ppg=p._ppg?Math.round(p._ppg*10)/10:"";
+          return `#${p.num} ${p.name}${p.pos?" ["+p.pos+"]":""}: PJ:${p.pj||"?"} PT:${p.pt||"?"} Pts/pj:${ppg||"?"} Min:${p.min||"?"} %TL:${pctTL} %T2:${pctT2} %T3:${pctT3} FC:${p.fc||"?"}`;
+        }).join("\n");
+
+        const promptFichas=`Eres el preparador del CB Binissalem Sénior A analizando al equipo "${rivalName||"rival"}".
+
+Estadísticas de los jugadores del rival:
+${fichasContext}
+
+Información adicional: ${rivalText||"No hay información adicional."}
+
+Para CADA jugador listado arriba genera una ficha táctica usando EXACTAMENTE este formato:
+
+FICHA_INICIO
+NUM: [dorsal]
+NOMBRE: [nombre exacto del jugador]
+NOTAS:
+- [Análisis ofensivo: zonas de tiro, movimientos favoritos, porcentajes destacados con números reales]
+- [Cómo defenderle: qué hacer para neutralizarle, guardia, ayudas, presión]
+- [Sus debilidades: carencias técnicas, mano mala, situaciones donde pierde protagonismo]
+- [Situaciones especiales: bloqueos directos, tiros libres, transición, faltas]
+- [Dato clave concreto usando sus estadísticas reales: ej "TL ${pctTL} — evitar enviarle a la línea"]
+FICHA_FIN
+
+Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadísticos reales.`;
+
+        const contentFichas2=[...content,{type:"text",text:promptFichas}];
+        try{
+          const data2=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:5000,messages:[{role:"user",content:contentFichas2}]});
+          const fichasText=data2.content?.find(b=>b.type==="text")?.text||"";
+          const fichaRegex2=/FICHA_INICIO\s+([\s\S]*?)FICHA_FIN/g;
+          let fm2;
+          while((fm2=fichaRegex2.exec(fichasText))!==null){
+            const bloque=fm2[1];
+            const numM=bloque.match(/NUM:\s*(\S+)/);
+            const nomM=bloque.match(/NOMBRE:\s*(.+)/);
+            const notasM=bloque.match(/NOTAS:\s*([\s\S]+)/);
+            if(numM&&notasM){
+              const num=(numM[1]||"").trim();
+              const nombre=(nomM?nomM[1]:"").trim();
+              const notas=notasM[1].replace(/FICHA_FIN[\s\S]*/,"").trim();
+              const player=fichasTop.find(p=>String(p.num)===String(num)||(nombre&&p.name.toLowerCase().includes(nombre.split(" ")[0].toLowerCase())));
+              if(player){
+                fichasExtracted[player.id]=notas;
+              } else {
+                fichasExtracted["_num_"+num]=notas;
+              }
+            }
+          }
+        }catch(e2){console.warn("Fichas call error:",e2.message);}
+      }
 
       setRivalResult({text:aiColectivo||textClean,rival:rivalName||"Sin nombre",saved:false,playersExtracted:!!extractedPlayers,players:extractedPlayers||null,fichasCount:Object.keys(fichasExtracted).length});
     }catch(e){setRivalResult({error:e.message});}
