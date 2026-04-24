@@ -34,13 +34,27 @@ const LIGHT = { bg:"#f0f2f5",card:"#ffffff",card2:"#f8fafc",nav:"#1e293b",border
 const emptyStats=()=>({pj:0,pt:0,min:0,tl_i:0,tl_m:0,t2_i:0,t2_m:0,t3_i:0,t3_m:0,fc:0});
 const calcStats=p=>{
   const pj=p.pj||0;
+  const tl_m=p.tl_m||0,tl_i=p.tl_i||0,tl_f=tl_i-tl_m;
+  const t2_m=p.t2_m||0,t2_i=p.t2_i||0,t2_f=t2_i-t2_m;
+  const t3_m=p.t3_m||0,t3_i=p.t3_i||0,t3_f=t3_i-t3_m;
+  const tc_i=t2_i+t3_i;
+  const pt=p.pt||0;
+  // PIR (FIBA): PT + RD + RO + AST + ROB + TAP + FC_rec - TL_f - T2_f - T3_f - TO - FC_com
+  // Since we don't have rebounds/assists yet, use scoring efficiency contribution
+  const pir=pj?+(( pt + t2_m + t3_m + tl_m - tl_f - t2_f - t3_f ) / pj ).toFixed(1):0;
+  // eFG% = (T2M + 1.5×T3M) / (T2I + T3I)  — effective field goal %
+  const efg=tc_i?+(((t2_m+1.5*t3_m)/tc_i)*100).toFixed(1):0;
+  // TS% = PT / (2 × (TC_i + 0.44×TL_i))  — true shooting %
+  const tsDen=2*(tc_i+0.44*tl_i);
+  const ts=tsDen?+((pt/tsDen)*100).toFixed(1):0;
   return{
     min_p:pj?+(p.min/pj).toFixed(1):0,
-    pts_p:pj?+(p.pt/pj).toFixed(1):0,
-    tl_pct:p.tl_i?+((p.tl_m/p.tl_i)*100).toFixed(1):0,
-    t2_pct:p.t2_i?+((p.t2_m/p.t2_i)*100).toFixed(1):0,
-    t3_pct:p.t3_i?+((p.t3_m/p.t3_i)*100).toFixed(1):0,
+    pts_p:pj?+(pt/pj).toFixed(1):0,
+    tl_pct:tl_i?+((tl_m/tl_i)*100).toFixed(1):0,
+    t2_pct:t2_i?+((t2_m/t2_i)*100).toFixed(1):0,
+    t3_pct:t3_i?+((t3_m/t3_i)*100).toFixed(1):0,
     fc_p:pj?+(p.fc/pj).toFixed(1):0,
+    pir,efg,ts,
   };
 };
 const DP = [
@@ -1093,50 +1107,149 @@ function Planificacion(){
 ══════════════════════════════════════════════════════════ */
 function Estadisticas(){
   const{th}=useTheme();const{players}=useData();
-  const[sortBy,setSortBy]=useState("pts_p");
-  const active=players.filter(p=>p.active);
+  const[sortBy,setSortBy]=useState("pir");
+  const[view,setView]=useState("performance"); // performance | detailed
+  const active=players.filter(p=>p.active&&p.pj);
   const withCalc=active.map(p=>({...p,...calcStats(p)}));
   const sorted=[...withCalc].sort((a,b)=>(b[sortBy]||0)-(a[sortBy]||0));
-  const chartData=sorted.slice(0,8).map(p=>({name:p.name.split(" ")[0].slice(0,8),val:+(p[sortBy]||0)}));
+  const chartData=sorted.slice(0,8).map(p=>({name:"#"+p.num+" "+p.name.split(" ")[0].slice(0,7),val:+(p[sortBy]||0)}));
   const tt={background:th.card,border:`1px solid ${th.border}`,borderRadius:8,color:th.text,fontSize:12};
 
   const sortCols=[
-    {key:"pts_p",lbl:"PTS/P",color:"#f97316"},
-    {key:"min_p",lbl:"Min/P",color:"#3b82f6"},
-    {key:"tl_pct",lbl:"TL%",color:"#f59e0b"},
-    {key:"t2_pct",lbl:"T2%",color:"#3b82f6"},
-    {key:"t3_pct",lbl:"T3%",color:"#8b5cf6"},
-    {key:"fc_p",lbl:"FC/P",color:"#ef4444"},
+    {key:"pir",   lbl:"PIR",   color:"#f97316", desc:"Valoración FIBA"},
+    {key:"pts_p", lbl:"PTS/P", color:"#ef4444", desc:"Puntos por partido"},
+    {key:"ts",    lbl:"TS%",   color:"#10b981", desc:"True Shooting %"},
+    {key:"efg",   lbl:"eFG%",  color:"#3b82f6", desc:"Effective FG%"},
+    {key:"min_p", lbl:"Min/P", color:"#64748b", desc:"Minutos por partido"},
+    {key:"tl_pct",lbl:"TL%",   color:"#f59e0b", desc:"% Tiro libre"},
+    {key:"t2_pct",lbl:"T2%",   color:"#3b82f6", desc:"% Tiro de 2"},
+    {key:"t3_pct",lbl:"T3%",   color:"#8b5cf6", desc:"% Triple"},
+    {key:"fc_p",  lbl:"FC/P",  color:"#ef4444", desc:"Faltas por partido"},
   ];
 
   const Th=({children,k,right})=><th onClick={()=>k&&setSortBy(k)} style={{padding:"10px 10px",textAlign:right?"right":"left",fontFamily:"Barlow Condensed",fontSize:10,color:sortBy===k?"#f97316":th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,cursor:k?"pointer":"default",whiteSpace:"nowrap",borderBottom:`2px solid ${sortBy===k?"#f97316":"transparent"}`}}>{children}</th>;
   const Td=({children,accent,color})=><td style={{padding:"9px 10px",textAlign:"right",fontFamily:"DM Mono",fontSize:12,color:color||(accent?"#f97316":th.text),fontWeight:accent?700:400}}>{children}</td>;
 
-  return <div>
-    <SH title="Estadísticas" sub="CB Binissalem Senior A · Haz clic en una columna para ordenar"/>
+  const curCol=sortCols.find(c=>c.key===sortBy)||sortCols[0];
 
-    {/* Gráfico ranking */}
-    <div className="card" style={{padding:22,marginBottom:14}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Ranking visual</p>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {sortCols.map(c=><button key={c.key} onClick={()=>setSortBy(c.key)} style={{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:sortBy===c.key?c.color:th.card2,color:sortBy===c.key?"#fff":th.sub,transition:"all .15s"}}>{c.lbl}</button>)}
-        </div>
+  return <div>
+    <SH title="Estadísticas" sub="CB Binissalem Senior A · PIR · eFG% · TS% · Ordenar por columna"/>
+
+    {/* KPIs equipo — estilo CourtStat */}
+    {(()=>{
+      const tot=active;
+      const totalPts=tot.reduce((a,p)=>a+(p.pt||0),0);
+      const maxPJ=Math.max(0,...tot.map(p=>p.pj||0));
+      const teamPtsPP=maxPJ?+(totalPts/maxPJ/tot.length*tot.length).toFixed(1):0;
+      const avgPIR=tot.length?+(tot.reduce((a,p)=>a+calcStats(p).pir,0)/tot.length).toFixed(1):0;
+      const allTi=tot.reduce((a,p)=>a+(p.t2_i||0)+(p.t3_i||0),0);
+      const allTm=tot.reduce((a,p)=>a+(p.t2_m||0)+(p.t3_m||0),0);
+      const allT3i=tot.reduce((a,p)=>a+(p.t3_i||0),0);
+      const allT3m=tot.reduce((a,p)=>a+(p.t3_m||0),0);
+      const teamEfg=allTi?+(((allTm+(allT3m*0.5))/allTi)*100).toFixed(1):0;
+      const allTLi=tot.reduce((a,p)=>a+(p.tl_i||0),0);
+      const allTLm=tot.reduce((a,p)=>a+(p.tl_m||0),0);
+      const teamTL=allTLi?+((allTLm/allTLi)*100).toFixed(1):0;
+      const kpis=[
+        {lbl:"PIR Medio",val:avgPIR,color:"#f97316",sub:"Valoración FIBA/pj"},
+        {lbl:"eFG% Equipo",val:teamEfg+"%",color:"#10b981",sub:"Eficiencia real de campo"},
+        {lbl:"TL% Equipo",val:teamTL+"%",color:"#f59e0b",sub:"% Tiro libre total"},
+        {lbl:"T3% Equipo",val:allT3i?+((allT3m/allT3i)*100).toFixed(1)+"%":"—",color:"#8b5cf6",sub:"% Triple total"},
+      ];
+      return <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:14}}>
+        {kpis.map(k=>(
+          <div key={k.lbl} className="card" style={{padding:"16px 18px",borderTop:`3px solid ${k.color}`}}>
+            <p style={{fontFamily:"DM Mono",fontSize:28,fontWeight:700,color:k.color,lineHeight:1,marginBottom:4}}>{k.val}</p>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.text,marginBottom:2}}>{k.lbl}</p>
+            <p style={{fontSize:10,color:th.muted}}>{k.sub}</p>
+          </div>
+        ))}
+      </div>;
+    })()}
+
+    {/* Selector de vista */}
+    <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
+      {[["performance","📊 Performance"],["detailed","📋 Estadísticas detalladas"]].map(([v,l])=>(
+        <button key={v} onClick={()=>setView(v)} style={{padding:"5px 16px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:13,background:view===v?"#f97316":th.card2,color:view===v?"#fff":th.sub}}>{l}</button>
+      ))}
+      <div style={{marginLeft:"auto",display:"flex",gap:5,flexWrap:"wrap"}}>
+        {sortCols.map(c=><button key={c.key} onClick={()=>setSortBy(c.key)} title={c.desc} style={{padding:"4px 10px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,fontSize:11,fontFamily:"Barlow Condensed",background:sortBy===c.key?c.color:th.card2,color:sortBy===c.key?"#fff":th.sub}}>{c.lbl}</button>)}
       </div>
-      <ResponsiveContainer width="100%" height={140}>
-        <BarChart data={chartData} barCategoryGap="35%">
+    </div>
+
+    {/* Gráfico */}
+    <div className="card" style={{padding:"16px 16px 8px",marginBottom:14}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>
+        Ranking — <span style={{color:curCol.color}}>{curCol.lbl}</span> · {curCol.desc}
+      </p>
+      <ResponsiveContainer width="100%" height={130}>
+        <BarChart data={chartData} barCategoryGap="30%">
           <CartesianGrid strokeDasharray="3 3" stroke={th.border} vertical={false}/>
-          <XAxis dataKey="name" tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/>
-          <YAxis tick={{fill:th.muted,fontSize:10}} axisLine={false} tickLine={false}/>
-          <Tooltip contentStyle={tt}/>
-          <Bar dataKey="val" fill={sortCols.find(c=>c.key===sortBy)?.color||"#f97316"} radius={[4,4,0,0]}/>
+          <XAxis dataKey="name" tick={{fill:th.muted,fontSize:9}} axisLine={false} tickLine={false}/>
+          <YAxis tick={{fill:th.muted,fontSize:9}} axisLine={false} tickLine={false}/>
+          <Tooltip contentStyle={tt} formatter={v=>[v,curCol.lbl]}/>
+          <Bar dataKey="val" fill={curCol.color} radius={[4,4,0,0]}/>
         </BarChart>
       </ResponsiveContainer>
     </div>
 
-    {/* Tabla completa */}
-    <div className="card" style={{overflow:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
+    {/* Vista Performance — tabla tipo CourtStat */}
+    {view==="performance"&&<div className="card" style={{overflow:"auto",padding:0}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:700}}>
+        <thead>
+          <tr style={{background:"#1e3a5f"}}>
+            <th style={{padding:"10px 14px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(255,255,255,.6)",fontWeight:700,textTransform:"uppercase",letterSpacing:.8}}>Jugador</th>
+            <th style={{padding:"10px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(255,255,255,.6)",fontWeight:700,textTransform:"uppercase"}}>PJ</th>
+            {[{k:"pir",l:"PIR",c:"#f97316"},{k:"pts_p",l:"PTS/P",c:"#ef4444"},{k:"efg",l:"eFG%",c:"#10b981"},{k:"ts",l:"TS%",c:"#3b82f6"},{k:"t3_pct",l:"T3%",c:"#8b5cf6"},{k:"tl_pct",l:"TL%",c:"#f59e0b"},{k:"fc_p",l:"FC/P",c:"#94a3b8"}].map(col=>(
+              <th key={col.k} onClick={()=>setSortBy(col.k)} style={{padding:"10px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:sortBy===col.k?col.c:"rgba(255,255,255,.6)",fontWeight:700,textTransform:"uppercase",cursor:"pointer",borderBottom:sortBy===col.k?`2px solid ${col.c}`:"2px solid transparent"}}>{col.l}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((p,i)=>{
+            const isTop=i<3;
+            const rowBg=i===0?"rgba(249,115,22,.06)":i%2===0?th.card:th.card2;
+            const pir=p.pir||0;
+            const pirColor=pir>12?"#f97316":pir>7?"#10b981":pir>3?"#3b82f6":th.muted;
+            return <tr key={p.id} className="hrow" style={{background:rowBg,borderTop:`1px solid ${th.border}`,borderLeft:isTop?`3px solid #f97316`:"3px solid transparent"}}>
+              <td style={{padding:"10px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:32,height:32,borderRadius:16,background:isTop?"#f97316":"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#fff",flexShrink:0}}>{p.num}</div>
+                  <div>
+                    <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:isTop?"#f97316":th.text,lineHeight:1.2}}>{p.name.split(" ").slice(0,2).join(" ")}</p>
+                    <p style={{fontSize:9,color:th.muted}}>{p.pos} · {p.min_p}' /pj</p>
+                  </div>
+                </div>
+              </td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:th.muted}}>{p.pj}</td>
+              {/* PIR — badge de color */}
+              <td style={{padding:"10px",textAlign:"center"}}>
+                <span style={{display:"inline-block",minWidth:38,padding:"3px 8px",borderRadius:6,background:pirColor+"22",color:pirColor,fontFamily:"DM Mono",fontSize:13,fontWeight:700}}>{pir}</span>
+              </td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:700,color:"#ef4444"}}>{p.pts_p}</td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:"#10b981"}}>{p.efg}%</td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:"#3b82f6"}}>{p.ts}%</td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:"#8b5cf6"}}>{p.t3_pct}%</td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:"#f59e0b"}}>{p.tl_pct}%</td>
+              <td style={{padding:"10px",textAlign:"center",fontFamily:"DM Mono",fontSize:12,color:"#ef4444"}}>{p.fc_p}</td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+      <div style={{padding:"8px 16px",borderTop:`1px solid ${th.border}`,display:"flex",gap:16,flexWrap:"wrap"}}>
+        {[{c:"#f97316",t:"PIR: Valoración FIBA — suma de contribuciones positivas menos negativas"},
+          {c:"#10b981",t:"eFG%: Eficiencia real (pondera el triple x1.5)"},
+          {c:"#3b82f6",t:"TS%: True Shooting — eficiencia total incluyendo TL"}].map(l=>(
+          <span key={l.t} style={{fontSize:9,color:th.muted}}>
+            <span style={{color:l.c,fontWeight:700}}>●</span> {l.t}
+          </span>
+        ))}
+      </div>
+    </div>}
+
+    {/* Vista detallada — tabla original mejorada */}
+    {view==="detailed"&&<div className="card" style={{overflow:"auto",padding:0}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:960}}>
         <thead>
           <tr style={{background:th.tableHead}}>
             <Th>Jug.</Th>
@@ -1145,22 +1258,19 @@ function Estadisticas(){
             <Th k="pj" right>PJ</Th>
             <Th k="min_p" right>Min/P</Th>
             <Th k="pts_p" right>PTS/P</Th>
-            {/* TL group */}
-            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,borderBottom:"2px solid #f59e0b22",background:th.tableHead}}>Tiros Libres</th>
-            {/* T2 group */}
-            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,borderBottom:"2px solid #3b82f622",background:th.tableHead}}>Tiros de 2</th>
-            {/* T3 group */}
-            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,borderBottom:"2px solid #8b5cf622",background:th.tableHead}}>Tiros de 3</th>
+            <Th k="pir" right>PIR</Th>
+            <Th k="efg" right>eFG%</Th>
+            <Th k="ts" right>TS%</Th>
+            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",background:th.tableHead}}>TL</th>
+            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#3b82f6",fontWeight:700,textTransform:"uppercase",background:th.tableHead}}>T2</th>
+            <th colSpan={3} style={{padding:"6px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",background:th.tableHead}}>T3</th>
             <Th k="fc_p" right>FC/P</Th>
           </tr>
           <tr style={{background:th.tableHead}}>
-            <th colSpan={6} style={{background:th.tableHead}}/>
-            {/* TL sub */}
-            {["Int.","Met.","%"].map(h=><th key={"tl"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#f59e0b",fontWeight:600,textTransform:"uppercase",background:th.tableHead,opacity:.8}}>{h}</th>)}
-            {/* T2 sub */}
-            {["Int.","Met.","%"].map(h=><th key={"t2"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#3b82f6",fontWeight:600,textTransform:"uppercase",background:th.tableHead,opacity:.8}}>{h}</th>)}
-            {/* T3 sub */}
-            {["Int.","Met.","%"].map(h=><th key={"t3"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#8b5cf6",fontWeight:600,textTransform:"uppercase",background:th.tableHead,opacity:.8}}>{h}</th>)}
+            <th colSpan={9} style={{background:th.tableHead}}/>
+            {["Int","Met","%"].map(h=><th key={"tl"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#f59e0b",fontWeight:600,textTransform:"uppercase",background:th.tableHead}}>{h}</th>)}
+            {["Int","Met","%"].map(h=><th key={"t2"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#3b82f6",fontWeight:600,textTransform:"uppercase",background:th.tableHead}}>{h}</th>)}
+            {["Int","Met","%"].map(h=><th key={"t3"+h} style={{padding:"4px 8px",textAlign:"right",fontFamily:"Barlow Condensed",fontSize:9,color:"#8b5cf6",fontWeight:600,textTransform:"uppercase",background:th.tableHead}}>{h}</th>)}
             <th style={{background:th.tableHead}}/>
           </tr>
         </thead>
@@ -1172,35 +1282,19 @@ function Estadisticas(){
             <Td color={th.sub}>{p.pj}</Td>
             <Td>{p.min_p}'</Td>
             <Td accent={sortBy==="pts_p"}>{p.pts_p}</Td>
-            {/* TL */}
+            <td style={{padding:"9px 10px",textAlign:"right"}}>
+              <span style={{display:"inline-block",padding:"2px 7px",borderRadius:5,background:(p.pir>12?"#f97316":p.pir>7?"#10b981":"#3b82f6")+"22",color:p.pir>12?"#f97316":p.pir>7?"#10b981":"#3b82f6",fontFamily:"DM Mono",fontSize:12,fontWeight:700}}>{p.pir}</span>
+            </td>
+            <Td color="#10b981" accent={sortBy==="efg"}>{p.efg}%</Td>
+            <Td color="#3b82f6" accent={sortBy==="ts"}>{p.ts}%</Td>
             <Td color={th.muted}>{p.tl_i}</Td><Td color={th.muted}>{p.tl_m}</Td><Td accent={sortBy==="tl_pct"} color="#f59e0b">{p.tl_pct}%</Td>
-            {/* T2 */}
             <Td color={th.muted}>{p.t2_i}</Td><Td color={th.muted}>{p.t2_m}</Td><Td accent={sortBy==="t2_pct"} color="#3b82f6">{p.t2_pct}%</Td>
-            {/* T3 */}
             <Td color={th.muted}>{p.t3_i}</Td><Td color={th.muted}>{p.t3_m}</Td><Td accent={sortBy==="t3_pct"} color="#8b5cf6">{p.t3_pct}%</Td>
             <Td accent={sortBy==="fc_p"} color="#ef4444">{p.fc_p}</Td>
           </tr>)}
         </tbody>
       </table>
-    </div>
-
-    {/* Totales del equipo */}
-    <div className="card" style={{padding:20,marginTop:14}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:14}}>Totales de equipo</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12}}>
-        {[
-          {lbl:"Total TL%",val:`${active.reduce((a,p)=>a+(p.tl_i||0),0)?+((active.reduce((a,p)=>a+(p.tl_m||0),0)/active.reduce((a,p)=>a+(p.tl_i||0),0))*100).toFixed(1):0}%`,color:"#f59e0b"},
-          {lbl:"Total T2%",val:`${active.reduce((a,p)=>a+(p.t2_i||0),0)?+((active.reduce((a,p)=>a+(p.t2_m||0),0)/active.reduce((a,p)=>a+(p.t2_i||0),0))*100).toFixed(1):0}%`,color:"#3b82f6"},
-          {lbl:"Total T3%",val:`${active.reduce((a,p)=>a+(p.t3_i||0),0)?+((active.reduce((a,p)=>a+(p.t3_m||0),0)/active.reduce((a,p)=>a+(p.t3_i||0),0))*100).toFixed(1):0}%`,color:"#8b5cf6"},
-          {lbl:"Jugadores activos",val:active.length,color:"#10b981"},
-          {lbl:"Partidos disputados",val:Math.max(0,...active.map(p=>p.pj||0)),color:"#f97316"},
-          {lbl:"PTS/P equipo",val:active.length&&active.some(p=>p.pj)?+(active.reduce((a,p)=>a+calcStats(p).pts_p,0)/active.filter(p=>p.pj).length).toFixed(1):0,color:"#f97316"},
-        ].map(item=><div key={item.lbl} style={{textAlign:"center",padding:"14px 8px",background:th.card2,borderRadius:10,border:`1px solid ${th.border}`}}>
-          <p style={{fontFamily:"DM Mono",fontSize:24,fontWeight:700,color:item.color,lineHeight:1,marginBottom:5}}>{item.val}</p>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,textTransform:"uppercase",letterSpacing:.5}}>{item.lbl}</p>
-        </div>)}
-      </div>
-    </div>
+    </div>}
   </div>;
 }
 
