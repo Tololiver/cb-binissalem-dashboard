@@ -275,8 +275,10 @@ function ImageUploader({images,setImages,max=4}){
     const arr=[...files].slice(0,max-images.length);
     arr.forEach(f=>{
       if(!f.type.startsWith("image/"))return;
+      if(f.size>2*1024*1024){alert("La imagen es demasiado grande. Máximo 2MB. Usa una imagen más pequeña o comprimida.");return;}
       const r=new FileReader();
       r.onload=e=>setImages(prev=>[...prev,e.target.result].slice(0,max));
+      r.onerror=()=>alert("Error leyendo la imagen. Prueba con otro archivo.");
       r.readAsDataURL(f);
     });
   };
@@ -5684,10 +5686,12 @@ function Clasificacion(){
     setAiLoading(true);setAiMsg("Leyendo clasificación de la imagen…");
     try{
       const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-      const mt=file.type.includes("pdf")?"application/pdf":"image/jpeg";
-      const contentBlock=mt==="application/pdf"
-        ?{type:"document",source:{type:"base64",media_type:mt,data:base64}}
-        :{type:"image",source:{type:"base64",media_type:mt,data:base64}};
+      // Detect media type robustly (file.type can be empty on some browsers)
+      const isPDF=file.type==="application/pdf"||file.name?.toLowerCase().endsWith(".pdf");
+      const mt=isPDF?"application/pdf":(file.type||"image/jpeg");
+      const contentBlock=isPDF
+        ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
+        :{type:"image",source:{type:"base64",media_type:mt.startsWith("image/")?mt:"image/jpeg",data:base64}};
       const data=await callClaude(apiKey,{
         model:"claude-sonnet-4-20250514",max_tokens:2000,
         messages:[{role:"user",content:[
@@ -5870,7 +5874,23 @@ export default function App(){
     setSync("saving");
     if(tmr.current)clearTimeout(tmr.current);
     tmr.current=setTimeout(async()=>{
-      try{const{error}=await sb.from("dashboard").upsert({id:"state",data:stRef.current,updated_at:new Date().toISOString()});if(error)throw error;setSync("saved");}
+      try{
+        // Strip base64 images — too large for Supabase (5MB limit). Images stay in local state only.
+        const stripImages=obj=>{
+          if(!obj||typeof obj!=="object")return obj;
+          if(Array.isArray(obj))return obj.map(stripImages);
+          const out={};
+          for(const[k,v]of Object.entries(obj)){
+            if(k==="images"&&Array.isArray(v))out[k]=[];
+            else out[k]=stripImages(v);
+          }
+          return out;
+        };
+        const safeData=stripImages(stRef.current);
+        const{error}=await sb.from("dashboard").upsert({id:"state",data:safeData,updated_at:new Date().toISOString()});
+        if(error)throw error;
+        setSync("saved");
+      }
       catch(e){console.error("Save error:",e);setSync("offline");}
     },900);
   },[]);
