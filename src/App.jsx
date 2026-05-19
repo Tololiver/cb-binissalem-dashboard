@@ -196,6 +196,10 @@ function GS({th}){return <style>{`
 
   /* ── RESPONSIVE ── */
   .close-sidebar{display:none}
+  /* iOS safe areas — Dynamic Island / notch / home indicator */
+  @supports(padding-top: env(safe-area-inset-top)){
+    .sidebar{padding-top: env(safe-area-inset-top)!important;}
+  }
   .mobile-topbar{display:none!important}
 
   /* Tablet ≤900px */
@@ -5998,7 +6002,7 @@ export default function App(){
 
           {/* ── SIDEBAR ── */}
           <aside className={`sidebar${menuOpen?" open":""}`} style={{width:222,flexShrink:0,background:th.nav,display:"flex",flexDirection:"column",height:"100dvh",overflowY:"auto",borderRight:"1px solid rgba(255,255,255,.06)",zIndex:50}}>
-            <div style={{padding:"18px 18px 10px"}}>
+            <div style={{padding:"18px 18px 10px",paddingTop:"max(18px, calc(env(safe-area-inset-top) + 12px))"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:34,height:34,borderRadius:9,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:900,color:"#fff",letterSpacing:-.5,flexShrink:0}}>CB</div>
                 <div><p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Binissalem</p><p style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Sénior A · 25/26</p></div>
@@ -6015,7 +6019,7 @@ export default function App(){
                 </div>
               );})}
             </nav>
-            <div style={{padding:"10px 12px",borderTop:"1px solid rgba(255,255,255,.07)",display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{padding:"10px 12px",paddingBottom:"max(10px, calc(env(safe-area-inset-bottom) + 8px))",borderTop:"1px solid rgba(255,255,255,.07)",display:"flex",flexDirection:"column",gap:6}}>
               {/* API Key settings */}
               {showSettings&&<div style={{background:"rgba(255,255,255,.05)",borderRadius:8,padding:10,marginBottom:4}}>
                 <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>API Key Anthropic</p>
@@ -6041,7 +6045,7 @@ export default function App(){
           {/* ── MAIN ── */}
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {/* Mobile topbar */}
-            <div className="mobile-topbar" style={{background:th.nav,padding:"10px 16px",display:"none",alignItems:"center",gap:12,borderBottom:"1px solid rgba(255,255,255,.06)",flexShrink:0}}>
+            <div className="mobile-topbar" style={{background:th.nav,paddingLeft:16,paddingRight:16,paddingBottom:10,paddingTop:"max(10px, calc(env(safe-area-inset-top) + 8px))",display:"none",alignItems:"center",gap:12,borderBottom:"1px solid rgba(255,255,255,.06)",flexShrink:0}}>
               <button onClick={()=>setMenuOpen(true)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>☰</button>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <div style={{width:28,height:28,borderRadius:7,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,fontWeight:900,color:"#fff"}}>CB</div>
