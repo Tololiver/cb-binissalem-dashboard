@@ -5874,8 +5874,22 @@ export default function App(){
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
+    // Update ref immediately — ensures stRef always has latest values
     stRef.current={...stRef.current,...patch};
     setSync("saving");
+
+    // attDates saves immediately (no debounce) — critical for sync between devices
+    if(patch.attDates!==undefined){
+      (async()=>{
+        try{
+          const{error}=await sb.from("dashboard").upsert({id:"state",data:stRef.current,updated_at:new Date().toISOString()});
+          if(error)throw error;
+          setSync("saved");
+        }catch(e){console.error("AttDates save error:",e);setSync("offline");}
+      })();
+      return; // skip debounced save — immediate save already scheduled
+    }
+
     if(tmr.current)clearTimeout(tmr.current);
     tmr.current=setTimeout(async()=>{
       try{
@@ -5905,7 +5919,23 @@ export default function App(){
   const setPlayers  =useCallback(fn=>setPlayersRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({players:n});return n;}),[persist]);
   const setMatches  =useCallback(fn=>setMatchesRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({matches:n});return n;}),[persist]);
   const setSessions =useCallback(fn=>setSessionsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({sessions:n});return n;}),[persist]);
-  const setAttDates =useCallback(fn=>setAttDatesRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({attDates:n});return n;}),[persist]);
+  const setAttDates =useCallback(fn=>{
+    setAttDatesRaw(prev=>{
+      const n=typeof fn==="function"?fn(prev):fn;
+      // Update stRef synchronously before persist so it has the latest data
+      stRef.current={...stRef.current,attDates:n};
+      // Save immediately — no debounce for attendance
+      setSync("saving");
+      (async()=>{
+        try{
+          const{error}=await sb.from("dashboard").upsert({id:"state",data:stRef.current,updated_at:new Date().toISOString()});
+          if(error)throw error;
+          setSync("saved");
+        }catch(e){console.error("AttDates save:",e);setSync("offline");}
+      })();
+      return n;
+    });
+  },[]);
   const setQuintets =useCallback(fn=>setQuintetsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({quintets:n});return n;}),[persist]);
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
