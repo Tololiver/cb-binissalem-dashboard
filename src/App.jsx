@@ -302,7 +302,7 @@ function ImageUploader({images,setImages,max=4}){
 }
 
 /* ── LOGO + SHARED PDF STYLES ────────────────────────────── */
-const LOGO_B64="/tololiver_logo_pdf.png";
+const LOGO_B64=window.location.origin+"/tololiver_logo_pdf.png";
 
 const PDF_CSS=`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
 *{box-sizing:border-box}
@@ -5911,7 +5911,7 @@ function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
   const overall=scoreVals.length?(scoreVals.reduce((a,v)=>a+EVAL_SCORE_VAL[v],0)/scoreVals.length).toFixed(1):0;
   const overallColor=overall>=3.5?"#10b981":overall>=2.5?"#3b82f6":overall>=1.5?"#f59e0b":"#ef4444";
   const overallLabel=overall>=3.5?"Excelente":overall>=2.5?"Puede mejorar":overall>=1.5?"Necesita mejorar":"Debe mejorar";
-  const LOGO_B64=window._LOGO_B64||"";
+  const LOGO_B64=window.location.origin+"/tololiver_logo_pdf.png";
 
   const catHtml=template.map(({cat,items})=>{
     const catScores=items.map(i=>scores[cat+"::"+i]).filter(v=>v&&EVAL_SCORE_VAL[v]);
