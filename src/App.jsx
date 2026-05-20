@@ -5821,6 +5821,332 @@ function Clasificacion(){
   </div>;
 }
 
+/* ══════════════════════════════════════════════════════════
+   EVALUACIÓN DE JUGADORES — Plantilla defensiva + ofensiva
+══════════════════════════════════════════════════════════ */
+
+const EVAL_SCORES=["Debe mejorar","Necesita mejorar","Puede mejorar","Excelente"];
+const EVAL_SCORE_VAL={"Debe mejorar":1,"Necesita mejorar":2,"Puede mejorar":3,"Excelente":4};
+const EVAL_SCORE_COLOR={"Debe mejorar":"#ef4444","Necesita mejorar":"#f59e0b","Puede mejorar":"#3b82f6","Excelente":"#10b981"};
+
+const EVAL_DEFENSIVA=[
+  {cat:"Habilidades Físicas y Mentales",items:["Entrenabilidad, deseo de aprender y mejorar","Esfuerzo y ética de trabajo","Vida sana","Resistencia y condición física","Liderazgo a través del ejemplo","Habilidad para superar situaciones adversas","Habilidad para pensar bajo presión","Juego en equipo","Auto mejora y entrenamiento por cuenta propia"]},
+  {cat:"Habilidades Defensivas sobre Balón",items:["Presión sobre el jugador con balón","Iniciar la acción de atacar al jugador con balón","Manos activas para dificultar tiro y pase","Contención del driblador "Push"","Permanecer flexionado "Nariz en el pecho"","Mantener al rival lejos de la zona de peligro "Sideline"","Superar/Evitar los bloqueos directos","Desplazamiento sobre bote de velocidad","Asfixiar al rival cuando ha cogido el balón","Provocar faltas de ataque","Absorber los contactos","Establecer una buena posición defensiva"]},
+  {cat:"Defensa sin Balón — Lado Fuerte",items:["Atacar las líneas de pase "Pass Denial"","Jugar en la zona manteniendo triángulo defensivo","Jugar flexionado con mano extendida negando LDP","Habilidad para negar el balón al rival "Dancing"","Permanecer con el tirador en las penetraciones LF"]},
+  {cat:"Defensa sin Balón — Lado de Ayuda",items:["Bascular y establecer posición de primera ayuda","Proporcionar ayudas fuertes desde el lado débil","Anticipar e iniciar rotaciones en situaciones de Trap","Negar y bloquear cortes hacia canasta o balón","Recuperar rápido y equilibrado con manos arriba","Moverse cuando la bola sale de las manos del pasador","Lanzarse al suelo en busca de balones perdidos"]},
+  {cat:"Defensa del Poste",items:["Habilidad para negar los pases al poste","Jugar con agilidad y rapidez","Luchar por la posición y sacar al atacante","Defender al poste bajo con balón","Defender en el poste alto","Defender al poste alto con balón"]},
+  {cat:"Rebote Defensivo",items:["Anticipar tiro fallado y ganar posición dentro","Determinación y competitividad","Localizar y cerrar al atacante del lado débil","Ganar la posición en los tiros libres","Cerrar el rebote en los últimos tiros y Tiros Libres"]},
+];
+
+const EVAL_OFENSIVA=[
+  {cat:"Habilidades Físicas y Mentales",items:["Confianza y mentalidad ganadora","Lectura del juego y toma de decisiones","Explosividad y velocidad de arranque","Cambios de ritmo y dirección","Coordinación y control corporal","Competitividad bajo presión","Capacidad de aprendizaje táctico","Trabajo en equipo en ataque"]},
+  {cat:"Manejo de Balón",items:["Bote con mano dominante a velocidad","Bote con mano débil","Cambios de mano (entre las piernas, espalda)","Control del bote bajo presión defensiva","Avance con bote en contraataque","Protección del balón en penetración","Uso del bote en situaciones 1x1"]},
+  {cat:"Tiro",items:["Mecánica de tiro (forma y repetición)","Tiro en estático con mano dominante","Tiro en movimiento (recepción y tiro)","Tiro en suspensión (pull-up jumper)","Tiro de 3 puntos","Tiro libre","Tiro en fadeaway","Tiro con contacto y falta"]},
+  {cat:"Juego sin Balón",items:["Lectura de la defensa para recibir","Cortes al aro (backdoor, V-cut, L-cut)","Uso de bloqueos directos e indirectos","Posicionamiento en el lado débil","Movimiento continuo para crear ventaja","Sellar al defensor para recibir en el poste"]},
+  {cat:"Juego en el Poste",items:["Posicionamiento y sellado para recibir","Movimientos de poste bajo (gancho, drop step)","Juego de espaldas con contacto","Ataque al aro desde el poste alto","Pase desde el poste a compañeros desmarcados"]},
+  {cat:"Rebote Ofensivo",items:["Anticipación al tiro fallado","Lucha por posición interior","Seguimiento al tiro propio","Tip-in y putback","Segunda oportunidad desde el perímetro"]},
+  {cat:"Pase y Visión de Juego",items:["Pase de pecho y por encima","Pase picado en penetración","Visión periférica y pase sin mirar","Pase en movimiento","Selección correcta de pase en función del tiempo"]},
+];
+
+const emptyEvalScores=(template)=>{
+  const out={};
+  template.forEach(cat=>{cat.items.forEach(item=>{out[cat.cat+"::"+item]="";});});
+  return out;
+};
+
+const calcEvalScore=(scores)=>{
+  const vals=Object.values(scores).filter(v=>v&&EVAL_SCORE_VAL[v]);
+  if(!vals.length)return null;
+  return (vals.reduce((a,v)=>a+EVAL_SCORE_VAL[v],0)/vals.length).toFixed(1);
+};
+
+function EvalScoreSelect({value,onChange,disabled}){
+  const{th}=useTheme();
+  return <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+    {EVAL_SCORES.map(s=>(
+      <button key={s} disabled={disabled} onClick={()=>onChange(value===s?"":s)}
+        style={{padding:"3px 8px",borderRadius:5,border:`1px solid ${value===s?EVAL_SCORE_COLOR[s]:th.border2}`,
+          background:value===s?EVAL_SCORE_COLOR[s]+"22":"transparent",
+          color:value===s?EVAL_SCORE_COLOR[s]:th.muted,
+          cursor:disabled?"default":"pointer",fontSize:10,fontFamily:"Barlow Condensed",fontWeight:700,
+          whiteSpace:"nowrap",opacity:disabled?.6:1}}>
+        {s}
+      </button>
+    ))}
+  </div>;
+}
+
+function EvalCategory({cat,items,scores,onChange,readOnly}){
+  const{th}=useTheme();
+  const catScores=items.map(i=>scores[cat+"::"+i]).filter(v=>v&&EVAL_SCORE_VAL[v]);
+  const avg=catScores.length?(catScores.reduce((a,v)=>a+EVAL_SCORE_VAL[v],0)/catScores.length).toFixed(1):null;
+  const avgColor=avg?avg>=3.5?"#10b981":avg>=2.5?"#3b82f6":avg>=1.5?"#f59e0b":"#ef4444":th.muted;
+  return <div style={{marginBottom:14}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,background:"#1e3a5f",padding:"8px 12px",borderRadius:"8px 8px 0 0"}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:.5,flex:1}}>{cat}</p>
+      {avg&&<span style={{fontFamily:"DM Mono",fontSize:13,fontWeight:700,color:avgColor,background:avgColor+"22",padding:"2px 8px",borderRadius:5}}>{avg}</span>}
+    </div>
+    <div style={{border:`1px solid ${th.border}`,borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+      {items.map((item,i)=>{
+        const key=cat+"::"+item;
+        const val=scores[key]||"";
+        return <div key={item} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",
+          background:i%2===0?th.card:th.card2,borderTop:i>0?`1px solid ${th.border}`:"none"}}>
+          <p style={{fontSize:12,color:th.text,flex:1,lineHeight:1.4}}>{item}</p>
+          {readOnly
+            ?<span style={{fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700,
+                color:val?EVAL_SCORE_COLOR[val]:th.muted,minWidth:100,textAlign:"right"}}>
+                {val||"—"}
+              </span>
+            :<EvalScoreSelect value={val} onChange={v=>onChange(key,v)}/>
+          }
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
+  const scoreVals=Object.values(scores).filter(v=>v&&EVAL_SCORE_VAL[v]);
+  const overall=scoreVals.length?(scoreVals.reduce((a,v)=>a+EVAL_SCORE_VAL[v],0)/scoreVals.length).toFixed(1):0;
+  const overallColor=overall>=3.5?"#10b981":overall>=2.5?"#3b82f6":overall>=1.5?"#f59e0b":"#ef4444";
+  const overallLabel=overall>=3.5?"Excelente":overall>=2.5?"Puede mejorar":overall>=1.5?"Necesita mejorar":"Debe mejorar";
+  const LOGO_B64=window._LOGO_B64||"";
+
+  const catHtml=template.map(({cat,items})=>{
+    const catScores=items.map(i=>scores[cat+"::"+i]).filter(v=>v&&EVAL_SCORE_VAL[v]);
+    const avg=catScores.length?(catScores.reduce((a,v)=>a+EVAL_SCORE_VAL[v],0)/catScores.length).toFixed(1):"—";
+    const avgC=avg!=="—"?(avg>=3.5?"#10b981":avg>=2.5?"#3b82f6":avg>=1.5?"#f59e0b":"#ef4444"):"#94a3b8";
+    return `<div style="break-inside:avoid;margin-bottom:14px">
+      <div style="display:flex;align-items:center;background:#1e3a5f;padding:8px 12px;border-radius:6px 6px 0 0">
+        <span style="font-family:Barlow Condensed,Arial;font-size:13px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.5px;flex:1">${cat}</span>
+        <span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:${avgC};background:${avgC}22;padding:2px 8px;border-radius:4px">${avg}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;overflow:hidden">
+        ${items.map((item,i)=>{
+          const v=scores[cat+"::"+item]||"";
+          const vc=v?EVAL_SCORE_COLOR[v]:"#94a3b8";
+          return `<tr style="background:${i%2===0?"#f8fafc":"#fff"}">
+            <td style="padding:6px 10px;font-size:11px;color:#1e293b;border-top:1px solid #e2e8f0">${item}</td>
+            <td style="padding:6px 10px;text-align:right;font-weight:700;font-size:11px;color:${vc};white-space:nowrap;border-top:1px solid #e2e8f0">${v||"—"}</td>
+          </tr>`;
+        }).join("")}
+      </table>
+    </div>`;
+  }).join("");
+
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+    <title>Evaluación ${evalType} — ${player.name}</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;background:#fff;color:#1e293b;padding:24px;max-width:800px;margin:0 auto}
+      @media print{body{padding:12px}@page{margin:12mm}}
+    </style></head><body>
+    <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #f97316;padding-bottom:14px;margin-bottom:20px">
+      <div>
+        <p style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-family:Barlow Condensed,Arial">Evaluación Individual · ${evalType}</p>
+        <h1 style="font-family:Barlow Condensed,Arial;font-size:28px;font-weight:800;color:#1e3a5f">${player.name}</h1>
+        <p style="font-size:12px;color:#64748b">#${player.num||"—"} · ${player.pos||"—"} · ${new Date().toLocaleDateString("es")}</p>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:DM Mono,monospace;font-size:40px;font-weight:800;color:${overallColor};line-height:1">${overall}</div>
+        <div style="font-size:11px;font-weight:700;color:${overallColor};text-transform:uppercase">${overallLabel}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">Valoración global</div>
+      </div>
+    </div>
+    ${catHtml}
+    ${notes?`<div style="margin-top:16px;padding:14px;background:#f8fafc;border-left:4px solid #f97316;border-radius:4px"><p style="font-size:11px;font-weight:700;color:#1e3a5f;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Observaciones</p><p style="font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap">${notes}</p></div>`:""}
+    ${aiReport?`<div style="margin-top:16px;padding:14px;background:#f0fdf4;border-left:4px solid #10b981;border-radius:4px"><p style="font-size:11px;font-weight:700;color:#065f46;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Informe IA</p><p style="font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap">${aiReport}</p></div>`:""}
+    <div style="margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
+      <span>Tololiver · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span>
+    </div>
+    <script>setTimeout(()=>window.print(),400)</script>
+  </body></html>`);
+  w.document.close();
+}
+
+function Evaluacion(){
+  const{th}=useTheme();const{players,apiKey}=useData();
+  const[evalType,setEvalType]=useState("Defensiva");
+  const[selPid,setSelPid]=useState(null);
+  const[evals,setEvals]=useState({});// {pid: {defensiva:{scores,notes,ai,date}, ofensiva:{...}}}
+  const[aiLoading,setAiLoading]=useState(false);
+  const[aiMsg,setAiMsg]=useState(null);
+  const[tab,setTab]=useState("eval");// eval | history
+  const[exportAll,setExportAll]=useState(false);
+
+  const template=evalType==="Defensiva"?EVAL_DEFENSIVA:EVAL_OFENSIVA;
+  const typeKey=evalType==="Defensiva"?"defensiva":"ofensiva";
+
+  const active=players.filter(p=>p.active);
+  const selPlayer=active.find(p=>p.id===selPid)||active[0]||null;
+  const pid=selPlayer?.id;
+
+  const getEval=()=>evals[pid]?.[typeKey]||{scores:emptyEvalScores(template),notes:"",ai:"",date:""};
+  const setScore=(key,val)=>{
+    setEvals(prev=>({...prev,[pid]:{...prev[pid],[typeKey]:{...getEval(),scores:{...getEval().scores,[key]:val},date:new Date().toISOString().split("T")[0]}}}));
+  };
+  const setNotes=(v)=>{
+    setEvals(prev=>({...prev,[pid]:{...prev[pid],[typeKey]:{...getEval(),notes:v}}}));
+  };
+  const setAI=(v)=>{
+    setEvals(prev=>({...prev,[pid]:{...prev[pid],[typeKey]:{...getEval(),ai:v}}}));
+  };
+
+  const overall=selPlayer?calcEvalScore(getEval().scores):null;
+  const overallColor=overall?(+overall>=3.5?"#10b981":+overall>=2.5?"#3b82f6":+overall>=1.5?"#f59e0b":"#ef4444"):th.muted;
+
+  const generateAI=async()=>{
+    if(!apiKey){setAiMsg("❌ Configura tu API Key.");return;}
+    if(!selPlayer)return;
+    setAiLoading(true);setAiMsg(null);
+    const ev=getEval();
+    const detalles=template.map(({cat,items})=>{
+      const catRows=items.map(i=>`    - ${i}: ${ev.scores[cat+"::"+i]||"Sin valorar"}`).join("\n");
+      return `  ${cat}:\n${catRows}`;
+    }).join("\n");
+    try{
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:
+        `Eres un entrenador de baloncesto profesional. Analiza la siguiente evaluación ${evalType.toLowerCase()} del jugador ${selPlayer.name} (#${selPlayer.num||"—"}, ${selPlayer.pos||"sin posición"}) y genera un informe detallado en español con:\n\n1. RESUMEN EJECUTIVO (3-4 líneas)\n2. PUNTOS FUERTES (3-4 puntos)\n3. ÁREAS DE MEJORA PRIORITARIAS (3-4 puntos con recomendaciones concretas)\n4. PLAN DE TRABAJO (ejercicios y trabajo específico recomendado)\n5. VALORACIÓN GLOBAL (con nota numérica 1-4 y conclusión)\n\nValoraciones del jugador:\n${detalles}\n\nObservaciones del entrenador: ${ev.notes||"Ninguna"}\n\nSé específico, práctico y directo.`
+      }]});
+      const text=data.content?.find(b=>b.type==="text")?.text||"";
+      setAI(text);setAiMsg("✅ Informe generado");
+    }catch(e){setAiMsg("❌ "+e.message?.slice(0,50));}
+    setAiLoading(false);setTimeout(()=>setAiMsg(null),4000);
+  };
+
+  if(!active.length)return <div><SH title="Evaluación" sub="Evaluación defensiva y ofensiva de jugadores"/>
+    <div className="card" style={{padding:48,textAlign:"center"}}><p style={{color:th.muted}}>Añade jugadores en la sección Plantilla para evaluar.</p></div>
+  </div>;
+
+  const ev=getEval();
+
+  return <div>
+    <SH title="Evaluación de Jugadores" sub="Plantilla defensiva · Plantilla ofensiva · Seguimiento · Informe IA"
+      right={<div style={{display:"flex",gap:8}}>
+        <Btn onClick={()=>{if(selPlayer)exportEvalPDF(selPlayer,evalType,template,ev.scores,ev.notes,ev.ai);}} variant="ghost" icon={<Printer size={13}/>} sm>PDF jugador</Btn>
+        <Btn onClick={generateAI} disabled={aiLoading||!overall} icon={aiLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={13}/>} sm>
+          {aiLoading?"Analizando…":"Informe IA"}
+        </Btn>
+      </div>}/>
+
+    {aiMsg&&<div style={{background:aiMsg.startsWith("✅")?"rgba(16,185,129,.08)":"rgba(239,68,68,.08)",border:`1px solid ${aiMsg.startsWith("✅")?"#10b981":"#ef4444"}`,borderRadius:8,padding:"8px 14px",marginBottom:10,fontSize:12,color:aiMsg.startsWith("✅")?"#10b981":"#ef4444"}}>{aiMsg}</div>}
+
+    {/* Controles */}
+    <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+      {/* Selector jugador */}
+      <select value={selPid||""} onChange={e=>setSelPid(+e.target.value||e.target.value)} style={{fontSize:12,minWidth:160}}>
+        {active.map(p=><option key={p.id} value={p.id}>#{p.num} {p.name.split(" ")[0]} {p.name.split(" ")[1]||""}</option>)}
+      </select>
+      {/* Tipo evaluación */}
+      <div style={{display:"flex",gap:4}}>
+        {["Defensiva","Ofensiva"].map(t=>(
+          <button key={t} onClick={()=>setEvalType(t)} style={{padding:"5px 16px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:13,background:evalType===t?"#1e3a5f":th.card2,color:evalType===t?"#fff":th.sub}}>{t}</button>
+        ))}
+      </div>
+      {/* Vista */}
+      <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+        {[["eval","📋 Evaluación"],["ai","🤖 Informe IA"],["history","📊 Resumen"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setTab(v)} style={{padding:"5px 14px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12,background:tab===v?"#f97316":th.card2,color:tab===v?"#fff":th.sub}}>{l}</button>
+        ))}
+      </div>
+    </div>
+
+    {/* Cabecera jugador */}
+    {selPlayer&&<div className="card" style={{padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14,borderLeft:"4px solid #1e3a5f"}}>
+      <div style={{width:44,height:44,borderRadius:22,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:20,fontWeight:800,color:"#fff",flexShrink:0}}>{selPlayer.num||"?"}</div>
+      <div style={{flex:1}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:800,color:th.text,lineHeight:1.1}}>{selPlayer.name}</p>
+        <p style={{fontSize:11,color:th.muted}}>{selPlayer.pos||"Sin posición"} · Eval. {evalType} {ev.date?`· ${ev.date}`:""}</p>
+      </div>
+      {overall&&<div style={{textAlign:"center"}}>
+        <p style={{fontFamily:"DM Mono",fontSize:32,fontWeight:800,color:overallColor,lineHeight:1}}>{overall}</p>
+        <p style={{fontSize:9,color:overallColor,fontWeight:700,textTransform:"uppercase"}}>{+overall>=3.5?"Excelente":+overall>=2.5?"Puede mejorar":+overall>=1.5?"Necesita mejorar":"Debe mejorar"}</p>
+      </div>}
+    </div>}
+
+    {/* Vista evaluación */}
+    {tab==="eval"&&<div>
+      {template.map(({cat,items})=>(
+        <EvalCategory key={cat} cat={cat} items={items} scores={ev.scores}
+          onChange={setScore} readOnly={false}/>
+      ))}
+      <div className="card" style={{padding:16,marginTop:10}}>
+        <Lbl>Observaciones del entrenador</Lbl>
+        <textarea rows={4} value={ev.notes} onChange={e=>setNotes(e.target.value)}
+          placeholder="Notas específicas sobre el jugador, contexto de la evaluación, situaciones observadas..."/>
+      </div>
+    </div>}
+
+    {/* Vista informe IA */}
+    {tab==="ai"&&<div>
+      {ev.ai
+        ?<div className="card" style={{padding:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5}}>Informe IA — {evalType} · {selPlayer?.name}</p>
+            <Btn onClick={()=>{if(selPlayer)exportEvalPDF(selPlayer,evalType,template,ev.scores,ev.notes,ev.ai);}} variant="ghost" sm icon={<Printer size={12}/>}>PDF</Btn>
+          </div>
+          <div style={{fontSize:13,color:th.text,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{ev.ai}</div>
+        </div>
+        :<div className="card" style={{padding:48,textAlign:"center"}}>
+          <Brain size={36} color={th.muted} style={{margin:"0 auto 14px",display:"block"}}/>
+          <p style={{color:th.muted,fontSize:14,marginBottom:14}}>Completa la evaluación y pulsa "Informe IA" para generar el análisis.</p>
+          <Btn onClick={generateAI} disabled={aiLoading||!overall} icon={<Brain size={13}/>}>Generar informe IA</Btn>
+        </div>}
+    </div>}
+
+    {/* Vista resumen de todos los jugadores */}
+    {tab==="history"&&<div>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>Resumen · {evalType} · Todos los jugadores</p>
+      <div className="card" style={{overflow:"auto",padding:0}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:500}}>
+          <thead>
+            <tr style={{background:"#1e3a5f"}}>
+              <th style={{padding:"9px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.7)",fontWeight:700,textTransform:"uppercase"}}>Jugador</th>
+              <th style={{padding:"9px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.7)",fontWeight:700,textTransform:"uppercase"}}>Valoración</th>
+              <th style={{padding:"9px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.7)",fontWeight:700,textTransform:"uppercase"}}>Nivel</th>
+              <th style={{padding:"9px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.7)",fontWeight:700,textTransform:"uppercase"}}>Fecha</th>
+              <th style={{width:80}}/>
+            </tr>
+          </thead>
+          <tbody>
+            {active.map((p,i)=>{
+              const pev=evals[p.id]?.[typeKey]||null;
+              const sc=pev?calcEvalScore(pev.scores):null;
+              const sc_color=sc?(+sc>=3.5?"#10b981":+sc>=2.5?"#3b82f6":+sc>=1.5?"#f59e0b":"#ef4444"):th.muted;
+              return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:i%2===0?th.card:th.card2}}>
+                <td style={{padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:14,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:"#fff"}}>{p.num}</div>
+                    <span style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:600,color:th.text}}>{p.name}</span>
+                  </div>
+                </td>
+                <td style={{padding:"10px",textAlign:"center"}}>
+                  {sc?<span style={{fontFamily:"DM Mono",fontSize:18,fontWeight:800,color:sc_color}}>{sc}</span>:<span style={{color:th.muted,fontSize:12}}>Sin evaluar</span>}
+                </td>
+                <td style={{padding:"10px",textAlign:"center"}}>
+                  {sc?<span style={{fontSize:11,fontFamily:"Barlow Condensed",fontWeight:700,color:sc_color}}>{+sc>=3.5?"Excelente":+sc>=2.5?"Puede mejorar":+sc>=1.5?"Necesita mejorar":"Debe mejorar"}</span>:<span style={{color:th.muted,fontSize:11}}>—</span>}
+                </td>
+                <td style={{padding:"10px",textAlign:"center",fontSize:11,color:th.muted,fontFamily:"DM Mono"}}>{pev?.date||"—"}</td>
+                <td style={{padding:"8px 10px",textAlign:"center"}}>
+                  <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                    <button onClick={()=>{setSelPid(p.id);setTab("eval");}} style={{padding:"3px 8px",borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:10,color:th.sub,fontFamily:"Barlow Condensed",fontWeight:700}}>Evaluar</button>
+                    {sc&&<button onClick={()=>exportEvalPDF(p,evalType,template,pev.scores,pev.notes,pev.ai)} style={{padding:"3px 8px",borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:10,color:th.sub}}><Printer size={10}/></button>}
+                  </div>
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
+        <Btn onClick={()=>{active.forEach(p=>{const pev=evals[p.id]?.[typeKey];if(pev){const sc=calcEvalScore(pev.scores);if(sc)exportEvalPDF(p,evalType,template,pev.scores,pev.notes,pev.ai);}});}} variant="ghost" icon={<Printer size={12}/>} sm>PDF todos los evaluados</Btn>
+      </div>
+    </div>}
+  </div>;
+}
+
 const NAV=[
   {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
   {id:"plantilla",label:"Plantilla",     icon:Users},
@@ -5844,9 +6170,10 @@ const NAV=[
   {id:"informes", label:"Informes",       icon:FileText},
   {id:"buscador", label:"Buscador IA",    icon:Search},
   {id:"clasificacion",label:"Clasificación",icon:Trophy},
+  {id:"evaluacion",label:"Evaluación",icon:Star},
   {id:"recursos", label:"Recursos",       icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,evaluacion:Evaluacion,recursos:Recursos};
 
 /* ── Season Modal ─────────────────────────────────────────────── */
 function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
