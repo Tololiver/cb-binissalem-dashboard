@@ -6071,7 +6071,35 @@ export default function App(){
           if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
           if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
         }else if(error?.code==="PGRST116"){
-          await sb.from("dashboard").upsert({id:season,data:stRef.current});
+          // Row not found — try to migrate from legacy "state" row
+          const{data:legacy}=await sb.from("dashboard").select("data").eq("id","state").single();
+          if(legacy?.data){
+            // Migrate: save legacy data under new season id
+            console.log("Migrating data from 'state' to",season);
+            const d=legacy.data;
+            if(d.players)   {setPlayersRaw(d.players);    stRef.current.players=d.players;}
+            if(d.matches)   {setMatchesRaw(d.matches);    stRef.current.matches=d.matches;}
+            if(d.sessions)  {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;}
+            if(d.attDates)  {setAttDatesRaw(d.attDates);  stRef.current.attDates=d.attDates;}
+            if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
+            if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
+            if(d.plays)     {setPlaysRaw(d.plays);         stRef.current.plays=d.plays;}
+            if(d.ejercicios){setEjerciciosRaw(d.ejercicios);stRef.current.ejercicios=d.ejercicios;}
+            if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
+            if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
+            if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
+            if(d.scouting)      {setScoutingRaw(d.scouting);stRef.current.scouting=d.scouting;}
+            if(d.matchAnalyses) {setMatchAnalysesRaw(d.matchAnalyses);stRef.current.matchAnalyses=d.matchAnalyses;}
+            if(d.basketballIQ)  {setBasketballIQRaw(d.basketballIQ);stRef.current.basketballIQ=d.basketballIQ;}
+            if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
+            if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
+            if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
+            // Save migrated data under new season id
+            await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
+          } else {
+            // No legacy data either — create fresh row
+            await sb.from("dashboard").upsert({id:season,data:stRef.current});
+          }
         }
       }catch(e){console.error("Load error:",e);setSync("offline");}
       setLoading(false);setSync("saved");
