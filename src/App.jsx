@@ -5904,6 +5904,8 @@ function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
   const[season,setSeason]=useState(()=>localStorage.getItem("cb_season")||"state_25_26");
+  // Map season ID to Supabase row ID — 25/26 uses legacy "state" key to preserve existing data
+  const dbId=(s)=>s==="state_25_26"?"state":s;
   const[allSeasons,setAllSeasons]=useState(()=>{
     try{return JSON.parse(localStorage.getItem("cb_seasons")||"null")||[{id:"state_25_26",label:"25/26"}];}
     catch{return [{id:"state_25_26",label:"25/26"}];}
@@ -5941,7 +5943,7 @@ export default function App(){
     if(patch.attDates!==undefined){
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
         }catch(e){console.error("AttDates save error:",e);setSync("offline");}
@@ -5964,7 +5966,7 @@ export default function App(){
           return out;
         };
         const safeData=stripImages(stRef.current);
-        const{error}=await sb.from("dashboard").upsert({id:season,data:safeData,updated_at:new Date().toISOString()});
+        const{error}=await sb.from("dashboard").upsert({id:dbId(season),data:safeData,updated_at:new Date().toISOString()});
         if(error)throw error;
         setSync("saved");
       }
@@ -5987,7 +5989,7 @@ export default function App(){
       setSync("saving");
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
         }catch(e){console.error("AttDates save:",e);setSync("offline");}
@@ -6074,7 +6076,7 @@ export default function App(){
     const load=async()=>{
       try{
         // Step 1: try to load from season-specific row
-        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",season).single();
+        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",dbId(season)).single();
 
         // Step 2: check if season row has real data
         const hasRealData=(d)=>d&&(
@@ -6094,13 +6096,13 @@ export default function App(){
             console.log("Loading from legacy 'state' row and migrating to",season);
             applyData(legacy.data);
             // Save under new season id for future loads
-            await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
+            await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
           } else if(seasonData?.data){
             // Season row exists but empty — just apply whatever is there
             applyData(seasonData.data);
           } else {
             // Truly fresh — create new row
-            await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
+            await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
           }
         }
       }catch(e){console.error("Load error:",e);setSync("offline");}
