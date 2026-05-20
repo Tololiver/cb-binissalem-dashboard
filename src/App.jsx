@@ -6482,7 +6482,7 @@ export default function App(){
     <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,flexDirection:"column",gap:18}}>
       <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:120,height:"auto",objectFit:"contain",marginBottom:4}}/>
       <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text,letterSpacing:2,textTransform:"uppercase"}}>Cargando…</p>
-      <Loader size=20 color="#f97316" style={{animation:"spin 1s linear infinite"}}/>
+      <Loader size={20} color="#f97316" style={{animation:"spin 1s linear infinite"}}/>
     </div>
   </>;
 
