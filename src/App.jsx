@@ -6048,57 +6048,59 @@ export default function App(){
   };
 
   useEffect(()=>{
+    const applyData=(d)=>{
+      if(!d)return false;
+      let loaded=false;
+      if(d.players&&d.players.length>0)   {setPlayersRaw(d.players);    stRef.current.players=d.players;    loaded=true;}
+      if(d.matches&&d.matches.length>0)   {setMatchesRaw(d.matches);    stRef.current.matches=d.matches;    loaded=true;}
+      if(d.sessions&&d.sessions.length>0) {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;  loaded=true;}
+      if(d.attDates&&Object.keys(d.attDates).length>0){setAttDatesRaw(d.attDates);stRef.current.attDates=d.attDates;loaded=true;}
+      if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
+      if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
+      if(d.plays&&d.plays.length>0)     {setPlaysRaw(d.plays);           stRef.current.plays=d.plays;}
+      if(d.ejercicios&&d.ejercicios.length>0){setEjerciciosRaw(d.ejercicios);stRef.current.ejercicios=d.ejercicios;}
+      if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
+      if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
+      if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
+      if(d.scouting&&d.scouting.length>0){setScoutingRaw(d.scouting);stRef.current.scouting=d.scouting;loaded=true;}
+      if(d.matchAnalyses&&d.matchAnalyses.length>0){setMatchAnalysesRaw(d.matchAnalyses);stRef.current.matchAnalyses=d.matchAnalyses;}
+      if(d.basketballIQ&&d.basketballIQ.length>0){setBasketballIQRaw(d.basketballIQ);stRef.current.basketballIQ=d.basketballIQ;}
+      if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
+      if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
+      if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
+      return loaded;
+    };
+
     const load=async()=>{
       try{
-        const{data,error}=await sb.from("dashboard").select("data").eq("id",season).single();
-        if(!error&&data?.data){
-          const d=data.data;
-          if(d.players)   {setPlayersRaw(d.players);    stRef.current.players=d.players;}
-          if(d.matches)   {setMatchesRaw(d.matches);    stRef.current.matches=d.matches;}
-          if(d.sessions)  {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;}
-          if(d.attDates)  {setAttDatesRaw(d.attDates);  stRef.current.attDates=d.attDates;}
-          if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
-          if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
-          if(d.plays)     {setPlaysRaw(d.plays);         stRef.current.plays=d.plays;}
-          if(d.ejercicios){setEjerciciosRaw(d.ejercicios);stRef.current.ejercicios=d.ejercicios;}
-          if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
-          if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
-          if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
-          if(d.scouting)      {setScoutingRaw(d.scouting);             stRef.current.scouting=d.scouting;}
-      if(d.matchAnalyses) {setMatchAnalysesRaw(d.matchAnalyses);   stRef.current.matchAnalyses=d.matchAnalyses;}
-      if(d.basketballIQ)  {setBasketballIQRaw(d.basketballIQ);     stRef.current.basketballIQ=d.basketballIQ;}
-          if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
-          if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
-          if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
-        }else if(error?.code==="PGRST116"){
-          // Row not found — try to migrate from legacy "state" row
+        // Step 1: try to load from season-specific row
+        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",season).single();
+
+        // Step 2: check if season row has real data
+        const hasRealData=(d)=>d&&(
+          (d.players&&d.players.length>0)||
+          (d.matches&&d.matches.length>0)||
+          (d.attDates&&Object.keys(d.attDates||{}).length>0)||
+          (d.scouting&&d.scouting.length>0)
+        );
+
+        if(!seasonErr && hasRealData(seasonData?.data)){
+          // Season row exists and has data — use it
+          applyData(seasonData.data);
+        } else {
+          // Season row missing or empty — try legacy "state" row
           const{data:legacy}=await sb.from("dashboard").select("data").eq("id","state").single();
-          if(legacy?.data){
-            // Migrate: save legacy data under new season id
-            console.log("Migrating data from 'state' to",season);
-            const d=legacy.data;
-            if(d.players)   {setPlayersRaw(d.players);    stRef.current.players=d.players;}
-            if(d.matches)   {setMatchesRaw(d.matches);    stRef.current.matches=d.matches;}
-            if(d.sessions)  {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;}
-            if(d.attDates)  {setAttDatesRaw(d.attDates);  stRef.current.attDates=d.attDates;}
-            if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
-            if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
-            if(d.plays)     {setPlaysRaw(d.plays);         stRef.current.plays=d.plays;}
-            if(d.ejercicios){setEjerciciosRaw(d.ejercicios);stRef.current.ejercicios=d.ejercicios;}
-            if(d.customEx)  {setCustomExRaw(d.customEx);  stRef.current.customEx=d.customEx;}
-            if(d.savedDrawings){setSavedDrawingsRaw(d.savedDrawings);stRef.current.savedDrawings=d.savedDrawings;}
-            if(d.sesionTemplates){setSesionTemplatesRaw(d.sesionTemplates);stRef.current.sesionTemplates=d.sesionTemplates;}
-            if(d.scouting)      {setScoutingRaw(d.scouting);stRef.current.scouting=d.scouting;}
-            if(d.matchAnalyses) {setMatchAnalysesRaw(d.matchAnalyses);stRef.current.matchAnalyses=d.matchAnalyses;}
-            if(d.basketballIQ)  {setBasketballIQRaw(d.basketballIQ);stRef.current.basketballIQ=d.basketballIQ;}
-            if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
-            if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
-            if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
-            // Save migrated data under new season id
+          if(hasRealData(legacy?.data)){
+            console.log("Loading from legacy 'state' row and migrating to",season);
+            applyData(legacy.data);
+            // Save under new season id for future loads
             await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
+          } else if(seasonData?.data){
+            // Season row exists but empty — just apply whatever is there
+            applyData(seasonData.data);
           } else {
-            // No legacy data either — create fresh row
-            await sb.from("dashboard").upsert({id:season,data:stRef.current});
+            // Truly fresh — create new row
+            await sb.from("dashboard").upsert({id:season,data:stRef.current,updated_at:new Date().toISOString()});
           }
         }
       }catch(e){console.error("Load error:",e);setSync("offline");}
