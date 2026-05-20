@@ -1,11 +1,11 @@
 {
-  "name": "Tololiver Dashboard",
-  "short_name": "TO",
-  "description": "Tololiver Basketball Coach Dashboard",
+  "name": "Tololiver Basketball Coach",
+  "short_name": "Tololiver",
+  "description": "Dashboard de análisis de baloncesto — Tololiver Basketball Coach",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#dc2626",
-  "theme_color": "#dc2626",
+  "background_color": "#0f172a",
+  "theme_color": "#f97316",
   "orientation": "any",
   "lang": "es",
   "icons": [
