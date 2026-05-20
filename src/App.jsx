@@ -6148,30 +6148,39 @@ function Evaluacion(){
 }
 
 const NAV=[
-  {id:"dashboard",label:"Panel",         icon:LayoutDashboard},
-  {id:"plantilla",label:"Plantilla",     icon:Users},
-  {id:"partidos", label:"Partidos",      icon:Trophy},
-  {id:"calendario",label:"Calendario",   icon:Calendar},
-  {id:"plan",     label:"Planificación", icon:Target},
-  {id:"stats",    label:"Estadísticas",  icon:BarChart2},
-  {id:"evolucion",label:"Rendimiento",   icon:Activity},
-  {id:"train",    label:"Entrenamientos",icon:Dumbbell},
-  {id:"carga",    label:"Carga trabajo", icon:Zap},
-  {id:"informe",  label:"Informe PDF",   icon:Printer},
-  {id:"attend",   label:"Asistencia",    icon:Check},
-  {id:"lineup",   label:"Quinteto",      icon:Shield},
-  {id:"partido",  label:"Modo Partido",  icon:Trophy},
-  {id:"playbook", label:"Playbook",      icon:BookOpen},
-  {id:"exercises",label:"Ejercicios",    icon:Target},
-  {id:"shotchart",label:"Shot Chart",     icon:Target},
-  {id:"pizarra",  label:"Pizarra",        icon:PenTool},
-  {id:"ia",       label:"IA Asistente",  icon:Brain},
-  {id:"iq",       label:"Basketball IQ", icon:Target},
-  {id:"informes", label:"Informes",       icon:FileText},
-  {id:"buscador", label:"Buscador IA",    icon:Search},
+  // ── EQUIPO ──────────────────────────────────────────
+  {id:"dashboard",  label:"Panel",          icon:LayoutDashboard},
+  {id:"plantilla",  label:"Plantilla",      icon:Users},
+  {id:"partidos",   label:"Partidos",       icon:Trophy},
+  {id:"calendario", label:"Calendario",     icon:Calendar},
+  {id:"attend",     label:"Asistencia",     icon:Check},
+  {id:"lineup",     label:"Quinteto",       icon:Shield},
   {id:"clasificacion",label:"Clasificación",icon:Trophy},
-  {id:"evaluacion",label:"Evaluación",icon:Star},
-  {id:"recursos", label:"Recursos",       icon:Link},
+  {sep:true,label:"ANÁLISIS"},
+  // ── ANÁLISIS ─────────────────────────────────────────
+  {id:"stats",      label:"Estadísticas",   icon:BarChart2},
+  {id:"evolucion",  label:"Rendimiento",    icon:Activity},
+  {id:"evaluacion", label:"Evaluación",     icon:Star},
+  {id:"iq",         label:"Basketball IQ",  icon:Target},
+  {id:"shotchart",  label:"Shot Chart",     icon:Target},
+  {sep:true,label:"ENTRENAMIENTOS"},
+  // ── ENTRENAMIENTOS ───────────────────────────────────
+  {id:"train",      label:"Entrenamientos", icon:Dumbbell},
+  {id:"carga",      label:"Carga trabajo",  icon:Zap},
+  {id:"plan",       label:"Planificación",  icon:Target},
+  {sep:true,label:"TÁCTICA"},
+  // ── TÁCTICA ──────────────────────────────────────────
+  {id:"pizarra",    label:"Pizarra",        icon:PenTool},
+  {id:"playbook",   label:"Playbook",       icon:BookOpen},
+  {id:"exercises",  label:"Ejercicios",     icon:Target},
+  {id:"partido",    label:"Modo Partido",   icon:Trophy},
+  {sep:true,label:"IA & INFORMES"},
+  // ── IA & INFORMES ─────────────────────────────────────
+  {id:"ia",         label:"IA Asistente",   icon:Brain},
+  {id:"informes",   label:"Informes",       icon:FileText},
+  {id:"informe",    label:"Informe PDF",    icon:Printer},
+  {id:"buscador",   label:"Buscador IA",    icon:Search},
+  {id:"recursos",   label:"Recursos",       icon:Link},
 ];
 const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,evaluacion:Evaluacion,recursos:Recursos};
 
@@ -6510,7 +6519,9 @@ export default function App(){
             </div>
             <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"0 14px 4px"}}/>
             <nav style={{flex:1,padding:"4px 0",overflowY:"auto"}}>
-              {NAV.map(item=>{const Icon=item.icon;const ac=view===item.id;return(
+              {NAV.map((item,i)=>{
+                if(item.sep)return <div key={"sep"+i} style={{padding:"8px 20px 3px",fontFamily:"Barlow Condensed",fontSize:9,fontWeight:700,color:"rgba(255,255,255,.2)",letterSpacing:1.5,textTransform:"uppercase"}}>{item.label}</div>;
+                const Icon=item.icon;const ac=view===item.id;return(
                 <div key={item.id} onClick={()=>{setView(item.id);setMenuOpen(false);}} className={`nav-item${ac?" active":""}`}>
                   <Icon size={15} color={ac?"#f97316":"rgba(255,255,255,.32)"}/>
                   <span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:ac?700:500,color:ac?"#f97316":"rgba(255,255,255,.42)",letterSpacing:.4}}>{item.label}</span>
