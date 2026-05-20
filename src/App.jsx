@@ -5949,10 +5949,12 @@ function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
         <h1 style="font-family:Barlow Condensed,Arial;font-size:28px;font-weight:800;color:#1e3a5f">${player.name}</h1>
         <p style="font-size:12px;color:#64748b">#${player.num||"—"} · ${player.pos||"—"} · ${new Date().toLocaleDateString("es")}</p>
       </div>
-      <div style="text-align:center">
-        <div style="font-family:DM Mono,monospace;font-size:40px;font-weight:800;color:${overallColor};line-height:1">${overall}</div>
-        <div style="font-size:11px;font-weight:700;color:${overallColor};text-transform:uppercase">${overallLabel}</div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:2px">Valoración global</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <img src="${LOGO_B64}" alt="Tololiver" style="width:70px;height:70px;object-fit:contain"/>
+        <div style="text-align:center">
+          <div style="font-family:DM Mono,monospace;font-size:36px;font-weight:800;color:${overallColor};line-height:1">${overall}</div>
+          <div style="font-size:11px;font-weight:700;color:${overallColor};text-transform:uppercase">${overallLabel}</div>
+        </div>
       </div>
     </div>
     ${catHtml}
