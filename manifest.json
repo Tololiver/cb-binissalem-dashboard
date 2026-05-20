@@ -1,11 +1,11 @@
 {
-  "name": "CB Binissalem Dashboard",
-  "short_name": "CB Binissalem",
-  "description": "Dashboard del CB Binissalem Sénior A — Estadísticas, Scouting, Pizarra táctica",
+  "name": "Tololiver Dashboard",
+  "short_name": "TO",
+  "description": "Tololiver Basketball Coach Dashboard",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#f97316",
+  "background_color": "#dc2626",
+  "theme_color": "#dc2626",
   "orientation": "any",
   "lang": "es",
   "icons": [
@@ -61,10 +61,5 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ],
-  "categories": [
-    "sports",
-    "productivity"
-  ],
-  "screenshots": []
+  ]
 }
