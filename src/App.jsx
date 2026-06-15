@@ -4270,9 +4270,9 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
 
   const totUs=qUs.reduce((a,v)=>a+(+v||0),0);
   const totTh=qTh.reduce((a,v)=>a+(+v||0),0);
-  const hasQuarters=qUs.some(v=>v!=="");
-  const finalUs=hasQuarters?totUs:(m?.pts_us??null);
-  const finalTh=hasQuarters?totTh:(m?.pts_them??null);
+  const hasQ=qUs.some(v=>v!=="");
+  const finalUs=hasQ?totUs:(m?.pts_us??null);
+  const finalTh=hasQ?totTh:(m?.pts_them??null);
   const hasResult=finalUs!=null;
   const win=hasResult&&finalUs>finalTh;
   const resultColor=hasResult?(win?"#10b981":"#ef4444"):"#6366f1";
@@ -4287,8 +4287,8 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
     setMatches(prev=>prev.map(x=>x.id===m.id?{
       ...x,
       quarters:{us:qUs.map(v=>+v||0),them:qTh.map(v=>+v||0)},
-      pts_us:hasQuarters?totUs:x.pts_us,
-      pts_them:hasQuarters?totTh:x.pts_them,
+      pts_us:hasQ?totUs:x.pts_us,
+      pts_them:hasQ?totTh:x.pts_them,
     }:x));
   };
 
@@ -4379,10 +4379,108 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
     <p style={{color:th.muted,fontSize:13}}>Añade partidos desde la sección Partidos o el Calendario</p>
   </div>;
 
+function ModoPartido(){
+  const{th}=useTheme();const{matches,setMatches,players,setPlayers,apiKey}=useData();
+  const{teamId,teamsConfig}=useAppContext();
+  const teamCfg=teamsConfig[teamId]||{reglamento:"FBB",nombre:"Equipo"};
+  const isMini=teamCfg.reglamento==="FBIB_MINI";
+  const NUM_PERIODOS=isMini?6:4;
+  const PER_LABEL=isMini?"Período":"Cuarto";
+  const PER_MIN=isMini?8:10;
+  const emptyPeriodos=()=>Array(NUM_PERIODOS).fill("");
+
+  const today=new Date().toISOString().split("T")[0];
+  const allSorted=[...matches].sort((a,b)=>b.date.localeCompare(a.date));
+  const[sel,setSel]=useState(null);
+  const m=matches.find(x=>x.id===sel)||allSorted[0];
+  const[tab,setTab]=useState("marcador");
+  const[pdfLoading,setPdfLoading]=useState(false);
+  const[pdfMsg,setPdfMsg]=useState(null);
+  const pdfRef=useRef();
+
+  // Períodos — tamaño dinámico según tipo de equipo
+  const[qUs,setQUs]=useState(emptyPeriodos());
+  const[qTh,setQTh]=useState(emptyPeriodos());
+
+  // Stats por jugador
+  const[pStats,setPStats]=useState({});
+  const[statsCommitted,setStatsCommitted]=useState(false);
+
+  // Mini: timeouts por parte (2 timeouts × 2 partes)
+  const[timeouts,setTimeouts]=useState({us:[0,0],them:[0,0]});
+  // Mini: faltas de equipo por período (resetean cada período)
+  const[teamFouls,setTeamFouls]=useState(Array(NUM_PERIODOS).fill(0));
+  const[activePeriod,setActivePeriod]=useState(1);
+
+  const convPlayers=(m?.convocados||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+
+  useEffect(()=>{
+    if(!m)return;
+    const np=isMini?6:4;
+    const savedUs=m.quarters?.us||[];
+    const savedTh=m.quarters?.them||[];
+    setQUs(Array(np).fill("").map((_,i)=>savedUs[i]!=null?String(savedUs[i]):""));
+    setQTh(Array(np).fill("").map((_,i)=>savedTh[i]!=null?String(savedTh[i]):""));
+    setPStats(m.playerStats||{});
+    setStatsCommitted(!!m.statsCommitted);
+    setTimeouts(m.timeouts||{us:[0,0],them:[0,0]});
+    setTeamFouls(m.teamFouls||Array(np).fill(0));
+    setTab("marcador");
+  },[m?.id,isMini]);
+
+  const totUs=qUs.reduce((a,v)=>a+(+v||0),0);
+  const totTh=qTh.reduce((a,v)=>a+(+v||0),0);
+  const hasQ=qUs.some(v=>v!=="");
+  const finalUs=hasQ?totUs:(m?.pts_us??null);
+  const finalTh=hasQ?totTh:(m?.pts_them??null);
+  const hasResult=finalUs!=null;
+  const win=hasResult&&finalUs>finalTh;
+  const resultColor=hasResult?(win?"#10b981":"#ef4444"):"#6366f1";
+
+  const setQVal=(arr,setArr,i,v)=>{const n=[...arr];n[i]=v;setArr(n);};
+  const setStat=(pid,field,val)=>setPStats(prev=>({...prev,[pid]:{...(prev[pid]||{}),[field]:val}}));
+  const getStat=(pid,field)=>pStats[pid]?.[field]??"";
+
+  const saveQuarters=()=>{
+    if(!m)return;
+    setMatches(prev=>prev.map(x=>x.id===m.id?{
+      ...x,
+      quarters:{us:qUs.map(v=>+v||0),them:qTh.map(v=>+v||0)},
+      pts_us:hasQ?totUs:x.pts_us,
+      pts_them:hasQ?totTh:x.pts_them,
+      timeouts,teamFouls,
+    }:x));
+  };
+
+  const commitStats=()=>{
+    if(!m||statsCommitted)return;
+    if(!Object.keys(pStats).length){alert("Introduce al menos las estadísticas de un jugador.");return;}
+    setPlayers(prev=>prev.map(p=>{
+      const ms=pStats[p.id];if(!ms)return p;
+      return{...p,pj:(p.pj||0)+1,pt:(p.pt||0)+(+ms.pt||0),min:(p.min||0)+(+ms.min||0),
+        tl_i:(p.tl_i||0)+(+ms.tl_i||0),tl_m:(p.tl_m||0)+(+ms.tl_m||0),
+        t2_i:(p.t2_i||0)+(+ms.t2_i||0),t2_m:(p.t2_m||0)+(+ms.t2_m||0),
+        t3_i:(p.t3_i||0)+(+ms.t3_i||0),t3_m:(p.t3_m||0)+(+ms.t3_m||0),
+        fc:(p.fc||0)+(+ms.fc||0)};
+    }));
+    setMatches(prev=>prev.map(x=>x.id===m.id?{...x,playerStats:pStats,statsCommitted:true}:x));
+    setStatsCommitted(true);
+  };
+
+  // Mini: helper para saber si estamos en parte 1 (P1-P3) o parte 2 (P4-P6)
+  const getParte=(periodo)=>periodo<=3?0:1;
+  const timeoutsLeft=(side)=>isMini?2-(timeouts[side]?.[getParte(activePeriod)]||0):null;
+
+  // Mini: alerta faltas equipo en período activo
+  const foulsPeriodo=teamFouls[activePeriod-1]||0;
+  const foulBonus=foulsPeriodo>=4;
+
   // QInput and SF are top-level components (see before ModoPartido)
 
+  if(!m)return <div className="card" style={{padding:40,textAlign:"center"}}><p style={{color:th.muted}}>Crea un partido en la sección Partidos primero.</p></div>;
+
   return <div>
-    <SH title="Modo Partido" sub="Cuartos · Estadísticas · Acumulación automática"/>
+    <SH title="Modo Partido" sub={isMini?`Mini FBIB · ${NUM_PERIODOS} períodos × ${PER_MIN}min · Control de faltas y timeouts`:`${NUM_PERIODOS} cuartos · Estadísticas · Acumulación automática`}/>
 
     {/* Selector partido */}
     <div style={{marginBottom:14}}><Lbl>Partido</Lbl>
@@ -4396,17 +4494,19 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{flex:1}}>
           <p style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,marginBottom:4}}>{m.date} · {m.location}</p>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>CB Binissalem <span style={{color:th.muted}}>vs</span> {m.rival}</p>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>Tololiver <span style={{color:th.muted}}>vs</span> {m.rival}</p>
+          {isMini&&<p style={{fontSize:11,color:"#f97316",marginTop:4,fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P × 8min · 2 tiempos muertos/parte</p>}
         </div>
         {hasResult&&<div style={{textAlign:"center"}}>
           <p style={{fontFamily:"DM Mono",fontSize:42,fontWeight:900,color:resultColor,lineHeight:1}}>{finalUs}<span style={{color:th.muted,fontSize:28}}>–</span>{finalTh}</p>
           <Badge color={resultColor} sm>{win?"VICTORIA":"DERROTA"}</Badge>
+          {isMini&&Math.abs(finalUs-finalTh)>=50&&<p style={{fontSize:10,color:"#ef4444",marginTop:4}}>⛔ Acta cerrada (≥50 pts diferencia)</p>}
         </div>}
       </div>
 
       {/* Tabs */}
-      <div style={{display:"flex",gap:6}}>
-        {[["marcador","🏀 Marcador"],["stats","📊 Stats"],["analisis","🧠 Análisis IA"],["notas","📝 Notas"]].map(([k,lbl])=>(
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[["marcador",`🏀 ${isMini?"Períodos":"Cuartos"}`],["stats","📊 Stats"],["analisis","🧠 Análisis IA"],["notas","📝 Notas"]].map(([k,lbl])=>(
           <button key={k} onClick={()=>setTab(k)}
             style={{padding:"6px 16px",borderRadius:8,border:`1px solid ${tab===k?"#f97316":th.border2}`,background:tab===k?"rgba(249,115,22,.1)":"transparent",cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:700,color:tab===k?"#f97316":th.sub}}>
             {lbl}
@@ -4415,60 +4515,144 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
       </div>
     </div>
 
-    {/* ── TAB: MARCADOR POR CUARTOS ── */}
-    {tab==="marcador"&&<div className="card" style={{padding:24}}>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:18}}>Puntos por cuarto</p>
-
-      {/* Grid cuartos */}
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",minWidth:400}}>
-          <thead>
-            <tr>
-              <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:160}}>Equipo</th>
-              {["1er Q","2º Q","3er Q","4º Q"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}
-              <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{borderTop:`1px solid ${th.border}`}}>
-              <td style={{padding:"12px 12px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:8,height:8,borderRadius:4,background:"#f97316"}}/>
-                  <span style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>CB Binissalem</span>
-                </div>
-              </td>
-              {qUs.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
-                <QInput val={v} onChange={val=>setQVal(qUs,setQUs,i,val)} color="#f97316"/>
-              </td>)}
-              <td style={{padding:"12px 12px",textAlign:"center"}}>
-                <span style={{fontFamily:"DM Mono",fontSize:24,fontWeight:900,color:hasQuarters?(win?"#10b981":"#ef4444"):th.muted}}>{hasQuarters?totUs:"—"}</span>
-              </td>
-            </tr>
-            <tr style={{borderTop:`1px solid ${th.border}`}}>
-              <td style={{padding:"12px 12px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:8,height:8,borderRadius:4,background:th.border2}}/>
-                  <span style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>{m.rival}</span>
-                </div>
-              </td>
-              {qTh.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
-                <QInput val={v} onChange={val=>setQVal(qTh,setQTh,i,val)} color="#3b82f6"/>
-              </td>)}
-              <td style={{padding:"12px 12px",textAlign:"center"}}>
-                <span style={{fontFamily:"DM Mono",fontSize:24,fontWeight:900,color:hasQuarters?(!win?"#10b981":"#ef4444"):th.muted}}>{hasQuarters?totTh:"—"}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Diferencia parcial por cuarto */}
-      {qUs.some(v=>v!=="")&&<div style={{display:"flex",gap:8,marginTop:14,justifyContent:"center"}}>
-        {qUs.map((v,i)=>{const d=(+v||0)-(+qTh[i]||0);return <div key={i} style={{textAlign:"center",padding:"6px 12px",borderRadius:8,background:d>0?"rgba(16,185,129,.1)":d<0?"rgba(239,68,68,.1)":th.card2,border:`1px solid ${d>0?"rgba(16,185,129,.3)":d<0?"rgba(239,68,68,.3)":th.border}`}}>
-          <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:2}}>Q{i+1}</p>
-          <p style={{fontFamily:"DM Mono",fontSize:14,fontWeight:700,color:d>0?"#10b981":d<0?"#ef4444":th.muted}}>{d>0?"+":""}{d}</p>
-        </div>;})}
+    {/* ── TAB: MARCADOR ── */}
+    {tab==="marcador"&&<div>
+      {/* Mini: selector período activo + info */}
+      {isMini&&<div className="card" style={{padding:"12px 16px",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>Período activo</p>
+            <div style={{display:"flex",gap:4}}>
+              {Array.from({length:6},(_,i)=>i+1).map(p=>{
+                const parte=p<=3?"1ª Parte":"2ª Parte";
+                const isHalf=p===4;
+                return <React.Fragment key={p}>
+                  {isHalf&&<div style={{width:1,background:th.border,margin:"0 4px"}}/>}
+                  <button onClick={()=>setActivePeriod(p)} style={{
+                    width:36,height:36,borderRadius:8,border:"none",cursor:"pointer",
+                    fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,
+                    background:activePeriod===p?"#f97316":p===6?"rgba(16,185,129,.15)":th.card2,
+                    color:activePeriod===p?"#fff":p===6?"#10b981":th.muted}}>
+                    P{p}
+                  </button>
+                </React.Fragment>;
+              })}
+            </div>
+          </div>
+          {/* Faltas de equipo período activo */}
+          <div style={{borderLeft:`1px solid ${th.border}`,paddingLeft:12}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>Faltas equipo P{activePeriod}</p>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={()=>setTeamFouls(prev=>{const n=[...prev];n[activePeriod-1]=Math.max(0,(n[activePeriod-1]||0)-1);return n;})} style={{width:28,height:28,borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.text,fontWeight:700}}>−</button>
+              <span style={{fontFamily:"DM Mono",fontSize:20,fontWeight:700,color:foulBonus?"#ef4444":th.text,minWidth:28,textAlign:"center"}}>{foulsPeriodo}</span>
+              <button onClick={()=>setTeamFouls(prev=>{const n=[...prev];n[activePeriod-1]=(n[activePeriod-1]||0)+1;return n;})} style={{width:28,height:28,borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",color:th.text,fontWeight:700}}>+</button>
+              {foulBonus&&<span style={{fontSize:11,color:"#ef4444",fontFamily:"Barlow Condensed",fontWeight:700}}>🚨 BONUS</span>}
+            </div>
+          </div>
+          {/* Timeouts */}
+          <div style={{borderLeft:`1px solid ${th.border}`,paddingLeft:12}}>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>TM {activePeriod<=3?"1ª":"2ª"} Parte</p>
+            <div style={{display:"flex",gap:12}}>
+              {["us","them"].map(side=>{
+                const parte=activePeriod<=3?0:1;
+                const used=timeouts[side]?.[parte]||0;
+                return <div key={side}>
+                  <p style={{fontSize:9,color:th.muted,marginBottom:3}}>{side==="us"?"Tololiver":m.rival}</p>
+                  <div style={{display:"flex",gap:3}}>
+                    {[0,1].map(i=>(
+                      <button key={i} onClick={()=>setTimeouts(prev=>({...prev,[side]:prev[side].map((v,pi)=>pi===parte?(i<used?i:Math.min(2,v+1)):v)}))}
+                        style={{width:22,height:22,borderRadius:4,border:"none",cursor:"pointer",
+                          background:i<used?"#f97316":th.card2,
+                          opacity:i<used?1:.4}}>
+                        <span style={{fontSize:8,color:i<used?"#fff":th.muted}}>TM</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>
+        </div>
       </div>}
+
+      <div className="card" style={{padding:24}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:18}}>
+          Puntos por {isMini?"período":"cuarto"} · {isMini?"6P × 8min":"4Q × 10min"}
+        </p>
+
+        {/* Mini: mostrar separación entre partes */}
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:isMini?600:400}}>
+            <thead>
+              <tr>
+                <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:160}}>Equipo</th>
+                {isMini
+                  ?<>
+                    <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(249,115,22,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(249,115,22,.3)`}}>1ª Parte</th>
+                    <th style={{width:1,padding:0}}/>
+                    <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(59,130,246,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(59,130,246,.3)`}}>2ª Parte</th>
+                  </>
+                  :{["1er Q","2º Q","3er Q","4º Q"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}}
+                <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Total</th>
+              </tr>
+              {isMini&&<tr>
+                <th/>
+                {[1,2,3].map(p=><th key={p} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:activePeriod===p?"#f97316":th.muted,width:70}}>P{p}</th>)}
+                <th style={{width:8}}/>
+                {[4,5,6].map(p=><th key={p} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:activePeriod===p?"#f97316":p===6?"#10b981":th.muted,width:70}}>P{p}{p===6?" ★":""}</th>)}
+                <th/>
+              </tr>}
+            </thead>
+            <tbody>
+              {[{label:"Tololiver",arr:qUs,setArr:setQUs,color:"#f97316",isUs:true},{label:m.rival,arr:qTh,setArr:setQTh,color:"#3b82f6",isUs:false}].map(row=>(
+                <tr key={row.label} style={{borderTop:`1px solid ${th.border}`}}>
+                  <td style={{padding:"12px 12px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:8,height:8,borderRadius:4,background:row.color}}/>
+                      <span style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>{row.label}</span>
+                    </div>
+                  </td>
+                  {isMini?<>
+                    {[0,1,2].map(i=><td key={i} style={{padding:"12px 8px",textAlign:"center",background:activePeriod===i+1?"rgba(249,115,22,.04)":"transparent"}}>
+                      <QInput val={row.arr[i]} onChange={v=>setQVal(row.arr,row.setArr,i,v)} color={row.color}/>
+                    </td>)}
+                    <td style={{width:8,padding:0,background:th.border}}/>
+                    {[3,4,5].map(i=><td key={i} style={{padding:"12px 8px",textAlign:"center",background:activePeriod===i+1?"rgba(59,130,246,.04)":i===5?"rgba(16,185,129,.03)":"transparent"}}>
+                      <QInput val={row.arr[i]} onChange={v=>setQVal(row.arr,row.setArr,i,v)} color={i===5?"#10b981":row.color}/>
+                    </td>)}
+                  </>
+                  :{row.arr.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
+                    <QInput val={v} onChange={val=>setQVal(row.arr,row.setArr,i,val)} color={row.color}/>
+                  </td>)}}
+                  <td style={{padding:"12px 12px",textAlign:"center"}}>
+                    <span style={{fontFamily:"DM Mono",fontSize:24,fontWeight:900,color:hasQ?(row.isUs?win:!win)?"#10b981":"#ef4444":th.muted}}>
+                      {hasQ?row.arr.reduce((a,v)=>a+(+v||0),0):"—"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Diferencias parciales */}
+        {hasQ&&<div style={{display:"flex",gap:6,marginTop:14,justifyContent:"center",flexWrap:"wrap"}}>
+          {qUs.map((v,i)=>{
+            const d=(+v||0)-(+qTh[i]||0);
+            const label=isMini?`P${i+1}`:`Q${i+1}`;
+            return <div key={i} style={{textAlign:"center",padding:"6px 10px",borderRadius:8,background:d>0?"rgba(16,185,129,.1)":d<0?"rgba(239,68,68,.1)":th.card2,border:`1px solid ${d>0?"rgba(16,185,129,.3)":d<0?"rgba(239,68,68,.3)":th.border}`}}>
+              <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:2}}>{label}</p>
+              <p style={{fontFamily:"DM Mono",fontSize:14,fontWeight:700,color:d>0?"#10b981":d<0?"#ef4444":th.muted}}>{d>0?"+":""}{d||"—"}</p>
+            </div>;
+          })}
+        </div>}
+
+        {/* Botón guardar */}
+        <div style={{marginTop:20,display:"flex",gap:10}}>
+          <Btn onClick={saveQuarters} icon={<Check size={13}/>}>Guardar {isMini?"períodos":"cuartos"}</Btn>
+        </div>
+      </div>
+    </div>}
 
       <div style={{marginTop:18,display:"flex",gap:8}}>
         <Btn onClick={saveQuarters}>Guardar marcador</Btn>
