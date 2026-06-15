@@ -378,6 +378,9 @@ function exportSessionPDF(session){
 ══════════════════════════════════════════════════════════ */
 function Dashboard(){
   const{th}=useTheme();const{players,matches,sessions,attDates}=useData();
+  const{teamId,teamsConfig,season}=useAppContext();
+  const teamCfg=teamsConfig[teamId]||{nombre:"Sénior A",color:"#f97316",reglamento:"FBB"};
+  const isMini=teamCfg.reglamento==="FBIB_MINI";
   const active=players.filter(p=>p.active);
   const wins=matches.filter(m=>m.pts_us!=null&&m.pts_us>m.pts_them).length;
   const losses=matches.filter(m=>m.pts_us!=null&&m.pts_us<=m.pts_them).length;
@@ -414,7 +417,26 @@ function Dashboard(){
   })).sort((a,b)=>b.rate-a.rate).slice(0,5);
 
   return <div>
-    <SH title="Panel Principal" sub="CB Binissalem Sénior A · Temporada 2025/26"/>
+    <SH title="Panel Principal" sub={`${teamCfg.nombre} · Tololiver Basketball Coach`} right={<div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 12px",borderRadius:8,background:teamCfg.color+"18",border:`1px solid ${teamCfg.color}44`}}><div style={{width:8,height:8,borderRadius:4,background:teamCfg.color}}/><span style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:teamCfg.color}}>{teamCfg.nombre}</span></div>}/>
+
+    {/* Team info banner */}
+    <div className="card" style={{padding:"12px 18px",marginBottom:14,borderLeft:`4px solid ${teamCfg.color}`,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:36,height:36,borderRadius:9,background:teamCfg.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          {isMini?<span style={{fontSize:18}}>🏀</span>:<span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:900,color:"#fff"}}>TO</span>}
+        </div>
+        <div>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:800,color:th.text,lineHeight:1}}>{teamCfg.nombre}</p>
+          <p style={{fontSize:10,color:th.muted}}>{teamCfg.categoria} · {isMini?"FBIB Mini — 6 períodos × 8min":teamCfg.reglamento==="FIBA"?"FIBA — 4 cuartos × 10min":"FBB — 4 cuartos × 10min"}</p>
+        </div>
+      </div>
+      {isMini&&<div style={{background:"rgba(249,115,22,.08)",border:"1px solid rgba(249,115,22,.25)",borderRadius:6,padding:"6px 12px",fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed",fontWeight:700}}>
+        ⚠️ P1-P5: mín 2 períodos jugando + 2 descansando por jugador
+      </div>}
+      <div style={{marginLeft:"auto",textAlign:"right"}}>
+        <p style={{fontSize:10,color:th.muted}}>Tololiver Basketball Coach</p>
+      </div>
+    </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
       {kpis.map(k=><div key={k.label} className="card" style={{padding:"20px 22px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -1115,6 +1137,9 @@ function Planificacion(){
 ══════════════════════════════════════════════════════════ */
 function Estadisticas(){
   const{th}=useTheme();const{players}=useData();
+  const{teamId,teamsConfig}=useAppContext();
+  const teamCfg=teamsConfig[teamId]||{nombre:"Sénior A",reglamento:"FBB",color:"#f97316"};
+  const isMini=teamCfg.reglamento==="FBIB_MINI";
   const[sortBy,setSortBy]=useState("pir");
   const[view,setView]=useState("performance"); // performance | detailed
   const active=players.filter(p=>p.active&&p.pj);
@@ -1141,7 +1166,10 @@ function Estadisticas(){
   const curCol=sortCols.find(c=>c.key===sortBy)||sortCols[0];
 
   return <div>
-    <SH title="Estadísticas" sub="CB Binissalem Senior A · PIR · eFG% · TS% · Ordenar por columna"/>
+    <SH title="Estadísticas" sub={`${teamCfg.nombre} · PIR · eFG% · TS%`} right={<div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:6,background:teamCfg.color+"18",border:`1px solid ${teamCfg.color}33`}}><div style={{width:7,height:7,borderRadius:4,background:teamCfg.color}}/><span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:teamCfg.color}}>{teamCfg.nombre}</span></div>}/>
+    {isMini&&<div style={{background:"rgba(249,115,22,.06)",border:"1px solid rgba(249,115,22,.2)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed",fontWeight:700}}>
+      🏀 Mini FBIB — Zona de triple diferente (todo el campo excepto zona rectangular 4m). Los porcentajes T3 reflejan tiros anotados, no la zona reglamentaria.
+    </div>}
 
     {/* KPIs equipo — estilo CourtStat */}
     {(()=>{
@@ -2158,7 +2186,7 @@ function Quinteto(){
     if(activePl.length<5){setAiResult({error:"Necesitas al menos 5 jugadores con PJ > 0 para generar quintetos."});setAiLoading(false);return;}
     const statsStr=activePl.map(p=>{const c=calcStats(p);return `${p.name} (${p.pos}): PJ ${p.pj}, PTS/P ${c.pts_p}, Min/P ${c.min_p}', TL% ${c.tl_pct}%, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, FC/P ${c.fc_p}`;}).join("\n");
     try{
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Eres analista de baloncesto. Jugadores CB Binissalem:\n\n${statsStr}\n\nSugiere 2 quintetos basándote SOLO en estos datos:\n1. OFENSIVO: mayores PTS/P, T2%, T3%, Min/P\n2. DEFENSIVO: equilibrio posicional, FC/P bajo, al menos 1 pívot\n\nResponde SOLO JSON sin texto extra:\n{"ofensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"defensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"razon_ofensivo":"15 palabras max","razon_defensivo":"15 palabras max"}`}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Eres analista de baloncesto. Jugadores del equipo:\n\n${statsStr}\n\nSugiere 2 quintetos basándote SOLO en estos datos:\n1. OFENSIVO: mayores PTS/P, T2%, T3%, Min/P\n2. DEFENSIVO: equilibrio posicional, FC/P bajo, al menos 1 pívot\n\nResponde SOLO JSON sin texto extra:\n{"ofensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"defensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"razon_ofensivo":"15 palabras max","razon_defensivo":"15 palabras max"}`}]});
       const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
       setAiResult(JSON.parse(txt.replace(/```json|```/g,"").trim()));
     }catch(e){console.error(e);setAiResult({error:`Error: ${e.message}. Verifica tu API Key.`});}
@@ -3422,7 +3450,7 @@ function IAAsistente(){
       const jsonInstr=!hasManualPlayers?"\n\nAdemás, si encuentras jugadores identificables en el PDF, extráelos al FINAL en este bloque JSON (una sola línea):\nPLAYERS_JSON:[{\"num\":\"4\",\"name\":\"Apellido\",\"pj\":\"15\",\"pt\":\"\",\"min\":\"350\",\"tl_i\":\"30\",\"tl_m\":\"18\",\"t2_i\":\"120\",\"t2_m\":\"70\",\"t3_i\":\"40\",\"t3_m\":\"10\",\"fc\":\"25\"}]\nIMPORTANTE: Excluye entradas anónimas (ej: 'J Jugadors/es inscrits/es a mà', totales de equipo, etc.).\nSi no hay datos suficientes omite PLAYERS_JSON.":"";
 
       // ── LLAMADA 1: Análisis colectivo + secciones + PLAYERS_JSON ──
-      const promptAnalisis=rivalIntro+`Eres el preparador del CB Binissalem Sénior A. Genera un informe de scouting profesional en español.
+      const promptAnalisis=rivalIntro+`Eres el preparador de Tololiver Basketball Coach. Genera un informe de scouting profesional en español.
 
 Genera EXACTAMENTE estas secciones con estos títulos:
 
@@ -3554,7 +3582,7 @@ Sé muy específico, usa los datos de estadísticas y redacta como un scout prof
           return `#${p.num} ${p.name}${p.pos?" ["+p.pos+"]":""}: PJ:${p.pj||"?"} PT:${p.pt||"?"} Pts/pj:${ppg||"?"} Min:${p.min||"?"} %TL:${pctTL} %T2:${pctT2} %T3:${pctT3} FC:${p.fc||"?"}`;
         }).join("\n");
 
-        const promptFichas=`Eres el preparador del CB Binissalem Sénior A analizando al equipo "${rivalName||"rival"}".
+        const promptFichas=`Eres el preparador de Tololiver Basketball Coach analizando al equipo "${rivalName||"rival"}".
 
 Estadísticas de los jugadores del rival:
 ${fichasContext}
@@ -3776,7 +3804,7 @@ Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadíst
       const active=players.filter(p=>p.active);
       const statsStr=active.map(p=>{const c=calcStats(p);return `${p.name}: PJ ${p.pj}, PTS/P ${c.pts_p}, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, TL% ${c.tl_pct}%`;}).join("\n");
       const matchStr=played.slice(-10).map(m=>`${m.date} vs ${m.rival}: ${m.pts_us}-${m.pts_them} (${m.pts_us>m.pts_them?"V":"D"})`).join("\n");
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1400,messages:[{role:"user",content:`Eres analista del CB Binissalem Sénior A. Informe narrativo:\n\nRESULTADOS (${wins}V-${played.length-wins}D):\n${matchStr||"Sin partidos registrados"}\n\nESTADÍSTICAS:\n${statsStr||"Sin datos"}\n\nSESIONES: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN\n\nTono profesional, datos reales.`}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:1400,messages:[{role:"user",content:`Eres analista de Tololiver Basketball Coach. Informe narrativo:\n\nRESULTADOS (${wins}V-${played.length-wins}D):\n${matchStr||"Sin partidos registrados"}\n\nESTADÍSTICAS:\n${statsStr||"Sin datos"}\n\nSESIONES: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN\n\nTono profesional, datos reales.`}]});
       setResResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
     }catch(e){setResResult({error:e.message});}
     setResLoading(false);
@@ -4206,7 +4234,7 @@ Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadíst
           {resLoading?"Analizando…":"Generar resumen de temporada"}
         </Btn>
       </div>
-      <ResultBox result={resResult} loading={resLoading} pdfTitle="Resumen de Temporada — CB Binissalem Sénior A"/>
+      <ResultBox result={resResult} loading={resLoading} pdfTitle="Resumen de Temporada"/>
     </div>}
   </div>;
 }
@@ -4333,7 +4361,7 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
         messages:[{role:"user",content:[
           {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
           {type:"text",text:"Analiza esta estadística de partido de baloncesto. Extrae las estadísticas de TODOS los jugadores que encuentres.\n"
-            +"Jugadores de CB Binissalem: "+convNames+"\n\n"
+            +"Jugadores: "+convNames+"\n\n"
             +"Devuelve ÚNICAMENTE JSON válido en una sola línea (sin markdown):\n"
             +'{"nuestros":[{"num":"4","name":"Nombre","pt":"12","min":"25","tl_i":"3","tl_m":"2","t2_i":"8","t2_m":"5","t3_i":"4","t3_m":"2","fc":"3"}],'
             +'"rivales":[{"num":"5","name":"Nombre","pt":"15","min":"30","tl_i":"2","tl_m":"1","t2_i":"10","t2_m":"6","t3_i":"3","t3_m":"1","fc":"2"}]}\n'
@@ -4367,7 +4395,7 @@ function ModoPartido(){  const{th}=useTheme();const{matches,setMatches,players,s
         imported+=rivales.length;
       }
       const our=(parsed.nuestros||[]).length;const riv=rivales.length;
-      setPdfMsg("✅ "+imported+" jugadores importados"+(our?" · "+our+" CB Binissalem":"")+( riv?" · "+riv+" rival":""));
+      setPdfMsg("✅ "+imported+" jugadores importados"+(our?" · "+our+" Tololiver":"")+( riv?" · "+riv+" rival":""));
     }catch(err){setPdfMsg("❌ Error: "+err.message?.slice(0,50));}
     setPdfLoading(false);e.target.value="";
     setTimeout(()=>setPdfMsg(null),7000);
@@ -4965,7 +4993,7 @@ function MatchAnalysisBlock({m,players}){
     const finalUs=m.pts_us??null;
     const finalTh=m.pts_them??null;
     const resultLine=finalUs!=null
-      ?"CB Binissalem "+finalUs+" - "+m.rival+" "+finalTh
+      ?"Tololiver "+finalUs+" - "+m.rival+" "+finalTh
         +(finalUs>finalTh?" (VICTORIA por "+(finalUs-finalTh)+" puntos)":" (DERROTA por "+(finalTh-finalUs)+" puntos)")
       :"Sin resultado registrado";
 
@@ -4980,8 +5008,8 @@ function MatchAnalysisBlock({m,players}){
       const data=await callClaude(apiKey,{
         model:"claude-sonnet-4-20250514",max_tokens:1600,
         messages:[{role:"user",content:
-          "Eres analista de baloncesto. Analiza este partido de CB Binissalem Sénior A.\n\n"
-          +"PARTIDO: CB Binissalem vs "+m.rival+" ("+m.location+") "+m.date+"\n"
+          "Eres analista de baloncesto. Analiza este partido de Tololiver Basketball Coach.\n\n"
+          +"PARTIDO: Tololiver vs "+m.rival+" ("+m.location+") "+m.date+"\n"
           +"RESULTADO FINAL: "+resultLine+"\n\n"
           +qLines
           +(ourStats?"NUESTRAS ESTADÍSTICAS:\n"+ourStats+"\n\n":"")
