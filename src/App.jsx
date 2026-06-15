@@ -19,9 +19,11 @@ const sb = createClient(
 
 /* ── CONTEXTS ─────────────────────────────────────────────── */
 const ThemeCtx = createContext();
-const useTheme = () => useContext(ThemeCtx);
+const AppCtx   = createContext();
 const DataCtx  = createContext();
-const useData  = () => useContext(DataCtx);
+const useTheme      = () => useContext(ThemeCtx);
+const useAppContext = () => useContext(AppCtx)||{teamId:"senior_a",teamsConfig:{"senior_a":{nombre:"Sénior A",reglamento:"FBB",color:"#1e3a5f"}}};
+const useData       = () => useContext(DataCtx);
 
 const DARK  = { bg:"#07070f",card:"#111120",card2:"#181828",nav:"#09091a",border:"#1f1f38",border2:"#252542",text:"#e2e8f0",sub:"#64748b",muted:"#374151",accent:"#f97316",mode:"dark",tableHead:"#0e0e1f",rowHover:"rgba(249,115,22,.04)",inputBg:"#181828" };
 const LIGHT = { bg:"#f0f2f5",card:"#ffffff",card2:"#f8fafc",nav:"#1e293b",border:"#e2e8f0",border2:"#cbd5e1",text:"#0f172a",sub:"#64748b",muted:"#94a3b8",accent:"#f97316",mode:"light",tableHead:"#f8fafc",rowHover:"rgba(249,115,22,.04)",inputBg:"#ffffff" };
@@ -302,7 +304,7 @@ function ImageUploader({images,setImages,max=4}){
 }
 
 /* ── LOGO + SHARED PDF STYLES ────────────────────────────── */
-const LOGO_B64=window.location.origin+"/tololiver_logo_pdf.png";
+const LOGO_B64="/tololiver_logo_pdf.png";
 
 const PDF_CSS=`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
 *{box-sizing:border-box}
@@ -2080,6 +2082,47 @@ function Asistencia(){
 ══════════════════════════════════════════════════════════ */
 function Quinteto(){
   const{th}=useTheme();const{players,quintets,setQuintets,apiKey}=useData();
+  const{teamId,teamsConfig}=useAppContext();
+  const teamCfg=teamsConfig[teamId]||{reglamento:"FBB"};
+  const isMini=teamCfg.reglamento==="FBIB_MINI";
+  const PERIODOS=isMini?6:4;
+  const PERIODO_LABEL=isMini?"Período":"Cuarto";
+
+  // Mini participation state: {pid: [true/false x 6]} true=jugó, false=descansó, null=pendiente
+  const[partLog,setPartLog]=useState({});
+  const[partPeriodo,setPartPeriodo]=useState(1); // periodo actual que se está planificando
+
+  const setPartida=(pid,per,jugado)=>{
+    setPartLog(prev=>({...prev,[pid]:{...(prev[pid]||{}),[per]:jugado}}));
+  };
+
+  const getPartStatus=(pid)=>{
+    const log=partLog[pid]||{};
+    const jugados=Object.values(log).filter(v=>v===true).length;
+    const descansados=Object.values(log).filter(v=>v===false).length;
+    return{jugados,descansados,log};
+  };
+
+  // Para un periodo P (1-5), puede jugar este jugador?
+  const puedeJugar=(pid,periodo)=>{
+    if(periodo===6||periodo>5)return true; // periodo 6 libre
+    const{jugados,descansados,log}=getPartStatus(pid);
+    if(log[periodo]!==undefined)return log[periodo]; // ya asignado
+    // No puede jugar si ya lleva 4 períodos jugados (máx: 6-2=4)
+    if(jugados>=4)return false;
+    // No puede descansar si ya lleva 4 periodos descansados
+    // Debe garantizar 2 mínimos de cada: si quedan (5-periodo+1) periodos y aun no llegó al mínimo...
+    return true;
+  };
+
+  const getAlerta=(pid)=>{
+    if(!isMini||partPeriodo>5)return null;
+    const{jugados,descansados}=getPartStatus(pid);
+    const restantes=5-partPeriodo+1;
+    if(jugados+restantes<2)return "⚠️ No podrá cumplir mínimo de juego";
+    if(descansados+restantes<2)return "⚠️ No podrá cumplir mínimo de descanso";
+    return null;
+  };
   const[activeQ,setActiveQ]=useState(0);
   const[aiLoading,setAiLoading]=useState(false);
   const[aiResult,setAiResult]=useState(null);
@@ -2123,7 +2166,89 @@ function Quinteto(){
   };
 
   return <div>
-    <SH title="Quinteto" sub="Hasta 5 configuraciones · Sugerencias por IA"/>
+    <SH title="Quinteto" sub={isMini?"Mini FBIB · 6 períodos · Control de participación obligatoria":"Hasta 5 configuraciones · Sugerencias por IA"}/>
+
+    {/* Mini participation tracker */}
+    {isMini&&<div className="card" style={{padding:16,marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+        <div>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text,textTransform:"uppercase",letterSpacing:.5}}>Control de Participación — Mini FBIB</p>
+          <p style={{fontSize:10,color:th.muted}}>P1-P5: cada jugador mínimo 2 períodos jugando y 2 descansando · P6 libre</p>
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <span style={{fontSize:11,color:th.muted,fontFamily:"Barlow Condensed"}}>Planificando:</span>
+          {[1,2,3,4,5,6].map(p=>(
+            <button key={p} onClick={()=>setPartPeriodo(p)}
+              style={{width:28,height:28,borderRadius:6,border:"none",cursor:"pointer",fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,
+                background:partPeriodo===p?"#f97316":th.card2,color:partPeriodo===p?"#fff":th.muted}}>
+              {p}
+            </button>
+          ))}
+          <button onClick={()=>setPartLog({})} style={{padding:"4px 8px",borderRadius:5,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",fontSize:10,color:th.muted,fontFamily:"Barlow Condensed"}}>Reset</button>
+        </div>
+      </div>
+
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",minWidth:500}}>
+          <thead>
+            <tr style={{background:th.tableHead}}>
+              <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,fontWeight:700,textTransform:"uppercase"}}>Jugador</th>
+              {[1,2,3,4,5,6].map(p=>(
+                <th key={p} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,
+                  color:p===partPeriodo?"#f97316":p===6?"#10b981":th.muted,fontWeight:700}}>
+                  P{p}{p===6?" (libre)":""}
+                </th>
+              ))}
+              <th style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:th.muted,fontWeight:700}}>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.filter(p=>p.active).map((p,i)=>{
+              const{jugados,descansados,log}=getPartStatus(p.id);
+              const alerta=getAlerta(p.id);
+              const cumpleMin=jugados>=2&&descansados>=2;
+              const statusColor=alerta?"#f59e0b":jugados+descansados===5?cumpleMin?"#10b981":"#ef4444":th.muted;
+              return <tr key={p.id} style={{borderTop:`1px solid ${th.border}`,background:alerta?"rgba(245,158,11,.04)":"transparent"}}>
+                <td style={{padding:"8px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:24,height:24,borderRadius:12,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{p.num}</div>
+                    <span style={{fontSize:12,color:th.text,fontFamily:"Barlow Condensed",fontWeight:600}}>{p.name.split(" ")[0]}</span>
+                  </div>
+                </td>
+                {[1,2,3,4,5,6].map(per=>{
+                  const val=log[per];
+                  const esCurrent=per===partPeriodo;
+                  return <td key={per} style={{padding:"6px 6px",textAlign:"center"}}>
+                    {per<=5
+                      ?<div style={{display:"flex",gap:3,justifyContent:"center"}}>
+                        <button onClick={()=>setPartida(p.id,per,true)}
+                          title="Juega" style={{width:22,height:22,borderRadius:4,border:"none",cursor:"pointer",fontSize:11,
+                            background:val===true?"#10b981":(esCurrent?"rgba(16,185,129,.15)":th.card2),
+                            color:val===true?"#fff":"#10b981",fontWeight:700,opacity:esCurrent||val!==undefined?1:.5}}>▶</button>
+                        <button onClick={()=>setPartida(p.id,per,false)}
+                          title="Descansa" style={{width:22,height:22,borderRadius:4,border:"none",cursor:"pointer",fontSize:11,
+                            background:val===false?"#f97316":(esCurrent?"rgba(249,115,22,.15)":th.card2),
+                            color:val===false?"#fff":"#f97316",fontWeight:700,opacity:esCurrent||val!==undefined?1:.5}}>■</button>
+                      </div>
+                      :<span style={{fontSize:13,color:"#10b981"}}>★</span>}
+                  </td>;
+                })}
+                <td style={{padding:"8px 6px",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:statusColor,fontFamily:"Barlow Condensed",fontWeight:700}}>
+                    {alerta?alerta:`▶${jugados} ■${descansados}`}
+                  </div>
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{marginTop:10,display:"flex",gap:16,flexWrap:"wrap"}}>
+        {[["▶ Juega","#10b981"],["■ Descansa","#f97316"],["★ Período 6 libre","#f59e0b"],["⚠️ Alerta participación","#ef4444"]].map(([l,c])=>(
+          <span key={l} style={{fontSize:10,color:c}}>{l}</span>
+        ))}
+      </div>
+    </div>}
     {/* Quintet tabs */}
     <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
       {quintets.map((qt,i)=><button key={qt.id} onClick={()=>setActiveQ(i)} style={{padding:"7px 16px",borderRadius:8,border:`1px solid ${activeQ===i?"#f97316":th.border2}`,background:activeQ===i?"rgba(249,115,22,.1)":th.card2,cursor:"pointer",fontFamily:"Barlow Condensed,sans-serif",fontSize:13,fontWeight:activeQ===i?700:500,color:activeQ===i?"#f97316":th.sub,transition:"all .15s"}}>{qt.name}</button>)}
@@ -5911,7 +6036,7 @@ function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
   const overall=scoreVals.length?(scoreVals.reduce((a,v)=>a+EVAL_SCORE_VAL[v],0)/scoreVals.length).toFixed(1):0;
   const overallColor=overall>=3.5?"#10b981":overall>=2.5?"#3b82f6":overall>=1.5?"#f59e0b":"#ef4444";
   const overallLabel=overall>=3.5?"Excelente":overall>=2.5?"Puede mejorar":overall>=1.5?"Necesita mejorar":"Debe mejorar";
-  const LOGO_B64=window.location.origin+"/tololiver_logo_pdf.png";
+  const LOGO_B64=window._LOGO_B64||"";
 
   const catHtml=template.map(({cat,items})=>{
     const catScores=items.map(i=>scores[cat+"::"+i]).filter(v=>v&&EVAL_SCORE_VAL[v]);
@@ -5949,12 +6074,10 @@ function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
         <h1 style="font-family:Barlow Condensed,Arial;font-size:28px;font-weight:800;color:#1e3a5f">${player.name}</h1>
         <p style="font-size:12px;color:#64748b">#${player.num||"—"} · ${player.pos||"—"} · ${new Date().toLocaleDateString("es")}</p>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-        <img src="${LOGO_B64}" alt="Tololiver" style="width:70px;height:70px;object-fit:contain"/>
-        <div style="text-align:center">
-          <div style="font-family:DM Mono,monospace;font-size:36px;font-weight:800;color:${overallColor};line-height:1">${overall}</div>
-          <div style="font-size:11px;font-weight:700;color:${overallColor};text-transform:uppercase">${overallLabel}</div>
-        </div>
+      <div style="text-align:center">
+        <div style="font-family:DM Mono,monospace;font-size:40px;font-weight:800;color:${overallColor};line-height:1">${overall}</div>
+        <div style="font-size:11px;font-weight:700;color:${overallColor};text-transform:uppercase">${overallLabel}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px">Valoración global</div>
       </div>
     </div>
     ${catHtml}
@@ -6186,6 +6309,93 @@ const NAV=[
 ];
 const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,evaluacion:Evaluacion,recursos:Recursos};
 
+/* ── Team Modal ───────────────────────────────────────────────── */
+const REGLAMENTOS={
+  "FBB":         {label:"FBB — Sénior",       periodos:4, minPeriodo:10, participacion:false},
+  "FBIB_MINI":   {label:"FBIB — Mini",         periodos:6, minPeriodo:8,  participacion:true,
+                   regla:"P1-P5: mín 2 períodos jugados, mín 2 descansados. P6 libre."},
+  "FIBA":        {label:"FIBA — Cadete/Junior", periodos:4, minPeriodo:10, participacion:false},
+};
+const CAT_COLORS={"Senior":"#1e3a5f","Mini":"#f97316","Cadete":"#8b5cf6","Junior":"#10b981"};
+
+function TeamModal({teamsConfig,currentTeam,season,onSwitch,onCreate,onClose,th}){
+  const[creating,setCreating]=useState(false);
+  const[form,setForm]=useState({id:"",nombre:"",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"});
+  const isLegacy=season==="state_25_26";
+  const teams=Object.entries(teamsConfig);
+
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div className="card" style={{width:"100%",maxWidth:420,padding:24,maxHeight:"85vh",overflowY:"auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <h3 style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text}}>Equipos</h3>
+        <button onClick={onClose} style={{background:"transparent",border:"none",color:th.muted,cursor:"pointer",fontSize:18}}>✕</button>
+      </div>
+
+      {isLegacy&&<div style={{background:"rgba(249,115,22,.08)",border:"1px solid rgba(249,115,22,.3)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#f97316"}}>
+        La temporada 25/26 solo tiene un equipo (Sénior A). Los equipos múltiples están disponibles en las temporadas nuevas.
+      </div>}
+
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+        {teams.map(([tid,cfg])=>{
+          const reg=REGLAMENTOS[cfg.reglamento]||REGLAMENTOS["FBB"];
+          const ac=currentTeam===tid;
+          return <div key={tid} onClick={()=>{if(!ac&&!isLegacy){onSwitch(tid);onClose();}}}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:10,
+              border:`1px solid ${ac?cfg.color:th.border}`,
+              background:ac?cfg.color+"12":th.card2,
+              cursor:ac||isLegacy?"default":"pointer"}}>
+            <div style={{width:10,height:10,borderRadius:5,background:cfg.color,flexShrink:0}}/>
+            <div style={{flex:1}}>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:ac?cfg.color:th.text}}>{cfg.nombre}</p>
+              <p style={{fontSize:10,color:th.muted}}>{reg.label} · {reg.periodos}×{reg.minPeriodo}min
+                {reg.participacion&&<span style={{color:"#f59e0b",marginLeft:4}}>· Participación mínima</span>}
+              </p>
+            </div>
+            {ac&&<span style={{fontSize:10,color:cfg.color,fontFamily:"Barlow Condensed",fontWeight:700}}>ACTIVO</span>}
+          </div>;
+        })}
+      </div>
+
+      {!isLegacy&&(creating
+        ?<div>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Nuevo equipo</p>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div><Lbl>Nombre</Lbl><input value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} placeholder="Ej: Mini Femenino"/></div>
+            <div><Lbl>Categoría</Lbl>
+              <select value={form.categoria} onChange={e=>setForm(f=>({...f,categoria:e.target.value,color:CAT_COLORS[e.target.value]||"#1e3a5f"}))}>
+                {Object.keys(CAT_COLORS).map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div><Lbl>Reglamento</Lbl>
+              <select value={form.reglamento} onChange={e=>setForm(f=>({...f,reglamento:e.target.value}))}>
+                {Object.entries(REGLAMENTOS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={()=>{
+                if(!form.nombre.trim())return;
+                const id=form.nombre.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");
+                onCreate({...form,id});
+                setCreating(false);
+              }} disabled={!form.nombre.trim()}
+                style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:"#f97316",color:"#fff",cursor:form.nombre.trim()?"pointer":"default",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,opacity:form.nombre.trim()?1:.5}}>
+                Crear equipo
+              </button>
+              <button onClick={()=>setCreating(false)} style={{padding:"10px 14px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,cursor:"pointer",fontSize:13}}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+        :<button onClick={()=>setCreating(true)}
+          style={{width:"100%",padding:"11px 0",borderRadius:8,border:`2px dashed ${th.border2}`,background:"transparent",color:th.muted,cursor:isLegacy?"not-allowed":"pointer",fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,opacity:isLegacy?.4:1}}>
+          + Nuevo equipo
+        </button>
+      )}
+    </div>
+  </div>;
+}
+
 /* ── Season Modal ─────────────────────────────────────────────── */
 function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
   const[newLabel,setNewLabel]=useState("");
@@ -6242,8 +6452,20 @@ function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
   const[season,setSeason]=useState(()=>localStorage.getItem("cb_season")||"state_25_26");
-  // Map season ID to Supabase row ID — 25/26 uses legacy "state" key to preserve existing data
-  const dbId=(s)=>s==="state_25_26"?"state":s;
+  const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"senior_a");
+  const[teamsConfig,setTeamsConfig]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem("cb_teams_config")||"null")||{"senior_a":{nombre:"Sénior A",categoria:"Senior",reglamento:"FBB",color:"#1e3a5f"}};}
+    catch{return {"senior_a":{nombre:"Sénior A",categoria:"Senior",reglamento:"FBB",color:"#1e3a5f"}};}
+  });
+  const[showTeamModal,setShowTeamModal]=useState(false);
+  // Map season+team → Supabase row ID
+  // 25/26 + senior_a → legacy "state" (preserve existing data)
+  // other combinations → season_team
+  const dbId=(s,t)=>{
+    if(s==="state_25_26")return "state"; // legacy: always use flat "state" row
+    if(!t||t==="senior_a")return s;
+    return s+"_"+t;
+  };
   const[allSeasons,setAllSeasons]=useState(()=>{
     try{return JSON.parse(localStorage.getItem("cb_seasons")||"null")||[{id:"state_25_26",label:"25/26"}];}
     catch{return [{id:"state_25_26",label:"25/26"}];}
@@ -6281,7 +6503,7 @@ export default function App(){
     if(patch.attDates!==undefined){
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
         }catch(e){console.error("AttDates save error:",e);setSync("offline");}
@@ -6304,13 +6526,13 @@ export default function App(){
           return out;
         };
         const safeData=stripImages(stRef.current);
-        const{error}=await sb.from("dashboard").upsert({id:dbId(season),data:safeData,updated_at:new Date().toISOString()});
+        const{error}=await sb.from("dashboard").upsert({id:dbId(season,teamId),data:safeData,updated_at:new Date().toISOString()});
         if(error)throw error;
         setSync("saved");
       }
       catch(e){console.error("Save error:",e);setSync("offline");}
     },900);
-  },[season]);
+  },[season,teamId]);
 
   const mk=(raw,set,key)=>useCallback(fn=>{set(prev=>{const next=typeof fn==="function"?fn(prev):fn;persist({[key]:next});return next;});},[persist]);
 
@@ -6327,7 +6549,7 @@ export default function App(){
       setSync("saving");
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
         }catch(e){console.error("AttDates save:",e);setSync("offline");}
@@ -6357,34 +6579,80 @@ export default function App(){
     // Keep plays and ejercicios — carried over from previous season
   };
 
-  const switchSeason=async(newSeasonId)=>{
+  const switchSeason=async(newSeasonId, newTeamId)=>{
     setLoading(true);setSync("loading");
     setSeason(newSeasonId);
     localStorage.setItem("cb_season",newSeasonId);
-    // stRef will be reloaded by the useEffect [season] dependency
+    if(newTeamId){
+      setTeamId(newTeamId);
+      localStorage.setItem("cb_team",newTeamId);
+    }
+  };
+
+  const switchTeam=async(newTeamId)=>{
+    setLoading(true);setSync("loading");
+    setTeamId(newTeamId);
+    localStorage.setItem("cb_team",newTeamId);
+    setShowTeamModal(false);
   };
 
   const createNewSeason=async(label)=>{
     const id="state_"+label.replace("/","_").replace(" ","_");
-    // New season inherits plays and ejercicios from current
+    // Default teams for new season
+    const defaultTeams={
+      "senior_a":{nombre:"Sénior A",categoria:"Senior",reglamento:"FBB",color:"#1e3a5f"},
+      "mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},
+      "cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"},
+    };
     const newData={
       players:DP,matches:DM,sessions:DS,attDates:DA,
       quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
-      plays:stRef.current.plays||DEFAULT_PLAYS,           // keep playbook
-      ejercicios:stRef.current.ejercicios||DEFAULT_EJS,   // keep exercises
-      customEx:stRef.current.customEx||[],                // keep custom exercises
+      plays:stRef.current.plays||DEFAULT_PLAYS,
+      ejercicios:stRef.current.ejercicios||DEFAULT_EJS,
+      customEx:stRef.current.customEx||[],
       scouting:[],matchAnalyses:[],basketballIQ:[],
       savedDrawings:[],sesionTemplates:[],
       planMesos:null,planMicro:null,dark:stRef.current.dark,
     };
     try{
-      await sb.from("dashboard").upsert({id,data:newData,updated_at:new Date().toISOString()});
+      // Create Supabase rows for each default team
+      for(const[tid]of Object.entries(defaultTeams)){
+        const rowId=tid==="senior_a"?id:id+"_"+tid;
+        await sb.from("dashboard").upsert({id:rowId,data:newData,updated_at:new Date().toISOString()});
+      }
+      // Save teams config
+      const savedCfg={...teamsConfig,...defaultTeams};
+      setTeamsConfig(savedCfg);
+      localStorage.setItem("cb_teams_config",JSON.stringify(savedCfg));
+
       const updated=[...allSeasons,{id,label}];
       setAllSeasons(updated);
       localStorage.setItem("cb_seasons",JSON.stringify(updated));
-      await switchSeason(id);
+      await switchSeason(id,"senior_a");
       setShowSeasonModal(false);
     }catch(e){alert("Error creando temporada: "+e.message);}
+  };
+
+  const createNewTeam=async(cfg)=>{
+    // cfg = {id, nombre, categoria, reglamento, color}
+    const rowId=dbId(season,cfg.id);
+    const newData={
+      players:DP,matches:DM,sessions:DS,attDates:DA,
+      quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
+      plays:stRef.current.plays||DEFAULT_PLAYS,
+      ejercicios:stRef.current.ejercicios||DEFAULT_EJS,
+      customEx:stRef.current.customEx||[],
+      scouting:[],matchAnalyses:[],basketballIQ:[],
+      savedDrawings:[],sesionTemplates:[],
+      planMesos:null,planMicro:null,dark:stRef.current.dark,
+    };
+    try{
+      await sb.from("dashboard").upsert({id:rowId,data:newData,updated_at:new Date().toISOString()});
+      const updated={...teamsConfig,[cfg.id]:cfg};
+      setTeamsConfig(updated);
+      localStorage.setItem("cb_teams_config",JSON.stringify(updated));
+      await switchTeam(cfg.id);
+    }catch(e){alert("Error creando equipo: "+e.message);}
   };
 
   useEffect(()=>{
@@ -6414,7 +6682,7 @@ export default function App(){
     const load=async()=>{
       try{
         // Step 1: try to load from season-specific row
-        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",dbId(season)).single();
+        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",dbId(season,teamId)).single();
 
         // Step 2: check if season row has real data
         const hasRealData=(d)=>d&&(
@@ -6434,13 +6702,13 @@ export default function App(){
             console.log("Loading from legacy 'state' row and migrating to",season);
             applyData(legacy.data);
             // Save under new season id for future loads
-            await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
+            await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
           } else if(seasonData?.data){
             // Season row exists but empty — just apply whatever is there
             applyData(seasonData.data);
           } else {
             // Truly fresh — create new row
-            await sb.from("dashboard").upsert({id:dbId(season),data:stRef.current,updated_at:new Date().toISOString()});
+            await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
           }
         }
       }catch(e){console.error("Load error:",e);setSync("offline");}
@@ -6470,7 +6738,7 @@ export default function App(){
         setSync("saved");
       }).subscribe();
     return()=>sb.removeChannel(sub);
-  },[season]);
+  },[season,teamId]);
 
   const[menuOpen,setMenuOpen]=useState(false);
   const[showSettings,setShowSettings]=useState(false);
@@ -6490,8 +6758,13 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
+    <AppCtx.Provider value={{teamId,teamsConfig,season}}>
       <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
+        {showTeamModal&&<TeamModal
+          teamsConfig={teamsConfig} currentTeam={teamId} season={season}
+          onSwitch={switchTeam} onCreate={createNewTeam}
+          onClose={()=>setShowTeamModal(false)} th={th}/>}
         {showSeasonModal&&<SeasonModal
           seasons={allSeasons} currentSeason={season}
           onSwitch={switchSeason} onCreate={createNewSeason}
@@ -6513,6 +6786,12 @@ export default function App(){
                       fontFamily:"DM Mono",fontSize:10,color:"rgba(255,255,255,.45)",
                       display:"flex",alignItems:"center",gap:4,textDecoration:"underline dotted"}}>
                     Temp. {allSeasons.find(s=>s.id===season)?.label||"25/26"} ▾
+                  </button>
+                  <button onClick={()=>setShowTeamModal(true)}
+                    style={{background:"transparent",border:"none",cursor:"pointer",padding:0,
+                      fontFamily:"DM Mono",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{width:7,height:7,borderRadius:4,background:teamsConfig[teamId]?.color||"#f97316",display:"inline-block"}}/>
+                    <span style={{color:"rgba(255,255,255,.55)",textDecoration:"underline dotted"}}>{teamsConfig[teamId]?.nombre||"Sénior A"} ▾</span>
                   </button>
                 </div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
@@ -6570,6 +6849,7 @@ export default function App(){
           </div>
         </div>
       </DataCtx.Provider>
+    </AppCtx.Provider>
     </ThemeCtx.Provider>
   );
 }
