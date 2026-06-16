@@ -44,9 +44,9 @@ const calcStats=p=>{
   // PIR (FIBA): PT + RD + RO + AST + ROB + TAP + FC_rec - TL_f - T2_f - T3_f - TO - FC_com
   // Since we don't have rebounds/assists yet, use scoring efficiency contribution
   const pir=pj?+(( pt + t2_m + t3_m + tl_m - tl_f - t2_f - t3_f ) / pj ).toFixed(1):0;
-  // eFG% = (T2M + 1.5×T3M) / (T2I + T3I)  — effective field goal %
+  // eFG% = (T2M + 1.5xT3M) / (T2I + T3I)  — effective field goal %
   const efg=tc_i?+(((t2_m+1.5*t3_m)/tc_i)*100).toFixed(1):0;
-  // TS% = PT / (2 × (TC_i + 0.44×TL_i))  — true shooting %
+  // TS% = PT / (2 x (TC_i + 0.44xTL_i))  — true shooting %
   const tsDen=2*(tc_i+0.44*tl_i);
   const ts=tsDen?+((pt/tsDen)*100).toFixed(1):0;
   return{
@@ -152,7 +152,7 @@ const DEFAULT_EJS=[
   {id:3, name:"Pick & Roll 2v2",       cat:"Táctico",     dur:"25'",diff:"Medio", desc:"Bloqueador y base ejecutan P&R. Progresión a 3v3.",images:[]},
   {id:4, name:"Defensa 1v1 perímetro", cat:"Táctico",     dur:"20'",diff:"Medio", desc:"Posición defensiva, footwork, no ceder línea de base.",images:[]},
   {id:5, name:"Circuito de fuerza",    cat:"Físico",      dur:"30'",diff:"Alto",  desc:"6 estaciones: sentadillas, prensa, peso muerto, dominadas, abdominales, saltos.",images:[]},
-  {id:6, name:"Series 4×30m",          cat:"Físico",      dur:"20'",diff:"Alto",  desc:"Sprint a máxima intensidad con recuperación de 2' entre series.",images:[]},
+  {id:6, name:"Series 4x30m",          cat:"Físico",      dur:"20'",diff:"Alto",  desc:"Sprint a máxima intensidad con recuperación de 2' entre series.",images:[]},
   {id:7, name:"Movilidad y Stretching",cat:"Recuperación",dur:"30'",diff:"Básico",desc:"Movilidad articular, estiramientos dinámicos y estáticos.",images:[]},
   {id:8, name:"TL bajo presión",       cat:"Mental",      dur:"15'",diff:"Medio", desc:"Tiro libre tras ejercicio físico intenso. Series 2+2.",images:[]},
   {id:9, name:"3v2 – 2v1 continuo",   cat:"Táctico",     dur:"20'",diff:"Medio", desc:"Transición ofensiva y defensiva en continuidad.",images:[]},
@@ -292,7 +292,7 @@ function ImageUploader({images,setImages,max=4}){
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
       {images.map((img,i)=><div key={i} style={{position:"relative",width:80,height:80,borderRadius:8,overflow:"hidden",border:`1px solid ${th.border}`}}>
         <img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-        <button onClick={()=>setImages(prev=>prev.filter((_,j)=>j!==i))} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,background:"rgba(239,68,68,.9)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10}}>×</button>
+        <button onClick={()=>setImages(prev=>prev.filter((_,j)=>j!==i))} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,background:"rgba(239,68,68,.9)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10}}>x</button>
       </div>)}
       {images.length<max&&<div onClick={()=>ref.current?.click()} style={{width:80,height:80,borderRadius:8,border:`2px dashed ${th.border2}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:4,color:th.muted}}>
         <Image size={18}/><span style={{fontSize:10}}>Añadir</span>
@@ -427,7 +427,7 @@ function Dashboard(){
         </div>
         <div>
           <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:800,color:th.text,lineHeight:1}}>{teamCfg.nombre}</p>
-          <p style={{fontSize:10,color:th.muted}}>{teamCfg.categoria} · {isMini?"FBIB Mini — 6 períodos × 8min":teamCfg.reglamento==="FIBA"?"FIBA — 4 cuartos × 10min":"FBB — 4 cuartos × 10min"}</p>
+          <p style={{fontSize:10,color:th.muted}}>{teamCfg.categoria} · {isMini?"FBIB Mini — 6 periodos x 8min":teamCfg.reglamento==="FIBA"?"FIBA — 4 cuartos x 10min":"FBB — 4 cuartos x 10min"}</p>
         </div>
       </div>
       {isMini&&<div style={{background:"rgba(249,115,22,.08)",border:"1px solid rgba(249,115,22,.25)",borderRadius:6,padding:"6px 12px",fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed",fontWeight:700}}>
@@ -4434,7 +4434,7 @@ function ModoPartido(){
   const[pStats,setPStats]=useState({});
   const[statsCommitted,setStatsCommitted]=useState(false);
 
-  // Mini: timeouts por parte (2 timeouts × 2 partes)
+  // Mini: timeouts por parte (2 timeouts x 2 partes)
   const[timeouts,setTimeouts]=useState({us:[0,0],them:[0,0]});
   // Mini: faltas de equipo por período (resetean cada período)
   const[teamFouls,setTeamFouls]=useState(Array(NUM_PERIODOS).fill(0));
@@ -4508,7 +4508,7 @@ function ModoPartido(){
   if(!m)return <div className="card" style={{padding:40,textAlign:"center"}}><p style={{color:th.muted}}>Crea un partido en la sección Partidos primero.</p></div>;
 
   return <div>
-    <SH title="Modo Partido" sub={isMini?`Mini FBIB · ${NUM_PERIODOS} períodos × ${PER_MIN}min · Control de faltas y timeouts`:`${NUM_PERIODOS} cuartos · Estadísticas · Acumulación automática`}/>
+    <SH title="Modo Partido" sub={isMini?`Mini FBIB · ${NUM_PERIODOS} períodos x ${PER_MIN}min · Control de faltas y timeouts`:`${NUM_PERIODOS} cuartos · Estadísticas · Acumulación automática`}/>
 
     {/* Selector partido */}
     <div style={{marginBottom:14}}><Lbl>Partido</Lbl>
@@ -4523,7 +4523,7 @@ function ModoPartido(){
         <div style={{flex:1}}>
           <p style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,marginBottom:4}}>{m.date} · {m.location}</p>
           <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>Tololiver <span style={{color:th.muted}}>vs</span> {m.rival}</p>
-          {isMini&&<p style={{fontSize:11,color:"#f97316",marginTop:4,fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P × 8min · 2 tiempos muertos/parte</p>}
+          {isMini&&<p style={{fontSize:11,color:"#f97316",marginTop:4,fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P x 8min · 2 tiempos muertos/parte</p>}
         </div>
         {hasResult&&<div style={{textAlign:"center"}}>
           <p style={{fontFamily:"DM Mono",fontSize:42,fontWeight:900,color:resultColor,lineHeight:1}}>{finalUs}<span style={{color:th.muted,fontSize:28}}>–</span>{finalTh}</p>
@@ -4552,7 +4552,7 @@ function ModoPartido(){
             <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>Período activo</p>
             <div style={{display:"flex",gap:4}}>
               {Array.from({length:6},(_,i)=>i+1).map(p=>{
-                const parte=p<=3?"1ª Parte":"2ª Parte";
+                const parte=p<=3?"1a Parte":"2a Parte";
                 const isHalf=p===4;
                 return <React.Fragment key={p}>
                   {isHalf&&<div style={{width:1,background:th.border,margin:"0 4px"}}/>}
@@ -4579,7 +4579,7 @@ function ModoPartido(){
           </div>
           {/* Timeouts */}
           <div style={{borderLeft:`1px solid ${th.border}`,paddingLeft:12}}>
-            <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>TM {activePeriod<=3?"1ª":"2ª"} Parte</p>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>TM {activePeriod<=3?"1a":"2a"} Parte</p>
             <div style={{display:"flex",gap:12}}>
               {["us","them"].map(side=>{
                 const parte=activePeriod<=3?0:1;
@@ -4605,7 +4605,7 @@ function ModoPartido(){
 
       <div className="card" style={{padding:24}}>
         <p style={{fontFamily:"Barlow Condensed",fontSize:12,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:18}}>
-          Puntos por {isMini?"período":"cuarto"} · {isMini?"6P × 8min":"4Q × 10min"}
+          Puntos por {isMini?"período":"cuarto"} · {isMini?"6P x 8min":"4Q x 10min"}
         </p>
 
         {/* Mini: mostrar separación entre partes */}
@@ -4616,11 +4616,11 @@ function ModoPartido(){
                 <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:160}}>Equipo</th>
                 {isMini
                   ?<>
-                    <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(249,115,22,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(249,115,22,.3)`}}>1ª Parte</th>
+                    <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(249,115,22,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(249,115,22,.3)`}}>1a Parte</th>
                     <th style={{width:1,padding:0}}/>
-                    <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(59,130,246,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(59,130,246,.3)`}}>2ª Parte</th>
+                    <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(59,130,246,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(59,130,246,.3)`}}>2a Parte</th>
                   </>
-                  :{["1er Q","2º Q","3er Q","4º Q"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}}
+                  :{["Q1","Q2","Q3","Q4"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}}
                 <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Total</th>
               </tr>
               {isMini&&<tr>
@@ -4982,10 +4982,10 @@ function MatchAnalysisBlock({m,players}){
         "PARCIALES POR CUARTO (calculados):\n"
         +"  Q1: CB "+q1u+" - "+m.rival+" "+q1t+" → diferencia: "+diff([q1u,q1t])+"\n"
         +"  Q2: CB "+q2u+" - "+m.rival+" "+q2t+" → diferencia: "+diff([q2u,q2t])+"\n"
-        +"  1ª PARTE: CB "+h1u+" - "+m.rival+" "+h1t+" → diferencia: "+diff([h1u,h1t])+"\n"
+        +"  1a PARTE: CB "+h1u+" - "+m.rival+" "+h1t+" → diferencia: "+diff([h1u,h1t])+"\n"
         +"  Q3: CB "+q3u+" - "+m.rival+" "+q3t+" → diferencia: "+diff([q3u,q3t])+"\n"
         +"  Q4: CB "+q4u+" - "+m.rival+" "+q4t+" → diferencia: "+diff([q4u,q4t])+"\n"
-        +"  2ª PARTE: CB "+h2u+" - "+m.rival+" "+h2t+" → diferencia: "+diff([h2u,h2t])+"\n"
+        +"  2a PARTE: CB "+h2u+" - "+m.rival+" "+h2t+" → diferencia: "+diff([h2u,h2t])+"\n"
         +"  TOTAL FINAL: CB "+totU+" - "+m.rival+" "+totT+" → diferencia: "+diff([totU,totT])+"\n"
         +"IMPORTANTE: usa EXACTAMENTE estos números calculados. NO recalcules nada.\n";
     }
@@ -6559,7 +6559,7 @@ function TeamModal({teamsConfig,currentTeam,season,onSwitch,onCreate,onClose,th}
             <div style={{width:10,height:10,borderRadius:5,background:cfg.color,flexShrink:0}}/>
             <div style={{flex:1}}>
               <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:ac?cfg.color:th.text}}>{cfg.nombre}</p>
-              <p style={{fontSize:10,color:th.muted}}>{reg.label} · {reg.periodos}×{reg.minPeriodo}min
+              <p style={{fontSize:10,color:th.muted}}>{reg.label} · {reg.periodos}x{reg.minPeriodo}min
                 {reg.participacion&&<span style={{color:"#f59e0b",marginLeft:4}}>· Participación mínima</span>}
               </p>
             </div>
