@@ -4620,7 +4620,7 @@ function ModoPartido(){
                     <th style={{width:1,padding:0}}/>
                     <th colSpan={3} style={{padding:"4px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"rgba(59,130,246,.7)",textTransform:"uppercase",borderBottom:`2px solid rgba(59,130,246,.3)`}}>2a Parte</th>
                   </>
-                  :{["Q1","Q2","Q3","Q4"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}}
+                  :["Q1","Q2","Q3","Q4"].map(q=><th key={q} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,width:70}}>{q}</th>)}
                 <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1}}>Total</th>
               </tr>
               {isMini&&<tr>
@@ -4649,9 +4649,9 @@ function ModoPartido(){
                       <QInput val={row.arr[i]} onChange={v=>setQVal(row.arr,row.setArr,i,v)} color={i===5?"#10b981":row.color}/>
                     </td>)}
                   </>
-                  :{row.arr.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
+                  :row.arr.map((v,i)=><td key={i} style={{padding:"12px 8px",textAlign:"center"}}>
                     <QInput val={v} onChange={val=>setQVal(row.arr,row.setArr,i,val)} color={row.color}/>
-                  </td>)}}
+                  </td>)}
                   <td style={{padding:"12px 12px",textAlign:"center"}}>
                     <span style={{fontFamily:"DM Mono",fontSize:24,fontWeight:900,color:hasQ?(row.isUs?win:!win)?"#10b981":"#ef4444":th.muted}}>
                       {hasQ?row.arr.reduce((a,v)=>a+(+v||0),0):"—"}
