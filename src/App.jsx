@@ -6537,6 +6537,47 @@ export default function App(){
   const[showSeasonModal,setShowSeasonModal]=useState(false);
   const[loading,setLoading]=useState(true);const[sync,setSync]=useState("loading");
 
+  // Save the seasons/teams list to Supabase shared config row + localStorage cache
+  const saveConfig=async(newSeasons,newTeamsConfig)=>{
+    setAllSeasons(newSeasons);
+    setTeamsConfig(newTeamsConfig);
+    localStorage.setItem("cb_seasons",JSON.stringify(newSeasons));
+    localStorage.setItem("cb_teams_config",JSON.stringify(newTeamsConfig));
+    try{
+      await sb.from("dashboard").upsert({id:"_config",data:{seasons:newSeasons,teamsConfig:newTeamsConfig},updated_at:new Date().toISOString()});
+    }catch(e){console.error("Config save error:",e);}
+  };
+
+  // Load shared seasons/teams config from Supabase on mount (so all devices see the same list)
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const{data,error}=await sb.from("dashboard").select("data").eq("id","_config").single();
+        if(!error&&data?.data){
+          if(data.data.seasons?.length){
+            setAllSeasons(data.data.seasons);
+            localStorage.setItem("cb_seasons",JSON.stringify(data.data.seasons));
+          }
+          if(data.data.teamsConfig){
+            setTeamsConfig(data.data.teamsConfig);
+            localStorage.setItem("cb_teams_config",JSON.stringify(data.data.teamsConfig));
+          }
+        }else if(error?.code==="PGRST116"){
+          // No config row yet — create one from current local state
+          await sb.from("dashboard").upsert({id:"_config",data:{seasons:allSeasons,teamsConfig},updated_at:new Date().toISOString()});
+        }
+      }catch(e){console.error("Config load error:",e);}
+    })();
+    // Subscribe to realtime changes on the config row so other devices update live
+    const sub=sb.channel("config_changes")
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"dashboard",filter:"id=eq._config"},payload=>{
+        const d=payload.new?.data;if(!d)return;
+        if(d.seasons?.length){setAllSeasons(d.seasons);localStorage.setItem("cb_seasons",JSON.stringify(d.seasons));}
+        if(d.teamsConfig){setTeamsConfig(d.teamsConfig);localStorage.setItem("cb_teams_config",JSON.stringify(d.teamsConfig));}
+      }).subscribe();
+    return()=>sb.removeChannel(sub);
+  },[]);
+
   const[players,   setPlayersRaw]  = useState(DP);
   const[matches,   setMatchesRaw]  = useState(DM);
   const[sessions,  setSessionsRaw] = useState(DS);
@@ -6684,14 +6725,10 @@ export default function App(){
         const rowId=tid==="senior_a"?id:id+"_"+tid;
         await sb.from("dashboard").upsert({id:rowId,data:newData,updated_at:new Date().toISOString()});
       }
-      // Save teams config
-      const savedCfg={...teamsConfig,...defaultTeams};
-      setTeamsConfig(savedCfg);
-      localStorage.setItem("cb_teams_config",JSON.stringify(savedCfg));
-
-      const updated=[...allSeasons,{id,label}];
-      setAllSeasons(updated);
-      localStorage.setItem("cb_seasons",JSON.stringify(updated));
+      // Save teams config + seasons list to Supabase shared config (synced across all devices)
+      const newTeamsCfg={...teamsConfig,...defaultTeams};
+      const newSeasons=[...allSeasons,{id,label}];
+      await saveConfig(newSeasons,newTeamsCfg);
       await switchSeason(id,"senior_a");
       setShowSeasonModal(false);
     }catch(e){alert("Error creando temporada: "+e.message);}
@@ -6712,9 +6749,8 @@ export default function App(){
     };
     try{
       await sb.from("dashboard").upsert({id:rowId,data:newData,updated_at:new Date().toISOString()});
-      const updated={...teamsConfig,[cfg.id]:cfg};
-      setTeamsConfig(updated);
-      localStorage.setItem("cb_teams_config",JSON.stringify(updated));
+      const newTeamsCfg={...teamsConfig,[cfg.id]:cfg};
+      await saveConfig(allSeasons,newTeamsCfg);
       await switchTeam(cfg.id);
     }catch(e){alert("Error creando equipo: "+e.message);}
   };
