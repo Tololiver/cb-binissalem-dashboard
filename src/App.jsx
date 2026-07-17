@@ -6780,11 +6780,22 @@ export default function App(){
     };
 
     const load=async()=>{
-      try{
-        // Step 1: try to load from season-specific row
-        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",dbId(season,teamId)).single();
+      // Reset stRef to clean defaults before loading new team data
+      stRef.current={players:DP,matches:DM,sessions:DS,attDates:DA,
+        quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
+        plays:[],ejercicios:[],customEx:[],savedDrawings:[],
+        sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],
+        planMesos:null,planMicro:null};
+      // Reset React state
+      setPlayersRaw(DP);setMatchesRaw(DM);setSessionsRaw(DS);setAttDatesRaw(DA);
+      setQuintetsRaw(DEFAULT_QUINTETS);setScoutingRaw([]);setMatchAnalysesRaw([]);
+      setBasketballIQRaw([]);setSesionTemplatesRaw([]);setPlanMesosRaw(null);setPlanMicroRaw(null);
 
-        // Step 2: check if season row has real data
+      try{
+        const isLegacy=season==="state_25_26";
+        const rowId=dbId(season,teamId);
+        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",rowId).single();
+
         const hasRealData=(d)=>d&&(
           (d.players&&d.players.length>0)||
           (d.matches&&d.matches.length>0)||
@@ -6792,25 +6803,27 @@ export default function App(){
           (d.scouting&&d.scouting.length>0)
         );
 
-        if(!seasonErr && hasRealData(seasonData?.data)){
-          // Season row exists and has data — use it
+        if(!seasonErr&&hasRealData(seasonData?.data)){
+          // Row has data — load it
           applyData(seasonData.data);
-        } else {
-          // Season row missing or empty — try legacy "state" row
+        } else if(isLegacy){
+          // Legacy 25/26 fallback: try old "state" row
           const{data:legacy}=await sb.from("dashboard").select("data").eq("id","state").single();
           if(hasRealData(legacy?.data)){
-            console.log("Loading from legacy 'state' row and migrating to",season);
             applyData(legacy.data);
-            // Save under new season id for future loads
-            await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
-          } else if(seasonData?.data){
-            // Season row exists but empty — just apply whatever is there
-            applyData(seasonData.data);
-          } else {
-            // Truly fresh — create new row
-            await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
+            // Migrate to named row if needed
+            if(rowId!=="state"){
+              await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
+            }
           }
+        } else if(!seasonErr&&seasonData?.data){
+          // Row exists but empty (new team) — apply plays/ejercicios from it
+          applyData(seasonData.data);
+        } else if(seasonErr?.code==="PGRST116"){
+          // Row doesn't exist yet — create it empty
+          await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
         }
+        // For new empty teams: state is already reset to defaults above — good to go
       }catch(e){console.error("Load error:",e);setSync("offline");}
       setLoading(false);setSync("saved");
     };
