@@ -6722,7 +6722,12 @@ export default function App(){
           // Row missing — create it
           await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
         }
-      }catch(e){console.error("Load error:",e);setSync("offline");}
+      }catch(e){
+        console.error("Load error:",e);
+        setSync("offline");
+        // Show error on screen for debugging
+        document.title="ERR: "+e.message;
+      }
       setLoading(false);setSync("saved");
     };
     load();
