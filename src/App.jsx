@@ -6678,7 +6678,7 @@ export default function App(){
 
   // Reset all state to defaults (called when switching seasons)
   const resetToDefaults=()=>{
-    setPlayersRaw(DP);setMatchesRaw(DM);setSessionsRaw(DS);setAttDatesRaw(DA);
+    setPlayersRaw(DP);setMatchesRaw(DM);setSessionsRaw([]);setAttDatesRaw(DA);
     setQuintetsRaw(DEFAULT_QUINTETS);setScoutingRaw([]);setMatchAnalysesRaw([]);
     setBasketballIQRaw([]);setSesionTemplatesRaw([]);setPlanMesosRaw(null);setPlanMicroRaw(null);
     // Keep plays and ejercicios — carried over from previous season
@@ -6785,13 +6785,13 @@ export default function App(){
 
     const load=async()=>{
       // Reset stRef to clean defaults before loading new team data
-      stRef.current={players:DP,matches:DM,sessions:DS,attDates:DA,
+      stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,
         quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
         plays:[],ejercicios:[],customEx:[],savedDrawings:[],
         sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],
         planMesos:null,planMicro:null};
       // Reset React state
-      setPlayersRaw(DP);setMatchesRaw(DM);setSessionsRaw(DS);setAttDatesRaw(DA);
+      setPlayersRaw(DP);setMatchesRaw(DM);setSessionsRaw([]);setAttDatesRaw(DA);
       setQuintetsRaw(DEFAULT_QUINTETS);setScoutingRaw([]);setMatchAnalysesRaw([]);
       setBasketballIQRaw([]);setSesionTemplatesRaw([]);setPlanMesosRaw(null);setPlanMicroRaw(null);
 
