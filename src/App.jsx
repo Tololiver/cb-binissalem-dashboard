@@ -6534,53 +6534,12 @@ export default function App(){
     if(!t||t==="senior_a")return s;
     return s+"_"+t;
   };
-  const[allSeasons,setAllSeasons]=useState(()=>{
-    try{return JSON.parse(localStorage.getItem("cb_seasons")||"null")||[{id:"state_25_26",label:"25/26"}];}
-    catch{return [{id:"state_25_26",label:"25/26"}];}
-  });
-  const[showSeasonModal,setShowSeasonModal]=useState(false);
+
   const[loading,setLoading]=useState(true);const[sync,setSync]=useState("loading");
 
-  // Save the seasons/teams list to Supabase shared config row + localStorage cache
-  const saveConfig=async(newSeasons,newTeamsConfig)=>{
-    setAllSeasons(newSeasons);
-    setTeamsConfig(newTeamsConfig);
-    localStorage.setItem("cb_seasons",JSON.stringify(newSeasons));
-    localStorage.setItem("cb_teams_config",JSON.stringify(newTeamsConfig));
-    try{
-      await sb.from("dashboard").upsert({id:"_config",data:{seasons:newSeasons,teamsConfig:newTeamsConfig},updated_at:new Date().toISOString()});
-    }catch(e){console.error("Config save error:",e);}
-  };
 
-  // Load shared seasons/teams config from Supabase on mount (so all devices see the same list)
-  useEffect(()=>{
-    (async()=>{
-      try{
-        const{data,error}=await sb.from("dashboard").select("data").eq("id","_config").single();
-        if(!error&&data?.data){
-          if(data.data.seasons?.length){
-            setAllSeasons(data.data.seasons);
-            localStorage.setItem("cb_seasons",JSON.stringify(data.data.seasons));
-          }
-          if(data.data.teamsConfig){
-            setTeamsConfig(data.data.teamsConfig);
-            localStorage.setItem("cb_teams_config",JSON.stringify(data.data.teamsConfig));
-          }
-        }else if(error?.code==="PGRST116"){
-          // No config row yet — create one from current local state
-          await sb.from("dashboard").upsert({id:"_config",data:{seasons:allSeasons,teamsConfig},updated_at:new Date().toISOString()});
-        }
-      }catch(e){console.error("Config load error:",e);}
-    })();
-    // Subscribe to realtime changes on the config row so other devices update live
-    const sub=sb.channel("config_changes")
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"dashboard",filter:"id=eq._config"},payload=>{
-        const d=payload.new?.data;if(!d)return;
-        if(d.seasons?.length){setAllSeasons(d.seasons);localStorage.setItem("cb_seasons",JSON.stringify(d.seasons));}
-        if(d.teamsConfig){setTeamsConfig(d.teamsConfig);localStorage.setItem("cb_teams_config",JSON.stringify(d.teamsConfig));}
-      }).subscribe();
-    return()=>sb.removeChannel(sub);
-  },[]);
+
+  // Teams are now hardcoded — no config load needed
 
   const[players,   setPlayersRaw]  = useState(DP);
   const[matches,   setMatchesRaw]  = useState(DM);
@@ -6708,59 +6667,7 @@ export default function App(){
     setShowTeamModal(false);
   };
 
-  const createNewSeason=async(label)=>{
-    const id="state_"+label.replace("/","_").replace(" ","_");
-    // Default teams for new season
-    const defaultTeams={
-      "senior_a":{nombre:"Sénior A",categoria:"Senior",reglamento:"FBB",color:"#1e3a5f"},
-      "mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},
-      "cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"},
-    };
-    const newData={
-      players:DP,matches:DM,sessions:DS,attDates:DA,
-      quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
-      plays:stRef.current.plays||DEFAULT_PLAYS,
-      ejercicios:stRef.current.ejercicios||DEFAULT_EJS,
-      customEx:stRef.current.customEx||[],
-      scouting:[],matchAnalyses:[],basketballIQ:[],
-      savedDrawings:[],sesionTemplates:[],
-      planMesos:null,planMicro:null,dark:stRef.current.dark,
-    };
-    try{
-      // Create Supabase rows for each default team
-      for(const[tid]of Object.entries(defaultTeams)){
-        const rowId=tid==="senior_a"?id:id+"_"+tid;
-        await sb.from("dashboard").upsert({id:rowId,data:newData,updated_at:new Date().toISOString()});
-      }
-      // Save teams config + seasons list to Supabase shared config (synced across all devices)
-      const newTeamsCfg={...teamsConfig,...defaultTeams};
-      const newSeasons=[...allSeasons,{id,label}];
-      await saveConfig(newSeasons,newTeamsCfg);
-      await switchSeason(id,"senior_a");
-      setShowSeasonModal(false);
-    }catch(e){alert("Error creando temporada: "+e.message);}
-  };
 
-  const createNewTeam=async(cfg)=>{
-    // cfg = {id, nombre, categoria, reglamento, color}
-    const rowId=TEAM_ROWS[teamId]||"state_26_27_mini_masc";
-    const newData={
-      players:DP,matches:DM,sessions:DS,attDates:DA,
-      quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
-      plays:stRef.current.plays||DEFAULT_PLAYS,
-      ejercicios:stRef.current.ejercicios||DEFAULT_EJS,
-      customEx:stRef.current.customEx||[],
-      scouting:[],matchAnalyses:[],basketballIQ:[],
-      savedDrawings:[],sesionTemplates:[],
-      planMesos:null,planMicro:null,dark:stRef.current.dark,
-    };
-    try{
-      await sb.from("dashboard").upsert({id:rowId,data:newData,updated_at:new Date().toISOString()});
-      const newTeamsCfg={...teamsConfig,[cfg.id]:cfg};
-      await saveConfig(allSeasons,newTeamsCfg);
-      await switchTeam(cfg.id);
-    }catch(e){alert("Error creando equipo: "+e.message);}
-  };
 
   useEffect(()=>{
     // Cancel any pending debounced save from previous team/season
