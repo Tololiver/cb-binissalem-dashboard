@@ -22,7 +22,7 @@ const ThemeCtx = createContext();
 const AppCtx   = createContext();
 const DataCtx  = createContext();
 const useTheme      = () => useContext(ThemeCtx);
-const useAppContext = () => useContext(AppCtx)||{teamId:"senior_a",teamsConfig:{"senior_a":{nombre:"Sénior A",reglamento:"FBB",color:"#1e3a5f"}}};
+const useAppContext = () => useContext(AppCtx)||{teamId:"mini_masc",teamsConfig:{"mini_masc":{nombre:"Mini Masculino",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",reglamento:"FIBA",color:"#8b5cf6"}}};
 const useData       = () => useContext(DataCtx);
 
 const DARK  = { bg:"#07070f",card:"#111120",card2:"#181828",nav:"#09091a",border:"#1f1f38",border2:"#252542",text:"#e2e8f0",sub:"#64748b",muted:"#374151",accent:"#f97316",mode:"dark",tableHead:"#0e0e1f",rowHover:"rgba(249,115,22,.04)",inputBg:"#181828" };
@@ -378,7 +378,7 @@ function exportSessionPDF(session){
 ══════════════════════════════════════════════════════════ */
 function Dashboard(){
   const{th}=useTheme();const{players,matches,sessions,attDates}=useData();
-  const{teamId,teamsConfig,season}=useAppContext();
+  const{teamId,teamsConfig}=useAppContext();
   const teamCfg=teamsConfig[teamId]||{nombre:"Sénior A",color:"#f97316",reglamento:"FBB"};
   const isMini=teamCfg.reglamento==="FBIB_MINI";
   const active=players.filter(p=>p.active);
@@ -6382,10 +6382,10 @@ const REGLAMENTOS={
 };
 const CAT_COLORS={"Senior":"#1e3a5f","Mini":"#f97316","Cadete":"#8b5cf6","Junior":"#10b981"};
 
-function TeamModal({teamsConfig,currentTeam,season,onSwitch,onCreate,onClose,th}){
+function TeamModal({teamsConfig,currentTeam,onSwitch,onCreate,onClose,th}){
   const[creating,setCreating]=useState(false);
   const[form,setForm]=useState({id:"",nombre:"",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"});
-  const isLegacy=season==="state_25_26";
+  const isLegacy=false; // No legacy season anymore
   const teams=Object.entries(teamsConfig);
 
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -6743,7 +6743,7 @@ export default function App(){
 
   const createNewTeam=async(cfg)=>{
     // cfg = {id, nombre, categoria, reglamento, color}
-    const rowId=TEAM_ROWS[teamId] //(was:dbId(season,cfg.id);
+    const rowId=TEAM_ROWS[teamId]||"state_26_27_mini_masc";
     const newData={
       players:DP,matches:DM,sessions:DS,attDates:DA,
       quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
@@ -6819,7 +6819,7 @@ export default function App(){
       setLoading(false);setSync("saved");
     };
     load();
-    const sub=sb.channel("db_changes_"+season)
+    const sub=sb.channel("db_changes_"+teamId)
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"dashboard",filter:`id=eq.${TEAM_ROWS[teamId]||"state_26_27_mini_masc"}`},payload=>{
         const d=payload.new?.data;if(!d)return;
         if(d.players)    setPlayersRaw(d.players);
@@ -6862,11 +6862,11 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
-    <AppCtx.Provider value={{teamId,teamsConfig,season}}>
+    <AppCtx.Provider value={{teamId,teamsConfig}}>
       <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
         {showTeamModal&&<TeamModal
-          teamsConfig={teamsConfig} currentTeam={teamId} season={season}
+          teamsConfig={teamsConfig} currentTeam={teamId}
           onSwitch={switchTeam} onCreate={createNewTeam}
           onClose={()=>setShowTeamModal(false)} th={th}/>}
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
