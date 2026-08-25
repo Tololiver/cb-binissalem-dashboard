@@ -6515,7 +6515,11 @@ function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
-  const season="state_26_27"; // Temporada fija — cambiar al final de temporada
+  // Equipos fijos — dos rows en Supabase, sin selector de temporada
+  const TEAM_ROWS = {
+    "mini_masc":   "state_26_27_mini_masc",
+    "cadete_masc": "state_26_27_cadete_masc",
+  };
   const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"mini_masc");
   const[teamsConfig,setTeamsConfig]=useState(()=>{
     try{return JSON.parse(localStorage.getItem("cb_teams_config")||"null")||{"mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"}};}
@@ -6599,27 +6603,30 @@ export default function App(){
   const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
 
+  // rowIdRef — always current row ID, avoids stale closures in persist
+  const rowIdRef = useRef(TEAM_ROWS[teamId]||"state_26_27_mini_masc");
+  useEffect(()=>{rowIdRef.current=TEAM_ROWS[teamId]||"state_26_27_mini_masc";},[teamId]);
+
   const persist=useCallback((patch)=>{
-    // Update ref immediately — ensures stRef always has latest values
     stRef.current={...stRef.current,...patch};
     setSync("saving");
+    const rowId=rowIdRef.current; // always current — no stale closure
 
-    // attDates saves immediately (no debounce) — critical for sync between devices
+    // attDates: save immediately, no debounce
     if(patch.attDates!==undefined){
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
-        }catch(e){console.error("AttDates save error:",e);setSync("offline");}
+        }catch(e){console.error("Save error:",e);setSync("offline");}
       })();
-      return; // skip debounced save — immediate save already scheduled
+      return;
     }
 
     if(tmr.current)clearTimeout(tmr.current);
     tmr.current=setTimeout(async()=>{
       try{
-        // Strip base64 images — too large for Supabase (5MB limit). Images stay in local state only.
         const stripImages=obj=>{
           if(!obj||typeof obj!=="object")return obj;
           if(Array.isArray(obj))return obj.map(stripImages);
@@ -6631,13 +6638,13 @@ export default function App(){
           return out;
         };
         const safeData=stripImages(stRef.current);
-        const{error}=await sb.from("dashboard").upsert({id:dbId(season,teamId),data:safeData,updated_at:new Date().toISOString()});
+        const{error}=await sb.from("dashboard").upsert({id:rowIdRef.current,data:safeData,updated_at:new Date().toISOString()});
         if(error)throw error;
         setSync("saved");
       }
       catch(e){console.error("Save error:",e);setSync("offline");}
     },900);
-  },[season,teamId]);
+  },[]);
 
   const mk=(raw,set,key)=>useCallback(fn=>{set(prev=>{const next=typeof fn==="function"?fn(prev):fn;persist({[key]:next});return next;});},[persist]);
 
@@ -6654,7 +6661,7 @@ export default function App(){
       setSync("saving");
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:dbId(season,teamId),data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:TEAM_ROWS[teamId],data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
         }catch(e){console.error("AttDates save:",e);setSync("offline");}
@@ -6736,7 +6743,7 @@ export default function App(){
 
   const createNewTeam=async(cfg)=>{
     // cfg = {id, nombre, categoria, reglamento, color}
-    const rowId=dbId(season,cfg.id);
+    const rowId=TEAM_ROWS[teamId] //(was:dbId(season,cfg.id);
     const newData={
       players:DP,matches:DM,sessions:DS,attDates:DA,
       quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
@@ -6784,56 +6791,36 @@ export default function App(){
     };
 
     const load=async()=>{
-      // Reset stRef to clean defaults before loading new team data
+      // Cancel any pending save from previous team
+      if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
+
+      const rowId=TEAM_ROWS[teamId]||"state_26_27_mini_masc";
+      rowIdRef.current=rowId; // sync ref immediately
+
+      // Reset to clean empty state
       stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,
         quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
         plays:[],ejercicios:[],customEx:[],savedDrawings:[],
         sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],
         planMesos:null,planMicro:null};
-      // Reset React state
       setPlayersRaw(DP);setMatchesRaw(DM);setSessionsRaw([]);setAttDatesRaw(DA);
       setQuintetsRaw(DEFAULT_QUINTETS);setScoutingRaw([]);setMatchAnalysesRaw([]);
       setBasketballIQRaw([]);setSesionTemplatesRaw([]);setPlanMesosRaw(null);setPlanMicroRaw(null);
 
       try{
-        const isLegacy=season==="state_25_26";
-        const rowId=dbId(season,teamId);
-        const{data:seasonData,error:seasonErr}=await sb.from("dashboard").select("data").eq("id",rowId).single();
-
-        const hasRealData=(d)=>d&&(
-          (d.players&&d.players.length>0)||
-          (d.matches&&d.matches.length>0)||
-          (d.attDates&&Object.keys(d.attDates||{}).length>0)||
-          (d.scouting&&d.scouting.length>0)
-        );
-
-        if(!seasonErr&&hasRealData(seasonData?.data)){
-          // Row has data — load it
-          applyData(seasonData.data);
-        } else if(isLegacy){
-          // Legacy 25/26 fallback: try old "state" row
-          const{data:legacy}=await sb.from("dashboard").select("data").eq("id","state").single();
-          if(hasRealData(legacy?.data)){
-            applyData(legacy.data);
-            // Migrate to named row if needed
-            if(rowId!=="state"){
-              await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
-            }
-          }
-        } else if(!seasonErr&&seasonData?.data){
-          // Row exists but empty (new team) — apply plays/ejercicios from it
-          applyData(seasonData.data);
-        } else if(seasonErr?.code==="PGRST116"){
-          // Row doesn't exist yet — create it empty
+        const{data,error}=await sb.from("dashboard").select("data").eq("id",rowId).single();
+        if(!error&&data?.data){
+          applyData(data.data);
+        } else if(error?.code==="PGRST116"){
+          // Row missing — create it
           await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
         }
-        // For new empty teams: state is already reset to defaults above — good to go
       }catch(e){console.error("Load error:",e);setSync("offline");}
       setLoading(false);setSync("saved");
     };
     load();
     const sub=sb.channel("db_changes_"+season)
-      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"dashboard",filter:`id=eq.${season}`},payload=>{
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"dashboard",filter:`id=eq.${TEAM_ROWS[teamId]||"state_26_27_mini_masc"}`},payload=>{
         const d=payload.new?.data;if(!d)return;
         if(d.players)    setPlayersRaw(d.players);
         if(d.matches)    setMatchesRaw(d.matches);
@@ -6855,7 +6842,7 @@ export default function App(){
         setSync("saved");
       }).subscribe();
     return()=>sb.removeChannel(sub);
-  },[season,teamId]);
+  },[teamId]);
 
   const[menuOpen,setMenuOpen]=useState(false);
   const[showSettings,setShowSettings]=useState(false);
