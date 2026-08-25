@@ -6515,11 +6515,11 @@ function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
 
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
-  const[season,setSeason]=useState(()=>localStorage.getItem("cb_season")||"state_25_26");
-  const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"senior_a");
+  const season="state_26_27"; // Temporada fija — cambiar al final de temporada
+  const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"mini_masc");
   const[teamsConfig,setTeamsConfig]=useState(()=>{
-    try{return JSON.parse(localStorage.getItem("cb_teams_config")||"null")||{"senior_a":{nombre:"Sénior A",categoria:"Senior",reglamento:"FBB",color:"#1e3a5f"}};}
-    catch{return {"senior_a":{nombre:"Sénior A",categoria:"Senior",reglamento:"FBB",color:"#1e3a5f"}};}
+    try{return JSON.parse(localStorage.getItem("cb_teams_config")||"null")||{"mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"}};}
+    catch{return {"mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"}};}
   });
   const[showTeamModal,setShowTeamModal]=useState(false);
   // Map season+team → Supabase row ID
@@ -6882,10 +6882,6 @@ export default function App(){
           teamsConfig={teamsConfig} currentTeam={teamId} season={season}
           onSwitch={switchTeam} onCreate={createNewTeam}
           onClose={()=>setShowTeamModal(false)} th={th}/>}
-        {showSeasonModal&&<SeasonModal
-          seasons={allSeasons} currentSeason={season}
-          onSwitch={switchSeason} onCreate={createNewSeason}
-          onClose={()=>setShowSeasonModal(false)} th={th}/>}
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
           {/* ── OVERLAY móvil ── */}
@@ -6898,17 +6894,11 @@ export default function App(){
                 <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:36,height:36,objectFit:"contain",flexShrink:0}}/>
                 <div>
                   <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Tololiver</p>
-                  <button onClick={()=>setShowSeasonModal(true)}
-                    style={{background:"transparent",border:"none",cursor:"pointer",padding:0,
-                      fontFamily:"DM Mono",fontSize:10,color:"rgba(255,255,255,.45)",
-                      display:"flex",alignItems:"center",gap:4,textDecoration:"underline dotted"}}>
-                    Temp. {allSeasons.find(s=>s.id===season)?.label||"25/26"} ▾
-                  </button>
                   <button onClick={()=>setShowTeamModal(true)}
                     style={{background:"transparent",border:"none",cursor:"pointer",padding:0,
                       fontFamily:"DM Mono",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
                     <span style={{width:7,height:7,borderRadius:4,background:teamsConfig[teamId]?.color||"#f97316",display:"inline-block"}}/>
-                    <span style={{color:"rgba(255,255,255,.55)",textDecoration:"underline dotted"}}>{teamsConfig[teamId]?.nombre||"Sénior A"} ▾</span>
+                    <span style={{color:"rgba(255,255,255,.55)",textDecoration:"underline dotted"}}>{teamsConfig[teamId]?.nombre||"Mini Masculino"} ▾</span>
                   </button>
                 </div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
