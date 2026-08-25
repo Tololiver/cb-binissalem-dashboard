@@ -6756,12 +6756,15 @@ export default function App(){
   };
 
   useEffect(()=>{
+    // Cancel any pending debounced save from previous team/season
+    if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
     const applyData=(d)=>{
       if(!d)return false;
       let loaded=false;
       if(d.players&&d.players.length>0)   {setPlayersRaw(d.players);    stRef.current.players=d.players;    loaded=true;}
       if(d.matches&&d.matches.length>0)   {setMatchesRaw(d.matches);    stRef.current.matches=d.matches;    loaded=true;}
-      if(d.sessions&&d.sessions.length>0) {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;  loaded=true;}
+      // sessions, planMesos, planMicro always loaded (even if empty) so new data isn't lost
+      if(Array.isArray(d.sessions))       {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;}
       if(d.attDates&&Object.keys(d.attDates).length>0){setAttDatesRaw(d.attDates);stRef.current.attDates=d.attDates;loaded=true;}
       if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
       if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
@@ -6773,8 +6776,9 @@ export default function App(){
       if(d.scouting&&d.scouting.length>0){setScoutingRaw(d.scouting);stRef.current.scouting=d.scouting;loaded=true;}
       if(d.matchAnalyses&&d.matchAnalyses.length>0){setMatchAnalysesRaw(d.matchAnalyses);stRef.current.matchAnalyses=d.matchAnalyses;}
       if(d.basketballIQ&&d.basketballIQ.length>0){setBasketballIQRaw(d.basketballIQ);stRef.current.basketballIQ=d.basketballIQ;}
-      if(d.planMesos) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
-      if(d.planMicro) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
+      // planMesos/planMicro always loaded
+      if(d.planMesos!==undefined) {setPlanMesosRaw(d.planMesos);stRef.current.planMesos=d.planMesos;}
+      if(d.planMicro!==undefined) {setPlanMicroRaw(d.planMicro);stRef.current.planMicro=d.planMicro;}
       if(d.dark!==undefined){setDarkRaw(d.dark);stRef.current.dark=d.dark;}
       return loaded;
     };
