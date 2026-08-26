@@ -1527,6 +1527,10 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   };
 
   const totalMin=f.exObjs.reduce((a,e)=>a+(parseInt(e.sesMin)||0),0);
+  const sesDur=parseInt(f.dur)||0;
+  const remaining=sesDur-totalMin;
+  const pct=sesDur?Math.min(100,Math.round(totalMin/sesDur*100)):0;
+  const timeColor=remaining<0?"#ef4444":remaining<=10?"#f59e0b":remaining<=20?"#3b82f6":"#10b981";
 
   return <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640",position:"relative"}}>
     {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
@@ -1540,6 +1544,39 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
       <div><Lbl>Duración (min)</Lbl><input type="number" value={f.dur} onChange={e=>setF(p=>({...p,dur:e.target.value}))}/></div>
     </div>
     <div style={{marginBottom:12}}><Lbl>Título</Lbl><input type="text" value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder="Título de la sesión"/></div>
+
+    {/* ── Widget tiempo restante ── */}
+    {sesDur>0&&<div style={{marginBottom:14,padding:"12px 16px",borderRadius:10,
+      background:remaining<0?"rgba(239,68,68,.06)":remaining<=10?"rgba(245,158,11,.06)":"rgba(16,185,129,.04)",
+      border:`1px solid ${timeColor}33`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:timeColor}}>
+            {remaining<0
+              ?`⚠️ Tiempo excedido: ${Math.abs(remaining)} min de más`
+              :remaining===0
+              ?`✓ Sesión completa`
+              :`⏱ Tiempo restante: ${remaining} min`}
+          </span>
+        </div>
+        <span style={{fontFamily:"DM Mono",fontSize:12,color:th.muted}}>
+          {totalMin} / {sesDur} min
+        </span>
+      </div>
+      {/* Barra de progreso */}
+      <div style={{height:8,background:th.border2,borderRadius:4,overflow:"hidden"}}>
+        <div style={{width:`${pct}%`,height:"100%",borderRadius:4,
+          background:remaining<0?"#ef4444":remaining<=10?"#f59e0b":"#10b981",
+          transition:"width .3s ease"}}/>
+      </div>
+      {f.exObjs.length>0&&<div style={{display:"flex",gap:16,marginTop:8,flexWrap:"wrap"}}>
+        {f.exObjs.filter(e=>parseInt(e.sesMin)>0).map((e,i)=>(
+          <span key={i} style={{fontSize:10,color:th.muted,fontFamily:"DM Mono"}}>
+            {e.name?.slice(0,15)||"Libre"}: <strong style={{color:th.text}}>{e.sesMin}'</strong>
+          </span>
+        ))}
+      </div>}
+    </div>}
 
     {/* ── Lista unificada de ejercicios ── */}
     <div style={{marginBottom:12}}>
@@ -6722,12 +6759,7 @@ export default function App(){
           // Row missing — create it
           await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
         }
-      }catch(e){
-        console.error("Load error:",e);
-        setSync("offline");
-        // Show error on screen for debugging
-        document.title="ERR: "+e.message;
-      }
+      }catch(e){console.error("Load error:",e);setSync("offline");}
       setLoading(false);setSync("saved");
     };
     load();
