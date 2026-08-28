@@ -362,12 +362,56 @@ function mdToHtml(text){
 
 /* ── PDF EXPORT FOR TRAINING ─────────────────────────────── */
 function exportSessionPDF(session){
+  const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
+  const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Técnico",tactico:"Táctico",fisico:"Físico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
+  const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
+
+  const exObjs=session.exObjs||[];
   const w=window.open("","_blank");
-  const exsHtml=(session.exs||[]).map((e,i)=>`<div class="item"><div class="item-dot"></div><div class="item-text"><strong>${i+1}.</strong> ${e}</div></div>`).join("");
+
+  // Build exercise HTML — blocks as section headers, exercises inside
+  let contentHtml="";
+  let exCounter=0;
+  exObjs.forEach(e=>{
+    if(e.type==="block"){
+      const icon=BLOCK_ICONS[e.blockType]||"📋";
+      const label=BLOCK_LABELS[e.blockType]||"Bloque";
+      const color=BLOCK_COLORS[e.blockType]||"#64748b";
+      contentHtml+=`<div style="margin:18px 0 8px;padding:8px 14px;background:${color}18;border-left:4px solid ${color};border-radius:0 6px 6px 0;display:flex;align-items:center;gap:10;break-inside:avoid">
+        <span style="font-size:18px">${icon}</span>
+        <div>
+          <span style="font-family:Barlow Condensed,Arial;font-size:15px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px">${label}</span>
+          ${e.sesMin?`<span style="font-family:DM Mono,monospace;font-size:11px;color:${color};margin-left:10px">${e.sesMin} min</span>`:""}
+          ${e.desc?`<p style="font-size:12px;color:#475569;margin:3px 0 0">${e.desc}</p>`:""}
+        </div>
+      </div>`;
+    } else {
+      exCounter++;
+      const name=e.name||(e.type==="free"?"Ejercicio libre":"Ejercicio");
+      const notes=e.sesNotes||e.desc||"";
+      contentHtml+=`<div style="display:flex;gap:10px;padding:7px 10px;background:${exCounter%2===0?"#f8fafc":"#fff"};border-radius:5px;margin:3px 0;break-inside:avoid">
+        <span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;min-width:20px">${exCounter}.</span>
+        <div style="flex:1">
+          <span style="font-size:13px;font-weight:600;color:#1e293b">${name}</span>
+          ${e.sesMin?`<span style="font-family:DM Mono,monospace;font-size:11px;color:#f97316;margin-left:8px">⏱ ${e.sesMin}'</span>`:""}
+          ${e.cat?`<span style="font-size:10px;color:#94a3b8;margin-left:6px">${e.cat}${e.diff?" · "+e.diff:""}</span>`:""}
+          ${notes?`<p style="font-size:11px;color:#64748b;margin:4px 0 0;line-height:1.5">${notes}</p>`:""}
+        </div>
+      </div>`;
+    }
+  });
+
+  // Fallback for old sessions without exObjs
+  if(!contentHtml&&session.exs?.length){
+    contentHtml=(session.exs||[]).map((e,i)=>
+      `<div style="padding:7px 10px"><strong>${i+1}.</strong> ${e}</div>`
+    ).join("");
+  }
+
   w.document.write(pdfOpen(`Sesión: ${session.title}`)
     +pdfHeader(session.title,`${session.date} · ${session.dur} min · ${session.type}`)
     +(session.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body">${mdToHtml(session.notes)}</div></div>`:"")
-    +(exsHtml?`<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">${exsHtml}</div></div>`:"")
+    +(contentHtml?`<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">${contentHtml}</div></div>`:"")
     +pdfClose()
   );
   w.document.close();setTimeout(()=>w.print(),400);
@@ -1503,6 +1547,22 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
       .map(e=>({...e,type:"catalog",sesMin:e.dur||"",sesNotes:""}));
     setF(prev=>({...prev,exObjs:[...prev.exObjs,...toAdd]}));
   };
+  const BLOCK_TYPES=[
+    {id:"calentamiento", label:"Calentamiento",  icon:"🔥", color:"#f59e0b"},
+    {id:"tecnico",       label:"Técnico",         icon:"⚙️", color:"#3b82f6"},
+    {id:"tactico",       label:"Táctico",         icon:"🧠", color:"#8b5cf6"},
+    {id:"fisico",        label:"Físico",          icon:"💪", color:"#10b981"},
+    {id:"mental",        label:"Mental",          icon:"🎯", color:"#06b6d4"},
+    {id:"competitivo",   label:"Competitivo",     icon:"🏀", color:"#f97316"},
+    {id:"vuelta_calma",  label:"Vuelta a la calma",icon:"🧘",color:"#64748b"},
+    {id:"otro",          label:"Otro",            icon:"📋", color:"#94a3b8"},
+  ];
+  const getBlockCfg=id=>BLOCK_TYPES.find(b=>b.id===id)||BLOCK_TYPES[7];
+
+  const addBlock=()=>{
+    const newBlock={type:"block",id:"block_"+Date.now(),blockType:"tecnico",desc:"",sesMin:""};
+    setF(prev=>({...prev,exObjs:[...prev.exObjs,newBlock]}));
+  };
   const addFreeEx=()=>{
     const newEx={type:"free",id:"free_"+Date.now(),name:"",desc:"",sesMin:"",sesNotes:""};
     setF(prev=>({...prev,exObjs:[...prev.exObjs,newEx]}));
@@ -1527,8 +1587,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   };
 
   const totalMin=f.exObjs.reduce((a,e)=>a+(parseInt(e.sesMin)||0),0);
-  const sesDur=parseInt(f.dur)||0;
-  const remaining=sesDur-totalMin;
+  const sesDur=parseInt(f.dur)||0;  const remaining=sesDur-totalMin;
   const pct=sesDur?Math.min(100,Math.round(totalMin/sesDur*100)):0;
   const timeColor=remaining<0?"#ef4444":remaining<=10?"#f59e0b":remaining<=20?"#3b82f6":"#10b981";
 
@@ -1569,12 +1628,15 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
           background:remaining<0?"#ef4444":remaining<=10?"#f59e0b":"#10b981",
           transition:"width .3s ease"}}/>
       </div>
-      {f.exObjs.length>0&&<div style={{display:"flex",gap:16,marginTop:8,flexWrap:"wrap"}}>
-        {f.exObjs.filter(e=>parseInt(e.sesMin)>0).map((e,i)=>(
-          <span key={i} style={{fontSize:10,color:th.muted,fontFamily:"DM Mono"}}>
-            {e.name?.slice(0,15)||"Libre"}: <strong style={{color:th.text}}>{e.sesMin}'</strong>
-          </span>
-        ))}
+      {f.exObjs.length>0&&<div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
+        {f.exObjs.filter(e=>parseInt(e.sesMin)>0).map((e,i)=>{
+          const isBlock=e.type==="block";
+          const bc=isBlock?getBlockCfg(e.blockType):null;
+          return <span key={i} style={{fontSize:10,color:isBlock?bc.color:th.muted,fontFamily:"DM Mono",
+            background:isBlock?bc.color+"15":"transparent",padding:isBlock?"2px 6px":"0",borderRadius:4}}>
+            {isBlock?bc.icon+" ":""}{e.name?.slice(0,12)||(isBlock?bc.label:"Libre")}: <strong style={{color:isBlock?bc.color:th.text}}>{e.sesMin}'</strong>
+          </span>;
+        })}
       </div>}
     </div>}
 
@@ -1594,6 +1656,9 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
           <button onClick={addFreeEx} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:6,border:"1px solid rgba(59,130,246,.4)",background:"rgba(59,130,246,.07)",cursor:"pointer",fontSize:11,color:"#3b82f6",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
             <Plus size={11}/>Ejercicio libre
           </button>
+          <button onClick={addBlock} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:6,border:"1px solid rgba(139,92,246,.4)",background:"rgba(139,92,246,.07)",cursor:"pointer",fontSize:11,color:"#8b5cf6",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700}}>
+            <Plus size={11}/>Bloque
+          </button>
         </div>
       </div>
 
@@ -1604,6 +1669,43 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
         </div>
         :<div style={{display:"flex",flexDirection:"column",gap:8}}>
           {f.exObjs.map((ex,idx)=>{
+            // ── BLOQUE ─────────────────────────────────────────────
+            if(ex.type==="block"){
+              const bc=getBlockCfg(ex.blockType);
+              return <div key={ex.id||idx} style={{borderRadius:10,border:`2px solid ${bc.color}`,overflow:"hidden",marginTop:4}}>
+                {/* Cabecera del bloque */}
+                <div style={{background:bc.color+"18",borderBottom:`1px solid ${bc.color}44`,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:16}}>{bc.icon}</span>
+                  <select value={ex.blockType} onChange={e=>updateEx(idx,"blockType",e.target.value)}
+                    style={{flex:1,fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:bc.color,
+                      background:"transparent",border:"none",outline:"none",cursor:"pointer"}}>
+                    {BLOCK_TYPES.map(bt=><option key={bt.id} value={bt.id}>{bt.label}</option>)}
+                  </select>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontSize:10,color:bc.color,fontFamily:"Barlow Condensed"}}>min</span>
+                    <input type="text" inputMode="numeric" maxLength={3} value={ex.sesMin||""}
+                      onChange={e=>{if(/^\d*$/.test(e.target.value))updateEx(idx,"sesMin",e.target.value);}}
+                      placeholder="—"
+                      style={{width:40,textAlign:"center",fontFamily:"DM Mono",fontSize:14,fontWeight:700,
+                        color:bc.color,border:`1px solid ${bc.color}55`,borderRadius:5,
+                        background:bc.color+"12",padding:"3px 2px"}}/>
+                  </div>
+                  <div style={{display:"flex",gap:4}}>
+                    <button onClick={()=>moveEx(idx,-1)} disabled={idx===0} style={{background:"transparent",border:"none",cursor:"pointer",color:bc.color,opacity:.6,padding:2}}>▲</button>
+                    <button onClick={()=>moveEx(idx,1)} disabled={idx===f.exObjs.length-1} style={{background:"transparent",border:"none",cursor:"pointer",color:bc.color,opacity:.6,padding:2}}>▼</button>
+                    <button onClick={()=>removeEx(idx)} style={{background:"transparent",border:"none",cursor:"pointer",color:"#ef4444",opacity:.7,padding:2,fontSize:14}}>✕</button>
+                  </div>
+                </div>
+                {/* Descripción del bloque */}
+                <div style={{padding:"8px 12px",background:bc.color+"08"}}>
+                  <input value={ex.desc||""} onChange={e=>updateEx(idx,"desc",e.target.value)}
+                    placeholder={`Descripción del bloque ${bc.label.toLowerCase()}…`}
+                    style={{width:"100%",fontSize:12,color:th.text,background:"transparent",
+                      border:"none",borderBottom:`1px solid ${bc.color}33`,outline:"none",padding:"2px 0",fontFamily:"inherit"}}/>
+                </div>
+              </div>;
+            }
+
             const isFree=ex.type==="free";
             const c=isFree?"#3b82f6":(CC[ex.cat]||"#f97316");
             return <div key={ex.id||idx} style={{display:"grid",gridTemplateColumns:"56px 1fr 28px",gap:8,padding:"12px",background:th.card2,borderRadius:10,border:`1px solid ${c}35`,alignItems:"start"}}>
