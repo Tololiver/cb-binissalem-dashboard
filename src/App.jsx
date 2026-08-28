@@ -180,7 +180,7 @@ const tagColor=t=>TAG_COLORS[Math.abs([...String(t)].reduce((a,c)=>a+c.charCodeA
 function GS({th}){return <style>{`
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%}
-  body{font-family:'Inter',sans-serif;background:${th.bg};color:${th.text}}
+  html,body{overflow-x:hidden}  body{font-family:'Inter',sans-serif;background:${th.bg};color:${th.text}}
   ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:${th.card}}
   ::-webkit-scrollbar-thumb{background:${th.border2};border-radius:3px}::-webkit-scrollbar-thumb:hover{background:#f97316}
   input,select,textarea{background:${th.inputBg}!important;border:1px solid ${th.border2}!important;color:${th.text}!important;border-radius:8px;padding:8px 12px;outline:none;font-family:'Inter',sans-serif;font-size:13px;width:100%;transition:border-color .15s}
@@ -1596,7 +1596,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     {showPicker&&<EjercicioPicker ejercicios={ejercicios} onAdd={addExFromCatalog} onClose={()=>setShowPicker(false)}/>}
     <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>{isEdit?"Editar Sesión":"Nueva Sesión"}</p>
 
-    <div style={{display:"grid",gridTemplateColumns:"1fr 110px 1fr 110px",gap:12,marginBottom:12}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:12}}>
       <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))}/></div>
       <div><Lbl>Hora inicio</Lbl><input type="time" value={f.time} onChange={e=>setF(p=>({...p,time:e.target.value}))}/></div>
       <div><Lbl>Tipo</Lbl><select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))}>{Object.keys(TC).map(t=><option key={t}>{t}</option>)}</select></div>
@@ -1678,7 +1678,8 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
                   <span style={{fontSize:16}}>{bc.icon}</span>
                   <select value={ex.blockType} onChange={e=>updateEx(idx,"blockType",e.target.value)}
                     style={{flex:1,fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:bc.color,
-                      background:"transparent",border:"none",outline:"none",cursor:"pointer"}}>
+                      background:"transparent",border:"none",outline:"none",cursor:"pointer",
+                      width:"auto",minWidth:0,maxWidth:"100%"}}>
                     {BLOCK_TYPES.map(bt=><option key={bt.id} value={bt.id}>{bt.label}</option>)}
                   </select>
                   <div style={{display:"flex",alignItems:"center",gap:4}}>
