@@ -1,5 +1,5 @@
 // CB BINISSALEM DASHBOARD v3 — Supabase + Todas las mejoras
-import { useState, useRef, useEffect, useCallback, useContext, createContext } from "react";
+import { useState, useRef, useEffect, useCallback, useContext, createContext, Fragment } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   LayoutDashboard, Calendar, BarChart2, Dumbbell, Users, BookOpen, PenTool,
@@ -4572,7 +4572,7 @@ function ModoPartido(){
               {Array.from({length:6},(_,i)=>i+1).map(p=>{
                 const parte=p<=3?"1a Parte":"2a Parte";
                 const isHalf=p===4;
-                return <React.Fragment key={p}>
+                return <Fragment key={p}>
                   {isHalf&&<div style={{width:1,background:th.border,margin:"0 4px"}}/>}
                   <button onClick={()=>setActivePeriod(p)} style={{
                     width:36,height:36,borderRadius:8,border:"none",cursor:"pointer",
@@ -4581,7 +4581,7 @@ function ModoPartido(){
                     color:activePeriod===p?"#fff":p===6?"#10b981":th.muted}}>
                     P{p}
                   </button>
-                </React.Fragment>;
+                </Fragment>;
               })}
             </div>
           </div>
