@@ -2002,62 +2002,53 @@ function Entrenamientos(){
 
   const exportPDF=s=>{
     const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
-    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Técnico",tactico:"Táctico",fisico:"Físico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
+    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Tecnico",tactico:"Tactico",fisico:"Fisico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
     const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
-
     const w=window.open("","_blank");
-    const timeStr=s.time?" · "+s.time+"h":"";
-    const exObjs=s.exObjs||[];
-
-    // Build content: blocks as headers, exercises inside — no catalog/libre labels
+    // Build content: blocks as headers, then exercises (keep catalog badge)
     let contentHtml="";
     let exCounter=0;
-    exObjs.forEach(e=>{
+    (s.exObjs||[]).forEach(e=>{
       if(e.type==="block"){
         const icon=BLOCK_ICONS[e.blockType]||"📋";
         const label=BLOCK_LABELS[e.blockType]||"Bloque";
         const color=BLOCK_COLORS[e.blockType]||"#64748b";
-        contentHtml+=`<div style="margin:16px 0 6px;padding:9px 14px;background:${color}18;border-left:4px solid ${color};border-radius:0 6px 6px 0">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:18px;line-height:1">${icon}</span>
-            <span style="font-family:Barlow Condensed,Arial;font-size:16px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px">${label}</span>
-            ${e.sesMin?`<span style="font-family:DM Mono,monospace;font-size:11px;color:${color};margin-left:4px">${e.sesMin} min</span>`:""}
-          </div>
-          ${e.desc?`<p style="font-size:12px;color:#475569;margin:4px 0 0;line-height:1.5">${e.desc}</p>`:""}
-        </div>`;
+        contentHtml+='<div style="margin:16px 0 6px;padding:9px 14px;background:'+color+'18;border-left:4px solid '+color+';border-radius:0 6px 6px 0">'
+          +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px;line-height:1">'+icon+'</span>'
+          +'<span style="font-family:Barlow Condensed,Arial;font-size:16px;font-weight:700;color:'+color+';text-transform:uppercase">'+label+'</span>'
+          +(e.sesMin?'<span style="font-family:DM Mono,monospace;font-size:11px;color:'+color+'"> '+e.sesMin+' min</span>':"")
+          +'</div>'+(e.desc?'<p style="font-size:12px;color:#475569;margin:4px 0 0">'+e.desc+'</p>':"")+'</div>';
       } else {
         exCounter++;
-        const name=e.name||"Ejercicio";
-        const notes=e.sesNotes||e.desc||"";
-        const sesMin=e.sesMin||"";
-        const cat=e.cat||"";
-        const diff=e.diff||"";
-        contentHtml+=`<div style="display:flex;gap:10px;padding:7px 10px;background:${exCounter%2===0?"#f8fafc":"#fff"};border-radius:5px;margin:3px 0">
-          <span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;min-width:20px;padding-top:1px">${exCounter}.</span>
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-size:13px;font-weight:600;color:#1e293b">${name}</span>
-              ${sesMin?`<span style="font-family:DM Mono,monospace;font-size:11px;color:#f97316">⏱ ${sesMin}'</span>`:""}
-              ${cat?`<span style="font-size:10px;color:#94a3b8">${cat}${diff?" · "+diff:""}</span>`:""}
-            </div>
-            ${notes?`<p style="font-size:11px;color:#64748b;margin:4px 0 0;line-height:1.5">${notes}</p>`:""}
-          </div>
-        </div>`;
+        const imgsH=(e.images||[]).length?'<div class="exobj-imgs">'+e.images.map(img=>'<img src="'+img+'" class="exobj-img"/>').join("")+"</div>":"";
+        const notes=e.sesNotes||"";
+        contentHtml+='<div class="exobj">'
+          +'<div class="exobj-header">'
+          +'<span class="exobj-name">'+(e.name||"Ejercicio")+'</span>'
+          +(e.sesMin?'<span class="exobj-dur">'+e.sesMin+"'</span>":e.dur?'<span class="exobj-dur">'+e.dur+'</span>':"")
+          +(e.cat?'<span class="exobj-badge">'+e.cat+'</span>':"")
+          +'</div>'
+          +(e.desc?'<p class="exobj-desc">'+e.desc+'</p>':"")
+          +(notes?'<p class="exobj-desc" style="color:#64748b">'+notes+'</p>':"")
+          +imgsH+'</div>';
       }
     });
-
-    // Fallback for old sessions
-    if(!contentHtml&&s.exs?.length){
-      contentHtml=s.exs.map((e,i)=>'<div style="padding:6px 10px"><strong>'+(i+1)+'.</strong> '+e+'</div>').join("");
-    }
-
+    const exsHtml=(s.exs||[]).map((e,i)=>'<div class="item"><div class="item-dot"></div><div class="item-text"><strong>'+(i+1)+'.</strong> '+e+'</div></div>').join("");
     const imgsHtml=(s.images||[]).length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+s.images.map(img=>'<img src="'+img+'" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>').join("")+"</div>":"";
-
+    const timeStr=s.time?" · "+s.time+"h":"";
     w.document.write(pdfOpen("Sesión: "+s.title)
       +pdfHeader(s.title,s.date+timeStr+" · "+s.dur+" min · "+s.type)
       +'<style>.exobj{margin-bottom:14px;padding:12px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}'
+      +'.exobj-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}'
+      +'.exobj-name{font-weight:700;font-size:14px;color:#1e293b}'
+      +'.exobj-dur{font-size:11px;color:#f97316;font-weight:700;background:#fff7ed;padding:1px 7px;border-radius:4px}'
+      +'.exobj-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:#dbeafe;color:#1d4ed8;text-transform:uppercase}'
+      +'.exobj-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}'
+      +'.exobj-imgs{display:flex;gap:6px;flex-wrap:wrap}'
+      +'.exobj-img{height:90px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0}</style>'
       +(s.notes?'<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body"><p>'+s.notes+'</p></div></div>':"")
-      +(contentHtml?'<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">'+contentHtml+'</div></div>':"")
+      +(contentHtml?'<div class="section"><div class="section-title">Ejercicios</div><div class="section-body">'+contentHtml+'</div></div>':"")
+      +(exsHtml?'<div class="section"><div class="section-title">Ejercicios adicionales</div><div class="section-body">'+exsHtml+'</div></div>':"")
       +(imgsHtml?'<div class="section"><div class="section-title">Imágenes de la sesión</div>'+imgsHtml+'</div>':"")
       +pdfClose()
     );
