@@ -125,8 +125,8 @@ const MESOS=[
   {id:5,name:"Playoffs",               s:"Sem 23",e:"Sem 34",type:"Playoffs",    weeks:12,color:"#ef4444",goal:"Pico de forma – Fase final"},
 ];
 // Mar=2 Mié=3 Jue=4 Vie=5
-const TRAIN_DAYS = [2,3,4,5];
-const TRAIN_DAY_NAMES = {2:"Mar",3:"Mié",4:"Jue",5:"Vie"};
+const TRAIN_DAYS = [1,2,4];
+const TRAIN_DAY_NAMES = {1:"Lun",2:"Mar",4:"Jue"};
 const SEASON_START = new Date("2025-09-01");
 const SEASON_END   = new Date("2027-06-30");
 function generateTrainingDates(){
