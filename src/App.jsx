@@ -6949,10 +6949,6 @@ export default function App(){
     <AppCtx.Provider value={{teamId,teamsConfig}}>
       <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
-        {showTeamModal&&<TeamModal
-          teamsConfig={teamsConfig} currentTeam={teamId}
-          onSwitch={switchTeam} onCreate={createNewTeam}
-          onClose={()=>setShowTeamModal(false)} th={th}/>}
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
           {/* ── OVERLAY móvil ── */}
@@ -6963,18 +6959,38 @@ export default function App(){
             <div style={{padding:"18px 18px 10px",paddingTop:"max(18px, calc(env(safe-area-inset-top) + 12px))"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:36,height:36,objectFit:"contain",flexShrink:0}}/>
-                <div>
+                <div style={{flex:1,minWidth:0}}>
                   <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Tololiver</p>
-                  <button onClick={()=>setShowTeamModal(true)}
-                    style={{background:"transparent",border:"none",cursor:"pointer",padding:0,
-                      fontFamily:"DM Mono",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{width:7,height:7,borderRadius:4,background:teamsConfig[teamId]?.color||"#f97316",display:"inline-block"}}/>
-                    <span style={{color:"rgba(255,255,255,.55)",textDecoration:"underline dotted"}}>{teamsConfig[teamId]?.nombre||"Mini Masculino"} ▾</span>
-                  </button>
+                  <p style={{fontSize:9,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Basketball Coach</p>
                 </div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
               </div>
-              <div style={{marginTop:10}}><SyncBadge status={sync}/></div>
+
+              {/* Selector de equipo — dos botones directos */}
+              <div style={{display:"flex",gap:6,marginTop:10}}>
+                {[
+                  {id:"mini_masc",   label:"Mini",   color:"#f97316"},
+                  {id:"cadete_masc", label:"Cadete",  color:"#8b5cf6"},
+                ].map(t=>{
+                  const ac=teamId===t.id;
+                  return <button key={t.id}
+                    onClick={()=>{
+                      if(teamId===t.id)return;
+                      setTeamId(t.id);
+                      localStorage.setItem("cb_team",t.id);
+                      setView("dashboard");
+                      setMenuOpen(false);
+                    }}
+                    style={{flex:1,padding:"5px 0",borderRadius:7,border:`1px solid ${ac?t.color:t.color+"44"}`,
+                      background:ac?t.color+"25":"transparent",cursor:"pointer",
+                      fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,
+                      color:ac?t.color:"rgba(255,255,255,.35)",transition:"all .15s"}}>
+                    {t.label}
+                  </button>;
+                })}
+              </div>
+
+              <div style={{marginTop:8}}><SyncBadge status={sync}/></div>
             </div>
             <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"0 14px 4px"}}/>
             <nav style={{flex:1,padding:"4px 0",overflowY:"auto"}}>
