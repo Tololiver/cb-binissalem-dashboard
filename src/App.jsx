@@ -6688,13 +6688,15 @@ function SeasonModal({seasons,currentSeason,onSwitch,onCreate,onClose,th}){
   </div>;
 }
 
+// Equipos fijos — module level, no stale closure possible
+const TEAM_ROWS = {
+  "mini_masc":   "state_26_27_mini_masc",
+  "cadete_masc": "state_26_27_cadete_masc",
+};
+
 export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
-  // Equipos fijos — dos rows en Supabase, sin selector de temporada
-  const TEAM_ROWS = {
-    "mini_masc":   "state_26_27_mini_masc",
-    "cadete_masc": "state_26_27_cadete_masc",
-  };
+  // TEAM_ROWS is now defined at module level
   const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"mini_masc");
   const[teamsConfig,setTeamsConfig]=useState(()=>{
     try{return JSON.parse(localStorage.getItem("cb_teams_config")||"null")||{"mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"}};}
@@ -6835,8 +6837,8 @@ export default function App(){
     }
   };
 
-  const switchTeam=async(newTeamId)=>{
-    setLoading(true);setSync("loading");
+  const switchTeam=(newTeamId)=>{
+    setView("dashboard"); // reset to safe view before switching
     setTeamId(newTeamId);
     localStorage.setItem("cb_team",newTeamId);
     setShowTeamModal(false);
@@ -6894,11 +6896,11 @@ export default function App(){
         if(!error&&data?.data){
           applyData(data.data);
         } else if(error?.code==="PGRST116"){
-          // Row missing — create it
           await sb.from("dashboard").upsert({id:rowId,data:stRef.current,updated_at:new Date().toISOString()});
         }
+        setSync("saved");
       }catch(e){console.error("Load error:",e);setSync("offline");}
-      setLoading(false);setSync("saved");
+      finally{setLoading(false);}
     };
     load();
     const sub=sb.channel("db_changes_"+teamId)
