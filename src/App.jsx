@@ -1,5 +1,20 @@
 // CB BINISSALEM DASHBOARD v3 — Supabase + Todas las mejoras
-import { useState, useRef, useEffect, useCallback, useContext, createContext, Fragment } from "react";
+import { useState, useRef, useEffect, useCallback, useContext, createContext, Fragment, Component } from "react";
+
+class ErrorBoundary extends Component{
+  constructor(p){super(p);this.state={error:null};}
+  static getDerivedStateFromError(e){return{error:e};}
+  render(){
+    if(this.state.error){
+      return <div style={{padding:24,color:"#ef4444",fontFamily:"DM Mono",fontSize:13}}>
+        <p style={{fontWeight:700,marginBottom:8}}>Error en componente:</p>
+        <p style={{color:"#94a3b8"}}>{this.state.error?.message}</p>
+        <button onClick={()=>this.setState({error:null})} style={{marginTop:14,padding:"6px 14px",borderRadius:7,border:"1px solid #ef4444",background:"transparent",color:"#ef4444",cursor:"pointer"}}>Reintentar</button>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
 import { createClient } from "@supabase/supabase-js";
 import {
   LayoutDashboard, Calendar, BarChart2, Dumbbell, Users, BookOpen, PenTool,
@@ -7005,7 +7020,9 @@ export default function App(){
               <div style={{marginLeft:"auto"}}><SyncBadge status={sync}/></div>
             </div>
             <main style={{flex:1,overflowY:"auto",padding:"clamp(14px,3vw,28px) clamp(14px,3vw,32px)",background:th.bg}}>
-              <AV/>
+              <ErrorBoundary key={teamId+view}>
+                <AV/>
+              </ErrorBoundary>
             </main>
           </div>
         </div>
