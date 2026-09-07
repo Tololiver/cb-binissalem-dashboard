@@ -377,9 +377,9 @@ function mdToHtml(text){
 
 /* ── PDF EXPORT FOR TRAINING ─────────────────────────────── */
 function exportSessionPDF(session){
-  const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
+  const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",tir:"🎯",otro:"📋"};
   const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Técnico",tactico:"Táctico",fisico:"Físico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
-  const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
+  const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",tir:"#ef4444",otro:"#94a3b8"};
 
   const exObjs=session.exObjs||[];
   const w=window.open("","_blank");
@@ -1583,7 +1583,8 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     {id:"mental",        label:"Mental",          icon:"🎯", color:"#06b6d4"},
     {id:"competitivo",   label:"Competitivo",     icon:"🏀", color:"#f97316"},
     {id:"vuelta_calma",  label:"Vuelta a la calma",icon:"🧘",color:"#64748b"},
-    {id:"otro",          label:"Otro",            icon:"📋", color:"#94a3b8"},
+    {id:"tir",           label:"Tir",             icon:"🎯", color:"#ef4444"},
+  {id:"otro",          label:"Otro",            icon:"📋", color:"#94a3b8"},
   ];
   const getBlockCfg=id=>BLOCK_TYPES.find(b=>b.id===id)||BLOCK_TYPES[7];
 
@@ -2030,9 +2031,9 @@ function Entrenamientos(){
   const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
 
   const exportPDF=s=>{
-    const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
-    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Tecnico",tactico:"Tactico",fisico:"Fisico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
-    const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
+    const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",tir:"🎯",otro:"📋"};
+    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Tecnico",tactico:"Tactico",fisico:"Fisico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",tir:"Tir",otro:"Otro"};
+    const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",tir:"#ef4444",otro:"#94a3b8"};
     const w=window.open("","_blank");
     // Build content: blocks as headers, then exercises (keep catalog badge)
     let contentHtml="";
