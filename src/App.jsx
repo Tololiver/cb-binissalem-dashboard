@@ -736,7 +736,7 @@ function Plantilla(){
           {["#","Jugador","Pos","PJ","Min/P","PTS/P","TL%","T2%","T3%","FC/P","Estado",""].map((h,i)=><th key={i} style={{padding:"10px 12px",textAlign:i>2?"right":"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{h}</th>)}
         </tr></thead>
         <tbody>
-          {players.map(p=>{const c=calcStats(p);
+          {[...players].sort((a,b)=>(+a.num||0)-(+b.num||0)).map(p=>{const c=calcStats(p);
           const estadoColor=p.lesionado?"#f59e0b":p.active?"#10b981":"#ef4444";
           const estadoLabel=p.lesionado?"Lesión":p.active?"Activo":"Baja";
           const equipoColor={A:"#f97316",B:"#3b82f6",Convocado:"#8b5cf6"}[p.equipo||"A"]||"#f97316";
@@ -801,9 +801,9 @@ function Partidos(){
     }]);
     setF({date:"",time:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});setSa(false);
   };
-  const startEdit=m=>{setEd(m.id);setEf({date:m.date,time:m.time||"",rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
+  const startEdit=m=>{setEd(m.id);setEf({date:m.date,time:m.time||"",rival:m.rival,location:m.location,competicion:m.competicion||"Liga Fase 1",pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
   const saveEdit=()=>{
-    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,pts_us:ef.pts_us!==""?+ef.pts_us:null,pts_them:ef.pts_them!==""?+ef.pts_them:null}:m));
+    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,pts_us:ef.pts_us!==""?+ef.pts_us:null,pts_them:ef.pts_them!==""?+ef.pts_them:null,competicion:ef.competicion||"Liga Fase 1"}:m));
     setEd(null);
   };
   const toggleConv=(mid,pid)=>setMatches(prev=>prev.map(m=>{
@@ -849,6 +849,11 @@ function Partidos(){
         <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(x=>({...x,date:e.target.value}))}/></div>
         <div><Lbl>Hora</Lbl><input type="time" value={f.time||""} onChange={e=>setF(x=>({...x,time:e.target.value}))}/></div>
         <div><Lbl>Rival</Lbl><input value={f.rival} onChange={e=>setF(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
+        <div><Lbl>Competición</Lbl>
+          <select value={f.competicion||"Liga Fase 1"} onChange={e=>setF(x=>({...x,competicion:e.target.value}))}>
+            {["Amistoso","Liga Fase 1","Liga Fase 2","Play-Offs"].map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
         <div><Lbl>Lugar</Lbl><select value={f.location} onChange={e=>setF(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
         <div><Lbl>Nos.</Lbl><input type="number" value={f.pts_us} onChange={e=>setF(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
         <div><Lbl>Riv.</Lbl><input type="number" value={f.pts_them} onChange={e=>setF(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
@@ -883,6 +888,11 @@ function Partidos(){
               <div><Lbl>Fecha</Lbl><input type="date" value={ef.date} onChange={e=>setEf(x=>({...x,date:e.target.value}))}/></div>
               <div><Lbl>Hora</Lbl><input type="time" value={ef.time||""} onChange={e=>setEf(x=>({...x,time:e.target.value}))}/></div>
               <div><Lbl>Rival</Lbl><input value={ef.rival} onChange={e=>setEf(x=>({...x,rival:e.target.value}))}/></div>
+              <div><Lbl>Competición</Lbl>
+                <select value={ef.competicion||"Liga Fase 1"} onChange={e=>setEf(x=>({...x,competicion:e.target.value}))}>
+                  {["Amistoso","Liga Fase 1","Liga Fase 2","Play-Offs"].map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
               <div><Lbl>Lugar</Lbl><select value={ef.location} onChange={e=>setEf(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
               <div><Lbl>Nos.</Lbl><input type="number" value={ef.pts_us} onChange={e=>setEf(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
               <div><Lbl>Riv.</Lbl><input type="number" value={ef.pts_them} onChange={e=>setEf(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
@@ -900,7 +910,10 @@ function Partidos(){
               <Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge>
             </div>
             <div style={{flex:1}}>
-              <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1}}>{m.rival}</p>
+                {m.competicion&&<span style={{fontFamily:"Barlow Condensed",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:4,background:"rgba(249,115,22,.1)",color:"#f97316"}}>{m.competicion}</span>}
+              </div>
               <p style={{fontSize:11,color:th.muted}}>{m.location}{m.time?` · ${m.time}h`:""}
                 {hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}
                 {convocados.length>0&&<span style={{color:th.sub}}> · {convocados.length} convocados</span>}
@@ -4556,7 +4569,10 @@ function ModoPartido(){
         <div style={{flex:1}}>
           <p style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,marginBottom:4}}>{m.date} · {m.location}</p>
           <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>Tololiver <span style={{color:th.muted}}>vs</span> {m.rival}</p>
-          {isMini&&<p style={{fontSize:11,color:"#f97316",marginTop:4,fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P x 8min · 2 tiempos muertos/parte</p>}
+          <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
+            {m.competicion&&<span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(249,115,22,.12)",color:"#f97316"}}>{m.competicion}</span>}
+            {isMini&&<span style={{fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P x 8min</span>}
+          </div>
         </div>
         {hasResult&&<div style={{textAlign:"center"}}>
           <p style={{fontFamily:"DM Mono",fontSize:42,fontWeight:900,color:resultColor,lineHeight:1}}>{finalUs}<span style={{color:th.muted,fontSize:28}}>–</span>{finalTh}</p>
