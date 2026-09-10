@@ -1540,7 +1540,7 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
 }
 
 /* ── Formulario sesión (nuevo/editar) ──────────────────────── */
-function SesionForm({session,ejercicios,onSave,onCancel}){
+function SesionForm({session,ejercicios,onSave,onCancel,isDuplicate}){
   const{th}=useTheme();
   const isEdit=!!session;
 
@@ -1623,7 +1623,10 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   return <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640",position:"relative"}}>
     {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
     {showPicker&&<EjercicioPicker ejercicios={ejercicios} onAdd={addExFromCatalog} onClose={()=>setShowPicker(false)}/>}
-    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>{isEdit?"Editar Sesión":"Nueva Sesión"}</p>
+    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:isDuplicate?"#3b82f6":"#f97316",marginBottom:isDuplicate?8:16,textTransform:"uppercase"}}>{isDuplicate?"Duplicar Sesión":isEdit?"Editar Sesión":"Nueva Sesión"}</p>
+    {isDuplicate&&<div style={{background:"rgba(59,130,246,.08)",border:"1px solid rgba(59,130,246,.3)",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:"#3b82f6"}}>
+      Copia de sesión — modifica fecha, título y tipo antes de guardar
+    </div>}
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:12}}>
       <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))}/></div>
@@ -1817,6 +1820,18 @@ function Entrenamientos(){
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
   const[editSes,setEditSes]=useState(null);
+  const[duplicateSes,setDuplicateSes]=useState(null); // session being duplicated
+  const today=new Date().toISOString().split("T")[0];
+
+  const doDuplicate=(s)=>{
+    // Show duplicate form with pre-filled values
+    setDuplicateSes({...s,
+      id:Date.now(),
+      date:today,
+      title:(s.title||"")+" (copia)",
+    });
+    setShowAdd(false);setEditSes(null);
+  };
   const[showTemplates,setShowTemplates]=useState(false);
   const[saveAsTemplate,setSaveAsTemplate]=useState(null);const[tplName,setTplName]=useState("");
   const[viewEx,setViewEx]=useState(null);
@@ -2112,7 +2127,8 @@ function Entrenamientos(){
     </div>}
 
     {/* Formulario nueva sesión */}
-    {showAdd&&!editSes&&<SesionForm ejercicios={ejercicios} onSave={saveSession} onCancel={()=>setShowAdd(false)}/>}
+    {showAdd&&!editSes&&!duplicateSes&&<SesionForm ejercicios={ejercicios} onSave={saveSession} onCancel={()=>setShowAdd(false)}/>}
+    {duplicateSes&&<SesionForm ejercicios={ejercicios} session={duplicateSes} onSave={(s)=>{saveSession(s);setDuplicateSes(null);}} onCancel={()=>setDuplicateSes(null)} isDuplicate/>}
     {/* Cargar desde plantilla (editSes sin id) */}
     {showAdd&&editSes&&!editSes.id&&<SesionForm session={{...editSes,id:null}} ejercicios={ejercicios} onSave={saveSession} onCancel={()=>{setShowAdd(false);setEditSes(null);}}/>}
 
@@ -2143,6 +2159,7 @@ function Entrenamientos(){
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
               <button onClick={()=>setEditSes(s)} title="Editar" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
+              <button onClick={()=>doDuplicate(s)} title="Duplicar sesión" style={{width:30,height:30,borderRadius:7,border:"1px solid rgba(59,130,246,.4)",background:"rgba(59,130,246,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#3b82f6"}}><Copy size={13}/></button>
               <button onClick={()=>setSaveAsTemplate(s.id)} title="Guardar como plantilla" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}}><Copy size={13}/></button>
               <button onClick={()=>exportPDF(s)} title="PDF" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
               {(s.exObjs||[]).length>0&&<button onClick={()=>startGym(s)} title="Modo Gimnasio" style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.1)",cursor:"pointer",color:"#10b981",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12}}>▶ Gimnasio {getGymExs(s).length>0?"("+getGymExs(s).length+"ex)":""}</button>}
