@@ -2284,7 +2284,7 @@ function Asistencia(){
           </th>;})}
           <th style={{padding:"10px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,minWidth:80}}>Total</th>
         </tr></thead>
-        <tbody>{players.filter(p=>p.active).map(p=>{const r=rate(p.id);const rc=r>=80?"#10b981":r>=60?"#f59e0b":"#ef4444";return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
+        <tbody>{[...players].filter(p=>p.active).sort((a,b)=>(+a.num||0)-(+b.num||0)).map(p=>{const r=rate(p.id);const rc=r>=80?"#10b981":r>=60?"#f59e0b":"#ef4444";return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
           <td style={{padding:"8px 14px",position:"sticky",left:0,background:th.card,zIndex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <div style={{width:26,height:26,borderRadius:13,background:th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,color:th.sub,fontWeight:700,flexShrink:0}}>{p.num}</div>
