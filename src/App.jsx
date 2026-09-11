@@ -6870,10 +6870,23 @@ export default function App(){
   };
 
   const switchTeam=(newTeamId)=>{
-    setView("dashboard"); // reset to safe view before switching
+    if(newTeamId===teamId)return;
+    // 1. Cancel pending debounced save
+    if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
+    // 2. Flush current state to CURRENT team row BEFORE switching rowIdRef
+    const currentRowId=rowIdRef.current;
+    const stripImages=obj=>{
+      if(!obj||typeof obj!=="object")return obj;
+      if(Array.isArray(obj))return obj.map(stripImages);
+      const out={};for(const[k,v]of Object.entries(obj)){
+        if(k==="images"&&Array.isArray(v))out[k]=[];
+        else out[k]=stripImages(v);}return out;};
+    sb.from("dashboard").upsert({id:currentRowId,data:stripImages(stRef.current),updated_at:new Date().toISOString()})
+      .catch(e=>console.error("Flush error:",e));
+    // 3. Switch team
+    setView("dashboard");
     setTeamId(newTeamId);
     localStorage.setItem("cb_team",newTeamId);
-    setShowTeamModal(false);
   };
 
 
