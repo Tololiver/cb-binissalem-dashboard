@@ -125,10 +125,10 @@ const MESOS=[
   {id:5,name:"Playoffs",               s:"Sem 23",e:"Sem 34",type:"Playoffs",    weeks:12,color:"#ef4444",goal:"Pico de forma – Fase final"},
 ];
 // Mar=2 Mié=3 Jue=4 Vie=5
-const TRAIN_DAYS = [1,2,4];
-const TRAIN_DAY_NAMES = {1:"Lun",2:"Mar",4:"Jue"};
-const SEASON_START = new Date("2025-09-01");
-const SEASON_END   = new Date("2027-06-30");
+const TRAIN_DAYS = [2,3,4,5];
+const TRAIN_DAY_NAMES = {2:"Mar",3:"Mié",4:"Jue",5:"Vie"};
+const SEASON_START = new Date("2025-04-07");
+const SEASON_END   = new Date("2026-06-30");
 function generateTrainingDates(){
   const dates=[];
   const cur=new Date(SEASON_START);
@@ -377,9 +377,9 @@ function mdToHtml(text){
 
 /* ── PDF EXPORT FOR TRAINING ─────────────────────────────── */
 function exportSessionPDF(session){
-  const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",tir:"🎯",otro:"📋"};
+  const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
   const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Técnico",tactico:"Táctico",fisico:"Físico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
-  const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",tir:"#ef4444",otro:"#94a3b8"};
+  const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
 
   const exObjs=session.exObjs||[];
   const w=window.open("","_blank");
@@ -736,7 +736,7 @@ function Plantilla(){
           {["#","Jugador","Pos","PJ","Min/P","PTS/P","TL%","T2%","T3%","FC/P","Estado",""].map((h,i)=><th key={i} style={{padding:"10px 12px",textAlign:i>2?"right":"left",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,whiteSpace:"nowrap"}}>{h}</th>)}
         </tr></thead>
         <tbody>
-          {[...players].sort((a,b)=>(+a.num||0)-(+b.num||0)).map(p=>{const c=calcStats(p);
+          {players.map(p=>{const c=calcStats(p);
           const estadoColor=p.lesionado?"#f59e0b":p.active?"#10b981":"#ef4444";
           const estadoLabel=p.lesionado?"Lesión":p.active?"Activo":"Baja";
           const equipoColor={A:"#f97316",B:"#3b82f6",Convocado:"#8b5cf6"}[p.equipo||"A"]||"#f97316";
@@ -801,9 +801,9 @@ function Partidos(){
     }]);
     setF({date:"",time:"",rival:"",location:"Casa",pts_us:"",pts_them:"",notes:""});setSa(false);
   };
-  const startEdit=m=>{setEd(m.id);setEf({date:m.date,time:m.time||"",rival:m.rival,location:m.location,competicion:m.competicion||"Liga Fase 1",pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
+  const startEdit=m=>{setEd(m.id);setEf({date:m.date,time:m.time||"",rival:m.rival,location:m.location,pts_us:m.pts_us??"",pts_them:m.pts_them??"",notes:m.notes||""});};
   const saveEdit=()=>{
-    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,pts_us:ef.pts_us!==""?+ef.pts_us:null,pts_them:ef.pts_them!==""?+ef.pts_them:null,competicion:ef.competicion||"Liga Fase 1"}:m));
+    setMatches(prev=>prev.map(m=>m.id===ed?{...m,...ef,pts_us:ef.pts_us!==""?+ef.pts_us:null,pts_them:ef.pts_them!==""?+ef.pts_them:null}:m));
     setEd(null);
   };
   const toggleConv=(mid,pid)=>setMatches(prev=>prev.map(m=>{
@@ -849,11 +849,6 @@ function Partidos(){
         <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(x=>({...x,date:e.target.value}))}/></div>
         <div><Lbl>Hora</Lbl><input type="time" value={f.time||""} onChange={e=>setF(x=>({...x,time:e.target.value}))}/></div>
         <div><Lbl>Rival</Lbl><input value={f.rival} onChange={e=>setF(x=>({...x,rival:e.target.value}))} placeholder="Nombre del rival"/></div>
-        <div><Lbl>Competición</Lbl>
-          <select value={f.competicion||"Liga Fase 1"} onChange={e=>setF(x=>({...x,competicion:e.target.value}))}>
-            {["Amistoso","Liga Fase 1","Liga Fase 2","Play-Offs"].map(c=><option key={c}>{c}</option>)}
-          </select>
-        </div>
         <div><Lbl>Lugar</Lbl><select value={f.location} onChange={e=>setF(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
         <div><Lbl>Nos.</Lbl><input type="number" value={f.pts_us} onChange={e=>setF(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
         <div><Lbl>Riv.</Lbl><input type="number" value={f.pts_them} onChange={e=>setF(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
@@ -888,11 +883,6 @@ function Partidos(){
               <div><Lbl>Fecha</Lbl><input type="date" value={ef.date} onChange={e=>setEf(x=>({...x,date:e.target.value}))}/></div>
               <div><Lbl>Hora</Lbl><input type="time" value={ef.time||""} onChange={e=>setEf(x=>({...x,time:e.target.value}))}/></div>
               <div><Lbl>Rival</Lbl><input value={ef.rival} onChange={e=>setEf(x=>({...x,rival:e.target.value}))}/></div>
-              <div><Lbl>Competición</Lbl>
-                <select value={ef.competicion||"Liga Fase 1"} onChange={e=>setEf(x=>({...x,competicion:e.target.value}))}>
-                  {["Amistoso","Liga Fase 1","Liga Fase 2","Play-Offs"].map(c=><option key={c}>{c}</option>)}
-                </select>
-              </div>
               <div><Lbl>Lugar</Lbl><select value={ef.location} onChange={e=>setEf(x=>({...x,location:e.target.value}))}><option>Casa</option><option>Fuera</option></select></div>
               <div><Lbl>Nos.</Lbl><input type="number" value={ef.pts_us} onChange={e=>setEf(x=>({...x,pts_us:e.target.value}))} placeholder="—"/></div>
               <div><Lbl>Riv.</Lbl><input type="number" value={ef.pts_them} onChange={e=>setEf(x=>({...x,pts_them:e.target.value}))} placeholder="—"/></div>
@@ -910,10 +900,7 @@ function Partidos(){
               <Badge color={c} sm>{hasResult?(win?"VICTORIA":"DERROTA"):"PLANIF."}</Badge>
             </div>
             <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-                <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1}}>{m.rival}</p>
-                {m.competicion&&<span style={{fontFamily:"Barlow Condensed",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:4,background:"rgba(249,115,22,.1)",color:"#f97316"}}>{m.competicion}</span>}
-              </div>
+              <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,lineHeight:1,marginBottom:3}}>{m.rival}</p>
               <p style={{fontSize:11,color:th.muted}}>{m.location}{m.time?` · ${m.time}h`:""}
                 {hasResult?` · ${d>0?"+":""}${d} pts`:" · Sin resultado"}
                 {convocados.length>0&&<span style={{color:th.sub}}> · {convocados.length} convocados</span>}
@@ -1540,7 +1527,7 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
 }
 
 /* ── Formulario sesión (nuevo/editar) ──────────────────────── */
-function SesionForm({session,ejercicios,onSave,onCancel,isDuplicate}){
+function SesionForm({session,ejercicios,onSave,onCancel}){
   const{th}=useTheme();
   const isEdit=!!session;
 
@@ -1583,8 +1570,7 @@ function SesionForm({session,ejercicios,onSave,onCancel,isDuplicate}){
     {id:"mental",        label:"Mental",          icon:"🎯", color:"#06b6d4"},
     {id:"competitivo",   label:"Competitivo",     icon:"🏀", color:"#f97316"},
     {id:"vuelta_calma",  label:"Vuelta a la calma",icon:"🧘",color:"#64748b"},
-    {id:"tir",           label:"Tir",             icon:"🎯", color:"#ef4444"},
-  {id:"otro",          label:"Otro",            icon:"📋", color:"#94a3b8"},
+    {id:"otro",          label:"Otro",            icon:"📋", color:"#94a3b8"},
   ];
   const getBlockCfg=id=>BLOCK_TYPES.find(b=>b.id===id)||BLOCK_TYPES[7];
 
@@ -1623,10 +1609,7 @@ function SesionForm({session,ejercicios,onSave,onCancel,isDuplicate}){
   return <div className="card" style={{padding:22,marginBottom:14,borderColor:"#f9731640",position:"relative"}}>
     {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
     {showPicker&&<EjercicioPicker ejercicios={ejercicios} onAdd={addExFromCatalog} onClose={()=>setShowPicker(false)}/>}
-    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:isDuplicate?"#3b82f6":"#f97316",marginBottom:isDuplicate?8:16,textTransform:"uppercase"}}>{isDuplicate?"Duplicar Sesión":isEdit?"Editar Sesión":"Nueva Sesión"}</p>
-    {isDuplicate&&<div style={{background:"rgba(59,130,246,.08)",border:"1px solid rgba(59,130,246,.3)",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:"#3b82f6"}}>
-      Copia de sesión — modifica fecha, título y tipo antes de guardar
-    </div>}
+    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>{isEdit?"Editar Sesión":"Nueva Sesión"}</p>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:12}}>
       <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))}/></div>
@@ -1820,18 +1803,6 @@ function Entrenamientos(){
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
   const[editSes,setEditSes]=useState(null);
-  const[duplicateSes,setDuplicateSes]=useState(null); // session being duplicated
-  const today=new Date().toISOString().split("T")[0];
-
-  const doDuplicate=(s)=>{
-    // Show duplicate form with pre-filled values
-    setDuplicateSes({...s,
-      id:Date.now(),
-      date:today,
-      title:(s.title||"")+" (copia)",
-    });
-    setShowAdd(false);setEditSes(null);
-  };
   const[showTemplates,setShowTemplates]=useState(false);
   const[saveAsTemplate,setSaveAsTemplate]=useState(null);const[tplName,setTplName]=useState("");
   const[viewEx,setViewEx]=useState(null);
@@ -2046,9 +2017,9 @@ function Entrenamientos(){
   const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
 
   const exportPDF=s=>{
-    const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",tir:"🎯",otro:"📋"};
-    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Tecnico",tactico:"Tactico",fisico:"Fisico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",tir:"Tir",otro:"Otro"};
-    const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",tir:"#ef4444",otro:"#94a3b8"};
+    const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
+    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Tecnico",tactico:"Tactico",fisico:"Fisico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
+    const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
     const w=window.open("","_blank");
     // Build content: blocks as headers, then exercises (keep catalog badge)
     let contentHtml="";
@@ -2127,8 +2098,7 @@ function Entrenamientos(){
     </div>}
 
     {/* Formulario nueva sesión */}
-    {showAdd&&!editSes&&!duplicateSes&&<SesionForm ejercicios={ejercicios} onSave={saveSession} onCancel={()=>setShowAdd(false)}/>}
-    {duplicateSes&&<SesionForm ejercicios={ejercicios} session={duplicateSes} onSave={(s)=>{saveSession(s);setDuplicateSes(null);}} onCancel={()=>setDuplicateSes(null)} isDuplicate/>}
+    {showAdd&&!editSes&&<SesionForm ejercicios={ejercicios} onSave={saveSession} onCancel={()=>setShowAdd(false)}/>}
     {/* Cargar desde plantilla (editSes sin id) */}
     {showAdd&&editSes&&!editSes.id&&<SesionForm session={{...editSes,id:null}} ejercicios={ejercicios} onSave={saveSession} onCancel={()=>{setShowAdd(false);setEditSes(null);}}/>}
 
@@ -2159,7 +2129,6 @@ function Entrenamientos(){
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
               <button onClick={()=>setEditSes(s)} title="Editar" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
-              <button onClick={()=>doDuplicate(s)} title="Duplicar sesión" style={{width:30,height:30,borderRadius:7,border:"1px solid rgba(59,130,246,.4)",background:"rgba(59,130,246,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#3b82f6"}}><Copy size={13}/></button>
               <button onClick={()=>setSaveAsTemplate(s.id)} title="Guardar como plantilla" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}}><Copy size={13}/></button>
               <button onClick={()=>exportPDF(s)} title="PDF" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
               {(s.exObjs||[]).length>0&&<button onClick={()=>startGym(s)} title="Modo Gimnasio" style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.1)",cursor:"pointer",color:"#10b981",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12}}>▶ Gimnasio {getGymExs(s).length>0?"("+getGymExs(s).length+"ex)":""}</button>}
@@ -2284,7 +2253,7 @@ function Asistencia(){
           </th>;})}
           <th style={{padding:"10px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,minWidth:80}}>Total</th>
         </tr></thead>
-        <tbody>{[...players].filter(p=>p.active).sort((a,b)=>(+a.num||0)-(+b.num||0)).map(p=>{const r=rate(p.id);const rc=r>=80?"#10b981":r>=60?"#f59e0b":"#ef4444";return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
+        <tbody>{players.map(p=>{const r=rate(p.id);const rc=r>=80?"#10b981":r>=60?"#f59e0b":"#ef4444";return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
           <td style={{padding:"8px 14px",position:"sticky",left:0,background:th.card,zIndex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <div style={{width:26,height:26,borderRadius:13,background:th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,color:th.sub,fontWeight:700,flexShrink:0}}>{p.num}</div>
@@ -4587,10 +4556,7 @@ function ModoPartido(){
         <div style={{flex:1}}>
           <p style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,marginBottom:4}}>{m.date} · {m.location}</p>
           <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>Tololiver <span style={{color:th.muted}}>vs</span> {m.rival}</p>
-          <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
-            {m.competicion&&<span style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(249,115,22,.12)",color:"#f97316"}}>{m.competicion}</span>}
-            {isMini&&<span style={{fontSize:11,color:"#f97316",fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P x 8min</span>}
-          </div>
+          {isMini&&<p style={{fontSize:11,color:"#f97316",marginTop:4,fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P x 8min · 2 tiempos muertos/parte</p>}
         </div>
         {hasResult&&<div style={{textAlign:"center"}}>
           <p style={{fontFamily:"DM Mono",fontSize:42,fontWeight:900,color:resultColor,lineHeight:1}}>{finalUs}<span style={{color:th.muted,fontSize:28}}>–</span>{finalTh}</p>
@@ -6560,6 +6526,7 @@ const NAV=[
   {id:"evolucion",  label:"Rendimiento",    icon:Activity},
   {id:"evaluacion", label:"Evaluación",     icon:Star},
   {id:"iq",         label:"Basketball IQ",  icon:Target},
+  {id:"shotchart",  label:"Shot Chart",     icon:Target},
   {sep:true,label:"ENTRENAMIENTOS"},
   // ── ENTRENAMIENTOS ───────────────────────────────────
   {id:"train",      label:"Entrenamientos", icon:Dumbbell},
@@ -6567,6 +6534,7 @@ const NAV=[
   {id:"plan",       label:"Planificación",  icon:Target},
   {sep:true,label:"TÁCTICA"},
   // ── TÁCTICA ──────────────────────────────────────────
+  {id:"pizarra",    label:"Pizarra",        icon:PenTool},
   {id:"playbook",   label:"Playbook",       icon:BookOpen},
   {id:"exercises",  label:"Ejercicios",     icon:Target},
   {id:"partido",    label:"Modo Partido",   icon:Trophy},
@@ -6730,6 +6698,9 @@ export default function App(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
   // TEAM_ROWS is now defined at module level
   const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"mini_masc");
+  // teamIdRef: updated INLINE during render — always current, no stale closures
+  const teamIdRef=useRef(teamId);
+  teamIdRef.current=teamId; // sync update every render
   const[teamsConfig,setTeamsConfig]=useState(()=>{
     try{return JSON.parse(localStorage.getItem("cb_teams_config")||"null")||{"mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"}};}
     catch{return {"mini_masc":{nombre:"Mini Masculino",categoria:"Mini",reglamento:"FBIB_MINI",color:"#f97316"},"cadete_masc":{nombre:"Cadete Masculino",categoria:"Cadete",reglamento:"FIBA",color:"#8b5cf6"}};}
@@ -6771,13 +6742,12 @@ export default function App(){
   const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
 
-  // persist — teamId in deps so closure is always fresh per team
   const persist=useCallback((patch)=>{
     stRef.current={...stRef.current,...patch};
     setSync("saving");
-    const rowId=TEAM_ROWS[teamId]; // direct — no stale ref possible
-    if(!rowId)return;
+    const rowId=TEAM_ROWS[teamIdRef.current]; // always current — no stale closure
 
+    // attDates: save immediately, no debounce
     if(patch.attDates!==undefined){
       (async()=>{
         try{
@@ -6791,8 +6761,6 @@ export default function App(){
 
     if(tmr.current)clearTimeout(tmr.current);
     tmr.current=setTimeout(async()=>{
-      const currentRowId=TEAM_ROWS[teamId];
-      if(!currentRowId)return;
       try{
         const stripImages=obj=>{
           if(!obj||typeof obj!=="object")return obj;
@@ -6800,14 +6768,18 @@ export default function App(){
           const out={};
           for(const[k,v]of Object.entries(obj)){
             if(k==="images"&&Array.isArray(v))out[k]=[];
-            else out[k]=stripImages(v);}
-          return out;};
-        const{error}=await sb.from("dashboard").upsert({id:currentRowId,data:stripImages(stRef.current),updated_at:new Date().toISOString()});
+            else out[k]=stripImages(v);
+          }
+          return out;
+        };
+        const safeData=stripImages(stRef.current);
+        const{error}=await sb.from("dashboard").upsert({id:TEAM_ROWS[teamIdRef.current],data:safeData,updated_at:new Date().toISOString()});
         if(error)throw error;
         setSync("saved");
-      }catch(e){console.error("Save error:",e);setSync("offline");}
+      }
+      catch(e){console.error("Save error:",e);setSync("offline");}
     },900);
-  },[teamId]);
+  },[]);
 
   const mk=(raw,set,key)=>useCallback(fn=>{set(prev=>{const next=typeof fn==="function"?fn(prev):fn;persist({[key]:next});return next;});},[persist]);
 
@@ -6824,14 +6796,15 @@ export default function App(){
       setSync("saving");
       (async()=>{
         try{
-          const{error}=await sb.from("dashboard").upsert({id:TEAM_ROWS[teamId],data:stRef.current,updated_at:new Date().toISOString()});
+          const{error}=await sb.from("dashboard").upsert({id:TEAM_ROWS[teamIdRef.current]||TEAM_ROWS[teamId],data:stRef.current,updated_at:new Date().toISOString()});
           if(error)throw error;
           setSync("saved");
         }catch(e){console.error("AttDates save:",e);setSync("offline");}
       })();
       return n;
     });
-  },[teamId]);
+  },[]);
+  const setQuintets =useCallback(fn=>setQuintetsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({quintets:n});return n;}),[persist]);
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
   const setPlays    =useCallback(fn=>setPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({plays:n});return n;}),[persist]);
@@ -6864,23 +6837,10 @@ export default function App(){
   };
 
   const switchTeam=(newTeamId)=>{
-    if(newTeamId===teamId)return;
-    // 1. Cancel pending debounced save
-    if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
-    // 2. Flush current state to CURRENT team row BEFORE switching rowIdRef
-    const currentRowId=TEAM_ROWS[teamId];
-    const stripImages=obj=>{
-      if(!obj||typeof obj!=="object")return obj;
-      if(Array.isArray(obj))return obj.map(stripImages);
-      const out={};for(const[k,v]of Object.entries(obj)){
-        if(k==="images"&&Array.isArray(v))out[k]=[];
-        else out[k]=stripImages(v);}return out;};
-    sb.from("dashboard").upsert({id:currentRowId,data:stripImages(stRef.current),updated_at:new Date().toISOString()})
-      .catch(e=>console.error("Flush error:",e));
-    // 3. Switch team
-    setView("dashboard");
+    setView("dashboard"); // reset to safe view before switching
     setTeamId(newTeamId);
     localStorage.setItem("cb_team",newTeamId);
+    setShowTeamModal(false);
   };
 
 
@@ -6913,10 +6873,12 @@ export default function App(){
       return loaded;
     };
 
-    const capturedTeamId=teamId; // capture for race condition check
     const load=async()=>{
+      // Cancel any pending save from previous team
       if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
-      const rowId=TEAM_ROWS[capturedTeamId]||"state_26_27_mini_masc";
+
+      const rowId=TEAM_ROWS[teamIdRef.current]||"state_26_27_mini_masc";
+      TEAM_ROWS[teamIdRef.current]=rowId; // sync ref immediately
 
       // Reset to clean empty state
       stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,
@@ -6930,7 +6892,6 @@ export default function App(){
 
       try{
         const{data,error}=await sb.from("dashboard").select("data").eq("id",rowId).single();
-        if(teamId!==capturedTeamId)return; // team switched during load — discard
         if(!error&&data?.data){
           applyData(data.data);
         } else if(error?.code==="PGRST116"){
