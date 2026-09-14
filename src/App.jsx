@@ -2235,7 +2235,7 @@ function Asistencia(){
   };
 
   return <div>
-    <SH title="Asistencia" sub="Control de presencia · Mar · Mié · Jue · Vie"/>
+    <SH title="Asistencia" sub="Control de presencia · Lun · Mar · Jue"/>
     {/* Month navigation */}
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
       <button onClick={()=>setMonthIdx(m=>Math.max(0,m-1))} disabled={monthIdx===0} style={{width:34,height:34,borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub,opacity:monthIdx===0?.35:1}}><ChevronLeft size={16}/></button>
@@ -2253,7 +2253,7 @@ function Asistencia(){
           </th>;})}
           <th style={{padding:"10px 10px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1,minWidth:80}}>Total</th>
         </tr></thead>
-        <tbody>{players.map(p=>{const r=rate(p.id);const rc=r>=80?"#10b981":r>=60?"#f59e0b":"#ef4444";return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
+        <tbody>{[...players].filter(p=>p.active).sort((a,b)=>(+a.num||0)-(+b.num||0)).map(p=>{const r=rate(p.id);const rc=r>=80?"#10b981":r>=60?"#f59e0b":"#ef4444";return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
           <td style={{padding:"8px 14px",position:"sticky",left:0,background:th.card,zIndex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <div style={{width:26,height:26,borderRadius:13,background:th.border2,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,color:th.sub,fontWeight:700,flexShrink:0}}>{p.num}</div>
