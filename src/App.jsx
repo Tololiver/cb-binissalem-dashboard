@@ -127,12 +127,13 @@ const MESOS=[
 // Mar=2 Mié=3 Jue=4 Vie=5
 const TRAIN_DAYS = [2,3,4,5];
 const TRAIN_DAY_NAMES = {2:"Mar",3:"Mié",4:"Jue",5:"Vie"};
-const SEASON_START = new Date("2025-04-07");
-const SEASON_END   = new Date("2026-06-30");
+const SEASON_START = new Date(2025,8,1);  // Sep 1 2025 local time
+const SEASON_END   = new Date(2027,5,30); // Jun 30 2027 local time
 function generateTrainingDates(){
   const dates=[];
-  const cur=new Date(SEASON_START);
-  while(cur<=SEASON_END){
+  const cur=new Date(SEASON_START.getFullYear(),SEASON_START.getMonth(),SEASON_START.getDate());
+  const endDate=new Date(SEASON_END.getFullYear(),SEASON_END.getMonth(),SEASON_END.getDate());
+  while(cur<=endDate){
     if(TRAIN_DAYS.includes(cur.getDay())){
       dates.push(cur.toISOString().slice(0,10));
     }
@@ -447,7 +448,7 @@ function Dashboard(){
   const avgMin=active.length?(active.reduce((a,p)=>a+calcStats(p).min_p,0)/active.length).toFixed(1):"—";
 
   // Attendance summary
-  const datesWithData=Object.keys(attDates).filter(d=>ALL_TRAINING_DATES.includes(d));
+  const datesWithData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined);
   const avgAtt=datesWithData.length>0&&active.length>0
     ? Math.round(datesWithData.reduce((a,d)=>a+(attDates[d]||[]).filter(id=>active.some(p=>p.id===id)).length,0)/(datesWithData.length*active.length)*100)
     : 0;
@@ -2222,7 +2223,7 @@ function Asistencia(){
   const totalMonths=Math.floor((endMonth-startMonth)/(30.44*24*3600*1000))+1;
 
   const curMonthDate=new Date(startMonth.getFullYear(),startMonth.getMonth()+monthIdx,1);
-  const curMonthDates=ALL_TRAINING_DATES.filter(d=>{const dt=new Date(d+"T12:00:00");return dt.getFullYear()===curMonthDate.getFullYear()&&dt.getMonth()===curMonthDate.getMonth();});
+  const curMonthDates=ALL_TRAINING_DATES.filter(d=>{const[y,m]=d.split("-").map(Number);return y===curMonthDate.getFullYear()&&(m-1)===curMonthDate.getMonth();});
 
   const toggle=(date,pid)=>setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:c.includes(pid)?c.filter(id=>id!==pid):[...c,pid]};});
   const rate=pid=>{const withData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined);return withData.length?Math.round(withData.filter(d=>(attDates[d]||[]).includes(pid)).length/withData.length*100):0;};
