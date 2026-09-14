@@ -6771,16 +6771,13 @@ export default function App(){
   const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
 
-  // rowIdRef — always current row ID, avoids stale closures in persist
-  const rowIdRef = useRef(TEAM_ROWS[teamId]||"state_26_27_mini_masc");
-  useEffect(()=>{rowIdRef.current=TEAM_ROWS[teamId]||"state_26_27_mini_masc";},[teamId]);
-
+  // persist — teamId in deps so closure is always fresh per team
   const persist=useCallback((patch)=>{
     stRef.current={...stRef.current,...patch};
     setSync("saving");
-    const rowId=rowIdRef.current; // always current — no stale closure
+    const rowId=TEAM_ROWS[teamId]; // direct — no stale ref possible
+    if(!rowId)return;
 
-    // attDates: save immediately, no debounce
     if(patch.attDates!==undefined){
       (async()=>{
         try{
@@ -6794,6 +6791,8 @@ export default function App(){
 
     if(tmr.current)clearTimeout(tmr.current);
     tmr.current=setTimeout(async()=>{
+      const currentRowId=TEAM_ROWS[teamId];
+      if(!currentRowId)return;
       try{
         const stripImages=obj=>{
           if(!obj||typeof obj!=="object")return obj;
@@ -6801,18 +6800,14 @@ export default function App(){
           const out={};
           for(const[k,v]of Object.entries(obj)){
             if(k==="images"&&Array.isArray(v))out[k]=[];
-            else out[k]=stripImages(v);
-          }
-          return out;
-        };
-        const safeData=stripImages(stRef.current);
-        const{error}=await sb.from("dashboard").upsert({id:rowIdRef.current,data:safeData,updated_at:new Date().toISOString()});
+            else out[k]=stripImages(v);}
+          return out;};
+        const{error}=await sb.from("dashboard").upsert({id:currentRowId,data:stripImages(stRef.current),updated_at:new Date().toISOString()});
         if(error)throw error;
         setSync("saved");
-      }
-      catch(e){console.error("Save error:",e);setSync("offline");}
+      }catch(e){console.error("Save error:",e);setSync("offline");}
     },900);
-  },[]);
+  },[teamId]);
 
   const mk=(raw,set,key)=>useCallback(fn=>{set(prev=>{const next=typeof fn==="function"?fn(prev):fn;persist({[key]:next});return next;});},[persist]);
 
@@ -6836,8 +6831,7 @@ export default function App(){
       })();
       return n;
     });
-  },[]);
-  const setQuintets =useCallback(fn=>setQuintetsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({quintets:n});return n;}),[persist]);
+  },[teamId]);
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
   const setPlays    =useCallback(fn=>setPlaysRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({plays:n});return n;}),[persist]);
@@ -6874,7 +6868,7 @@ export default function App(){
     // 1. Cancel pending debounced save
     if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
     // 2. Flush current state to CURRENT team row BEFORE switching rowIdRef
-    const currentRowId=rowIdRef.current;
+    const currentRowId=TEAM_ROWS[teamId];
     const stripImages=obj=>{
       if(!obj||typeof obj!=="object")return obj;
       if(Array.isArray(obj))return obj.map(stripImages);
@@ -6919,12 +6913,10 @@ export default function App(){
       return loaded;
     };
 
+    const capturedTeamId=teamId; // capture for race condition check
     const load=async()=>{
-      // Cancel any pending save from previous team
       if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
-
-      const rowId=TEAM_ROWS[teamId]||"state_26_27_mini_masc";
-      rowIdRef.current=rowId; // sync ref immediately
+      const rowId=TEAM_ROWS[capturedTeamId]||"state_26_27_mini_masc";
 
       // Reset to clean empty state
       stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,
@@ -6938,6 +6930,7 @@ export default function App(){
 
       try{
         const{data,error}=await sb.from("dashboard").select("data").eq("id",rowId).single();
+        if(teamId!==capturedTeamId)return; // team switched during load — discard
         if(!error&&data?.data){
           applyData(data.data);
         } else if(error?.code==="PGRST116"){
