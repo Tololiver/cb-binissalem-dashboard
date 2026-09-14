@@ -135,7 +135,8 @@ function generateTrainingDates(){
   const endDate=new Date(SEASON_END.getFullYear(),SEASON_END.getMonth(),SEASON_END.getDate());
   while(cur<=endDate){
     if(TRAIN_DAYS.includes(cur.getDay())){
-      dates.push(cur.toISOString().slice(0,10));
+      const y=cur.getFullYear(),mo=String(cur.getMonth()+1).padStart(2,"0"),d=String(cur.getDate()).padStart(2,"0");
+      dates.push(`${y}-${mo}-${d}`);
     }
     cur.setDate(cur.getDate()+1);
   }
