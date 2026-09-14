@@ -6878,7 +6878,6 @@ export default function App(){
       if(tmr.current){clearTimeout(tmr.current);tmr.current=null;}
 
       const rowId=TEAM_ROWS[teamIdRef.current]||"state_26_27_mini_masc";
-      TEAM_ROWS[teamIdRef.current]=rowId; // sync ref immediately
 
       // Reset to clean empty state
       stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,
