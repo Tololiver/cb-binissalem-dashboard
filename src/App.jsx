@@ -2222,7 +2222,7 @@ function Asistencia(){
   const totalMonths=Math.floor((endMonth-startMonth)/(30.44*24*3600*1000))+1;
 
   const curMonthDate=new Date(startMonth.getFullYear(),startMonth.getMonth()+monthIdx,1);
-  const curMonthDates=ALL_TRAINING_DATES.filter(d=>{const dt=new Date(d);return dt.getFullYear()===curMonthDate.getFullYear()&&dt.getMonth()===curMonthDate.getMonth();});
+  const curMonthDates=ALL_TRAINING_DATES.filter(d=>{const dt=new Date(d+"T12:00:00");return dt.getFullYear()===curMonthDate.getFullYear()&&dt.getMonth()===curMonthDate.getMonth();});
 
   const toggle=(date,pid)=>setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:c.includes(pid)?c.filter(id=>id!==pid):[...c,pid]};});
   const rate=pid=>{const withData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined);return withData.length?Math.round(withData.filter(d=>(attDates[d]||[]).includes(pid)).length/withData.length*100):0;};
