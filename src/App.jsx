@@ -2363,7 +2363,7 @@ function Quinteto(){
     if(activePl.length<5){setAiResult({error:"Necesitas al menos 5 jugadores con PJ > 0 para generar quintetos."});setAiLoading(false);return;}
     const statsStr=activePl.map(p=>{const c=calcStats(p);return `${p.name} (${p.pos}): PJ ${p.pj}, PTS/P ${c.pts_p}, Min/P ${c.min_p}', TL% ${c.tl_pct}%, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, FC/P ${c.fc_p}`;}).join("\n");
     try{
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:900,messages:[{role:"user",content:`Eres analista de baloncesto. Jugadores del equipo:\n\n${statsStr}\n\nSugiere 2 quintetos basándote SOLO en estos datos:\n1. OFENSIVO: mayores PTS/P, T2%, T3%, Min/P\n2. DEFENSIVO: equilibrio posicional, FC/P bajo, al menos 1 pívot\n\nResponde SOLO JSON sin texto extra:\n{"ofensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"defensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"razon_ofensivo":"15 palabras max","razon_defensivo":"15 palabras max"}`}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:900,messages:[{role:"user",content:`Eres analista de baloncesto. Jugadores del equipo:\n\n${statsStr}\n\nSugiere 2 quintetos basándote SOLO en estos datos:\n1. OFENSIVO: mayores PTS/P, T2%, T3%, Min/P\n2. DEFENSIVO: equilibrio posicional, FC/P bajo, al menos 1 pívot\n\nResponde SOLO JSON sin texto extra:\n{"ofensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"defensivo":["nombre 1","nombre 2","nombre 3","nombre 4","nombre 5"],"razon_ofensivo":"15 palabras max","razon_defensivo":"15 palabras max"}`}]});
       const txt=data.content?.find(b=>b.type==="text")?.text||"{}";
       setAiResult(JSON.parse(txt.replace(/```json|```/g,"").trim()));
     }catch(e){console.error(e);setAiResult({error:`Error: ${e.message}. Verifica tu API Key.`});}
@@ -2621,7 +2621,7 @@ function Playbook(){
         setPdfProgress(pass.label);
         try{
           const data=await callClaude(apiKey,{
-            model:"claude-sonnet-4-5",max_tokens:5000,
+            model:"claude-sonnet-4-6",max_tokens:5000,
             messages:[{role:"user",content:[
               {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
               {type:"text",text:makePrompt(pass.from,pass.to)}
@@ -3649,7 +3649,7 @@ CLAVES DEL PARTIDO — DEFENSA:
 Sé muy específico, usa los datos de estadísticas y redacta como un scout profesional.`+jsonInstr+playsCtx;
 
       const contentAnalisis=[...content,{type:"text",text:promptAnalisis}];
-      const data1=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:3000,messages:[{role:"user",content:contentAnalisis}]});
+      const data1=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:3000,messages:[{role:"user",content:contentAnalisis}]});
       let fullText=data1.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
 
       // ── Extraer PLAYERS_JSON primero (necesitamos los IDs nuevos para mapear fichas) ──
@@ -3783,7 +3783,7 @@ Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadíst
 
         const contentFichas2=[...content,{type:"text",text:promptFichas}];
         try{
-          const data2=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:5000,messages:[{role:"user",content:contentFichas2}]});
+          const data2=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:5000,messages:[{role:"user",content:contentFichas2}]});
           const fichasText=data2.content?.find(b=>b.type==="text")?.text||"";
           const fichaRegex2=/FICHA_INICIO\s+([\s\S]*?)FICHA_FIN/g;
           let fm2;
@@ -3948,7 +3948,7 @@ Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadíst
     if(!sesObj.trim()){setSesResult({error:"Describe el objetivo del entrenamiento."});return;}
     setSesLoading(true);setSesResult(null);setSesSaved(false);
     try{
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:1000,messages:[{role:"user",content:`Eres entrenador de baloncesto. Genera sesión completa:\n- Duración: ${sesDur} min\n- Tipo: ${sesFocus}\n- Objetivo: ${sesObj}\n- Nivel: Sénior amateur\n\nIncluye:\n1. TÍTULO (una línea, descriptivo)\n2. CALENTAMIENTO\n3. PARTE PRINCIPAL: 3-4 ejercicios\n4. VUELTA A LA CALMA\n5. PUNTOS CLAVE\n\nFormato práctico.`}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:`Eres entrenador de baloncesto. Genera sesión completa:\n- Duración: ${sesDur} min\n- Tipo: ${sesFocus}\n- Objetivo: ${sesObj}\n- Nivel: Sénior amateur\n\nIncluye:\n1. TÍTULO (una línea, descriptivo)\n2. CALENTAMIENTO\n3. PARTE PRINCIPAL: 3-4 ejercicios\n4. VUELTA A LA CALMA\n5. PUNTOS CLAVE\n\nFormato práctico.`}]});
       const text=data.content?.find(b=>b.type==="text")?.text||"Sin respuesta.";
       // Extract title from first line
       const lines=text.split("\n").filter(l=>l.trim());
@@ -3981,7 +3981,7 @@ Genera UNA ficha por cada jugador. Sé muy específico y usa los datos estadíst
       const active=players.filter(p=>p.active);
       const statsStr=active.map(p=>{const c=calcStats(p);return `${p.name}: PJ ${p.pj}, PTS/P ${c.pts_p}, T2% ${c.t2_pct}%, T3% ${c.t3_pct}%, TL% ${c.tl_pct}%`;}).join("\n");
       const matchStr=played.slice(-10).map(m=>`${m.date} vs ${m.rival}: ${m.pts_us}-${m.pts_them} (${m.pts_us>m.pts_them?"V":"D"})`).join("\n");
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:1400,messages:[{role:"user",content:`Eres analista de Tololiver Basketball Coach. Informe narrativo:\n\nRESULTADOS (${wins}V-${played.length-wins}D):\n${matchStr||"Sin partidos registrados"}\n\nESTADÍSTICAS:\n${statsStr||"Sin datos"}\n\nSESIONES: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN\n\nTono profesional, datos reales.`}]});
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:1400,messages:[{role:"user",content:`Eres analista de Tololiver Basketball Coach. Informe narrativo:\n\nRESULTADOS (${wins}V-${played.length-wins}D):\n${matchStr||"Sin partidos registrados"}\n\nESTADÍSTICAS:\n${statsStr||"Sin datos"}\n\nSESIONES: ${sessions.length}\n\nIncluye:\n1. RESUMEN EJECUTIVO\n2. ANÁLISIS OFENSIVO\n3. ANÁLISIS DEFENSIVO\n4. JUGADORES DESTACADOS\n5. ÁREAS DE MEJORA\n6. CONCLUSIÓN\n\nTono profesional, datos reales.`}]});
       setResResult({text:data.content?.find(b=>b.type==="text")?.text||"Sin respuesta."});
     }catch(e){setResResult({error:e.message});}
     setResLoading(false);
@@ -4471,7 +4471,7 @@ function ModoPartido(){
       const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e2=>res(e2.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
       const contentBlock=isPDF?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}:{type:"image",source:{type:"base64",media_type:mt,data:base64}};
       const playerNames=convPlayers.map(p=>`#${p.num} ${p.name}`).join(", ");
-      const resp=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:2000,messages:[{role:"user",content:[contentBlock,{type:"text",text:`Eres un analista de baloncesto. Extrae las estadísticas individuales del acta/documento. Los jugadores de C.B. Muro son: ${playerNames}.
+      const resp=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:2000,messages:[{role:"user",content:[contentBlock,{type:"text",text:`Eres un analista de baloncesto. Extrae las estadísticas individuales del acta/documento. Los jugadores de C.B. Muro son: ${playerNames}.
 
 Devuelve SOLO un JSON con este formato exacto:
 {"jugadores":[{"num":"4","min":20,"pt":8,"tl_i":2,"tl_m":1,"t2_i":4,"t2_m":3,"t3_i":1,"t3_m":0,"fc":2}]}
@@ -5069,7 +5069,7 @@ function MatchAnalysisBlock({m,players}){
 
     try{
       const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-5",max_tokens:1600,
+        model:"claude-sonnet-4-6",max_tokens:1600,
         messages:[{role:"user",content:
           "Eres analista de baloncesto. Analiza este partido de Tololiver Basketball Coach.\n\n"
           +"PARTIDO: C.B. Muro vs "+m.rival+" ("+m.location+") "+m.date+"\n"
@@ -5233,7 +5233,7 @@ function BasketballIQ(){
     }).join("\n");
     try{
       const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-5",max_tokens:1200,
+        model:"claude-sonnet-4-6",max_tokens:1200,
         messages:[{role:"user",content:
           "Eres analista de baloncesto especializado en desarrollo de jugadores.\n\n"
           +"JUGADOR: #"+p.num+" "+p.name+" ("+p.pos+")\n"
@@ -5551,7 +5551,7 @@ function Informes(){
     setAiLoading(true);setAiMsg(null);
     try{
       const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-5",max_tokens:2000,
+        model:"claude-sonnet-4-6",max_tokens:2000,
         messages:[{role:"user",content:
           "Eres un asistente de redacción especializado en baloncesto y comunicación deportiva.\n\n"
           +"Corrige y mejora el siguiente texto de un informe de baloncesto. Mantén el significado y los datos exactos. Mejora:\n"
@@ -5643,7 +5643,7 @@ function BuscadorIA(){
     const indexStr=index.map((x,i)=>`[${i}] ${x.tipo}: "${x.titulo}" — ${x.desc.slice(0,100)}`).join("\n");
     try{
       const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-5",max_tokens:600,
+        model:"claude-sonnet-4-6",max_tokens:600,
         messages:[{role:"user",content:
           "Eres un buscador semántico de una app de gestión de baloncesto.\n\n"
           +"BÚSQUEDA DEL ENTRENADOR: \""+query+"\"\n\n"
@@ -6097,7 +6097,7 @@ function Clasificacion(){
         ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
         :{type:"image",source:{type:"base64",media_type:mt.startsWith("image/")?mt:"image/jpeg",data:base64}};
       const data=await callClaude(apiKey,{
-        model:"claude-sonnet-4-5",max_tokens:2000,
+        model:"claude-sonnet-4-6",max_tokens:2000,
         messages:[{role:"user",content:[
           contentBlock,
           {type:"text",text:"Extrae la clasificación de baloncesto de esta imagen/tabla. Para cada equipo extrae: posición, nombre, J (jugados), G (ganados), P (perdidos), NP (no presentados o similar), PE (puntos en contra extra o protestados), PF (puntos a favor), PC (puntos en contra), PTS (puntos clasificación).\n\nDevuelve ÚNICAMENTE JSON válido en una sola línea sin markdown:\n{\"equipos\":[{\"pos\":1,\"equip\":\"NOMBRE\",\"j\":8,\"g\":5,\"p\":3,\"np\":0,\"pe\":0,\"pf\":502,\"pc\":485,\"pts\":13}]}\n\nSi algún campo no existe usa 0."}
@@ -6407,7 +6407,7 @@ function Evaluacion(){
       return `  ${cat}:\n${catRows}`;
     }).join("\n");
     try{
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-5",max_tokens:1500,messages:[{role:"user",content:
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:1500,messages:[{role:"user",content:
         `Eres un entrenador de baloncesto profesional. Analiza la siguiente evaluación ${evalType.toLowerCase()} del jugador ${selPlayer.name} (#${selPlayer.num||"—"}, ${selPlayer.pos||"sin posición"}) y genera un informe detallado en español con:\n\n1. RESUMEN EJECUTIVO (3-4 líneas)\n2. PUNTOS FUERTES (3-4 puntos)\n3. ÁREAS DE MEJORA PRIORITARIAS (3-4 puntos con recomendaciones concretas)\n4. PLAN DE TRABAJO (ejercicios y trabajo específico recomendado)\n5. VALORACIÓN GLOBAL (con nota numérica 1-4 y conclusión)\n\nValoraciones del jugador:\n${detalles}\n\nObservaciones del entrenador: ${ev.notes||"Ninguna"}\n\nSé específico, práctico y directo.`
       }]});
       const text=data.content?.find(b=>b.type==="text")?.text||"";
