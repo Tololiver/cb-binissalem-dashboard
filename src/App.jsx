@@ -357,8 +357,8 @@ td.note{text-align:left;font-size:11px;color:#64748b}
 @media print{body{padding:0}.page{padding:18px 22px}}`;
 
 function pdfOpen(title){return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>${PDF_CSS}</style></head><body><div class="page">`;}
-function pdfClose(){return `<div class="pdf-footer"><span>Tololiver · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span></div></div></body></html>`;}
-function pdfHeader(title,subtitle){return `<div class="pdf-header"><div class="pdf-header-left"><div class="pdf-club">Tololiver · Basketball Coach</div><div class="pdf-title">${title}</div><div class="pdf-subtitle">${subtitle}</div></div><img class="pdf-logo" src="${LOGO_B64}" alt="Logo"/></div>`;}
+function pdfClose(){return `<div class="pdf-footer"><span>C.B. Muro · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span></div></div></body></html>`;}
+function pdfHeader(title,subtitle){return `<div class="pdf-header"><div class="pdf-header-left"><div class="pdf-club">C.B. Muro · Basketball Coach</div><div class="pdf-title">${title}</div><div class="pdf-subtitle">${subtitle}</div></div><img class="pdf-logo" src="${LOGO_B64}" alt="Logo"/></div>`;}
 function mdToHtml(text){
   if(!text)return"";
   const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -478,7 +478,7 @@ function Dashboard(){
   })).sort((a,b)=>b.rate-a.rate).slice(0,5);
 
   return <div>
-    <SH title="Panel Principal" sub={`${teamCfg.nombre} · Tololiver Basketball Coach`} right={<div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 12px",borderRadius:8,background:teamCfg.color+"18",border:`1px solid ${teamCfg.color}44`}}><div style={{width:8,height:8,borderRadius:4,background:teamCfg.color}}/><span style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:teamCfg.color}}>{teamCfg.nombre}</span></div>}/>
+    <SH title="Panel Principal" sub={`${teamCfg.nombre} · C.B. Muro`} right={<div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 12px",borderRadius:8,background:teamCfg.color+"18",border:`1px solid ${teamCfg.color}44`}}><div style={{width:8,height:8,borderRadius:4,background:teamCfg.color}}/><span style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:teamCfg.color}}>{teamCfg.nombre}</span></div>}/>
 
     {/* Team info banner */}
     <div className="card" style={{padding:"12px 18px",marginBottom:14,borderLeft:`4px solid ${teamCfg.color}`,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
@@ -4557,7 +4557,7 @@ function ModoPartido(){
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{flex:1}}>
           <p style={{fontFamily:"DM Mono",fontSize:11,color:th.muted,marginBottom:4}}>{m.date} · {m.location}</p>
-          <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>Tololiver <span style={{color:th.muted}}>vs</span> {m.rival}</p>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:28,fontWeight:900,color:th.text,lineHeight:1}}>C.B. Muro <span style={{color:th.muted}}>vs</span> {m.rival}</p>
           {isMini&&<p style={{fontSize:11,color:"#f97316",marginTop:4,fontFamily:"Barlow Condensed"}}>Mini FBIB · 6P x 8min · 2 tiempos muertos/parte</p>}
         </div>
         {hasResult&&<div style={{textAlign:"center"}}>
@@ -5022,7 +5022,7 @@ function MatchAnalysisBlock({m,players}){
     const finalUs=m.pts_us??null;
     const finalTh=m.pts_them??null;
     const resultLine=finalUs!=null
-      ?"Tololiver "+finalUs+" - "+m.rival+" "+finalTh
+      ?"C.B. Muro "+finalUs+" - "+m.rival+" "+finalTh
         +(finalUs>finalTh?" (VICTORIA por "+(finalUs-finalTh)+" puntos)":" (DERROTA por "+(finalTh-finalUs)+" puntos)")
       :"Sin resultado registrado";
 
@@ -5038,7 +5038,7 @@ function MatchAnalysisBlock({m,players}){
         model:"claude-sonnet-4-20250514",max_tokens:1600,
         messages:[{role:"user",content:
           "Eres analista de baloncesto. Analiza este partido de Tololiver Basketball Coach.\n\n"
-          +"PARTIDO: Tololiver vs "+m.rival+" ("+m.location+") "+m.date+"\n"
+          +"PARTIDO: C.B. Muro vs "+m.rival+" ("+m.location+") "+m.date+"\n"
           +"RESULTADO FINAL: "+resultLine+"\n\n"
           +qLines
           +(ourStats?"NUESTRAS ESTADÍSTICAS:\n"+ourStats+"\n\n":"")
@@ -6325,7 +6325,7 @@ function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
     ${notes?`<div style="margin-top:16px;padding:14px;background:#f8fafc;border-left:4px solid #f97316;border-radius:4px"><p style="font-size:11px;font-weight:700;color:#1e3a5f;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Observaciones</p><p style="font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap">${notes}</p></div>`:""}
     ${aiReport?`<div style="margin-top:16px;padding:14px;background:#f0fdf4;border-left:4px solid #10b981;border-radius:4px"><p style="font-size:11px;font-weight:700;color:#065f46;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Informe IA</p><p style="font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap">${aiReport}</p></div>`:""}
     <div style="margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
-      <span>Tololiver · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span>
+      <span>C.B. Muro · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span>
     </div>
     <script>setTimeout(()=>window.print(),400)</script>
   </body></html>`);
