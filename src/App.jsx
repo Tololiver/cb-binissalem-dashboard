@@ -4460,8 +4460,6 @@ function ModoPartido(){
   const[pdfLoading,setPdfLoading]=useState(false);
   const[pdfMsg,setPdfMsg]=useState(null);
   const pdfRef=useRef();
-  const[pdfLoading,setPdfLoading]=useState(false);
-  const[pdfMsg,setPdfMsg]=useState(null);
 
   const importStatsPDF=async e=>{
     const file=e.target.files?.[0];if(!file)return;
