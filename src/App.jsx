@@ -4701,7 +4701,7 @@ Si no encuentras un dato, pon 0.`}]}]});
               </tr>}
             </thead>
             <tbody>
-              {[{label:"Tololiver",arr:qUs,setArr:setQUs,color:"#f97316",isUs:true},{label:m.rival,arr:qTh,setArr:setQTh,color:"#3b82f6",isUs:false}].map(row=>(
+              {[{label:"C.B. Muro",arr:qUs,setArr:setQUs,color:"#f97316",isUs:true},{label:m.rival,arr:qTh,setArr:setQTh,color:"#3b82f6",isUs:false}].map(row=>(
                 <tr key={row.label} style={{borderTop:`1px solid ${th.border}`}}>
                   <td style={{padding:"12px 12px"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
