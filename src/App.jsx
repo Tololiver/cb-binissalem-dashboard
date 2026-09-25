@@ -4460,6 +4460,42 @@ function ModoPartido(){
   const[pdfLoading,setPdfLoading]=useState(false);
   const[pdfMsg,setPdfMsg]=useState(null);
   const pdfRef=useRef();
+  const[pdfLoading,setPdfLoading]=useState(false);
+  const[pdfMsg,setPdfMsg]=useState(null);
+
+  const importStatsPDF=async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    if(!apiKey){setPdfMsg("❌ Configura tu API Key en Ajustes.");return;}
+    setPdfLoading(true);setPdfMsg(null);
+    try{
+      const isPDF=file.type==="application/pdf"||file.name?.toLowerCase().endsWith(".pdf");
+      const mt=isPDF?"application/pdf":(file.type||"image/jpeg");
+      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e2=>res(e2.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const contentBlock=isPDF?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}:{type:"image",source:{type:"base64",media_type:mt,data:base64}};
+      const playerNames=convPlayers.map(p=>`#${p.num} ${p.name}`).join(", ");
+      const resp=await callClaude(apiKey,{model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:[contentBlock,{type:"text",text:`Eres un analista de baloncesto. Extrae las estadísticas individuales del acta/documento. Los jugadores de C.B. Muro son: ${playerNames}.
+
+Devuelve SOLO un JSON con este formato exacto:
+{"jugadores":[{"num":"4","min":20,"pt":8,"tl_i":2,"tl_m":1,"t2_i":4,"t2_m":3,"t3_i":1,"t3_m":0,"fc":2}]}
+
+Si no encuentras un dato, pon 0.`}]}]});
+      const text=resp.content?.find(b=>b.type==="text")?.text||"";
+      const jsonMatch=text.match(/\{[\s\S]*\}/);
+      if(!jsonMatch)throw new Error("No se encontró JSON en la respuesta");
+      const parsed=JSON.parse(jsonMatch[0]);
+      if(parsed.jugadores){
+        const newStats={};
+        parsed.jugadores.forEach(js=>{
+          const player=convPlayers.find(p=>String(p.num)===String(js.num));
+          if(player)newStats[player.id]={min:String(js.min||0),pt:String(js.pt||0),tl_i:String(js.tl_i||0),tl_m:String(js.tl_m||0),t2_i:String(js.t2_i||0),t2_m:String(js.t2_m||0),t3_i:String(js.t3_i||0),t3_m:String(js.t3_m||0),fc:String(js.fc||0)};
+        });
+        setPStats(prev=>({...prev,...newStats}));
+        setPdfMsg(`✅ Stats importadas para ${Object.keys(newStats).length} jugadores`);
+      }
+    }catch(err){setPdfMsg("❌ "+err.message?.slice(0,60));}
+    setPdfLoading(false);
+    if(pdfRef.current)pdfRef.current.value="";
+  };
 
   // Períodos — tamaño dinámico según tipo de equipo
   const[qUs,setQUs]=useState(emptyPeriodos());
@@ -4759,8 +4795,8 @@ function ModoPartido(){
               {convPlayers.map(p=><tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`}}>
                 <td style={{padding:"10px 12px"}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:28,height:28,borderRadius:14,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff"}}>{p.num}</div>
-                    <div><p style={{fontSize:12,color:th.text,fontWeight:600}}>{p.name.split(" ")[0]}</p><p style={{fontSize:10,color:th.muted}}>{p.pos}</p></div>
+                    <div style={{width:28,height:28,borderRadius:14,background:"#f97316",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:"#fff"}}>{p.num||"?"}</div>
+                    <div><p style={{fontSize:12,color:th.text,fontWeight:600}}>{(p.name||"Jugador").split(" ")[0]}</p><p style={{fontSize:10,color:th.muted}}>{p.pos||""}</p></div>
                   </div>
                 </td>
                 <td style={{padding:"8px 6px",textAlign:"center"}}><SF pid={p.id} field="min" label="" getStat={getStat} setStat={setStat} statsCommitted={statsCommitted}/></td>
