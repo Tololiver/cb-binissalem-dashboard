@@ -6562,7 +6562,6 @@ const NAV=[
   {id:"evolucion",  label:"Rendimiento",    icon:Activity},
   {id:"evaluacion", label:"Evaluación",     icon:Star},
   {id:"iq",         label:"Basketball IQ",  icon:Target},
-  {id:"shotchart",  label:"Shot Chart",     icon:Target},
   {sep:true,label:"ENTRENAMIENTOS"},
   // ── ENTRENAMIENTOS ───────────────────────────────────
   {id:"train",      label:"Entrenamientos", icon:Dumbbell},
@@ -6570,7 +6569,6 @@ const NAV=[
   {id:"plan",       label:"Planificación",  icon:Target},
   {sep:true,label:"TÁCTICA"},
   // ── TÁCTICA ──────────────────────────────────────────
-  {id:"pizarra",    label:"Pizarra",        icon:PenTool},
   {id:"playbook",   label:"Playbook",       icon:BookOpen},
   {id:"exercises",  label:"Ejercicios",     icon:Target},
   {id:"partido",    label:"Modo Partido",   icon:Trophy},
