@@ -6559,6 +6559,192 @@ function Evaluacion(){
   </div>;
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   CONTROL DE TIROS — TL y T3 por jugador en entrenamientos
+══════════════════════════════════════════════════════════ */
+function ControlTiros(){
+  const{th}=useTheme();
+  const{players,sessions,setSessions}=useData();
+  const[view,setView]=useState("session"); // session | month | season
+  const[selDate,setSelDate]=useState(()=>new Date().toISOString().split("T")[0]);
+
+  const activePlayers=[...players].filter(p=>p.active).sort((a,b)=>(+a.num||0)-(+b.num||0));
+
+  // Find or create tiros record for a date
+  const getTirosForDate=(date)=>{
+    const s=sessions.find(x=>x.date===date&&x._tiros);
+    return s?s._tirosData:{};
+  };
+
+  const setTiro=(date,pid,field,val)=>{
+    if(!/^\d*$/.test(val))return;
+    setSessions(prev=>{
+      const idx=prev.findIndex(x=>x.date===date&&x._tiros);
+      const tirosData=idx>=0?{...prev[idx]._tirosData}:{};
+      tirosData[pid]={...(tirosData[pid]||{}),[field]:+val||0};
+      if(idx>=0){
+        const updated=[...prev];updated[idx]={...updated[idx],_tirosData:tirosData};return updated;
+      }
+      return[...prev,{id:Date.now(),date,title:"Control Tiros "+date,type:"Técnico",dur:0,_tiros:true,_tirosData:tirosData,exObjs:[],notes:""}];
+    });
+  };
+
+  // Aggregate stats from a list of tiros records
+  const aggregate=(tirosList)=>{
+    const totals={};
+    activePlayers.forEach(p=>{totals[p.id]={tl_i:0,tl_m:0,t3_i:0,t3_m:0};});
+    tirosList.forEach(t=>{
+      Object.entries(t).forEach(([pid,vals])=>{
+        if(totals[pid]){
+          totals[pid].tl_i+=(vals.tl_i||0);
+          totals[pid].tl_m+=(vals.tl_m||0);
+          totals[pid].t3_i+=(vals.t3_i||0);
+          totals[pid].t3_m+=(vals.t3_m||0);
+        }
+      });
+    });
+    return totals;
+  };
+
+  const pct=(m,i)=>i>0?Math.round(m/i*100)+"%":"—";
+
+  // Get all tiros sessions
+  const allTirosSessions=sessions.filter(s=>s._tiros&&s._tirosData);
+
+  // Month list from tiros sessions
+  const months=[...new Set(allTirosSessions.map(s=>s.date?.slice(0,7)))].sort().reverse();
+  const[selMonth,setSelMonth]=useState(()=>new Date().toISOString().slice(0,7));
+
+  const TirosTable=({data,showSessions,dates})=>{
+    const teamTlI=activePlayers.reduce((a,p)=>a+(data[p.id]?.tl_i||0),0);
+    const teamTlM=activePlayers.reduce((a,p)=>a+(data[p.id]?.tl_m||0),0);
+    const teamT3I=activePlayers.reduce((a,p)=>a+(data[p.id]?.t3_i||0),0);
+    const teamT3M=activePlayers.reduce((a,p)=>a+(data[p.id]?.t3_m||0),0);
+
+    return <div className="card" style={{overflow:"auto",padding:0}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:500}}>
+        <thead>
+          <tr style={{background:"#1e3a5f"}}>
+            <th style={{padding:"10px 14px",textAlign:"left",fontFamily:"Barlow Condensed",fontSize:11,color:"rgba(255,255,255,.7)",fontWeight:700,textTransform:"uppercase"}}>Jugador</th>
+            <th colSpan={3} style={{padding:"10px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:"#f59e0b",fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid #f59e0b55"}}>Tiros Libres</th>
+            <th colSpan={3} style={{padding:"10px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid #8b5cf655"}}>Triples</th>
+          </tr>
+          <tr style={{background:"#1e3a5f"}}>
+            <th style={{padding:"6px 14px",background:"#1e3a5f"}}/>
+            {["TI","TE","%"].map(h=><th key={"tl"+h} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#f59e0b",fontWeight:700,width:60}}>{h}</th>)}
+            {["TI","TE","%"].map(h=><th key={"t3"+h} style={{padding:"6px 8px",textAlign:"center",fontFamily:"Barlow Condensed",fontSize:10,color:"#8b5cf6",fontWeight:700,width:60}}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {activePlayers.map((p,i)=>{
+            const d=data[p.id]||{tl_i:0,tl_m:0,t3_i:0,t3_m:0};
+            return <tr key={p.id} className="hrow" style={{borderTop:`1px solid ${th.border}`,background:i%2===0?th.card:th.card2}}>
+              <td style={{padding:"9px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:26,height:26,borderRadius:13,background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Barlow Condensed",fontSize:12,fontWeight:700,color:"#fff"}}>{p.num}</div>
+                  <span style={{fontFamily:"Barlow Condensed",fontSize:13,fontWeight:600,color:th.text}}>{p.name?.split(" ")[0]} {p.name?.split(" ")[1]||""}</span>
+                </div>
+              </td>
+              {showSessions
+                ?<>
+                  <td style={{padding:"9px 8px",textAlign:"center"}}><input type="text" inputMode="numeric" maxLength={3} value={data[p.id]?.tl_i||""} onChange={e=>setTiro(selDate,p.id,"tl_i",e.target.value)} style={{width:48,textAlign:"center",fontFamily:"DM Mono",fontSize:13,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,color:th.text,padding:"3px 0"}}/></td>
+                  <td style={{padding:"9px 8px",textAlign:"center"}}><input type="text" inputMode="numeric" maxLength={3} value={data[p.id]?.tl_m||""} onChange={e=>setTiro(selDate,p.id,"tl_m",e.target.value)} style={{width:48,textAlign:"center",fontFamily:"DM Mono",fontSize:13,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,color:th.text,padding:"3px 0"}}/></td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:700,color:"#f59e0b"}}>{pct(data[p.id]?.tl_m||0,data[p.id]?.tl_i||0)}</td>
+                  <td style={{padding:"9px 8px",textAlign:"center"}}><input type="text" inputMode="numeric" maxLength={3} value={data[p.id]?.t3_i||""} onChange={e=>setTiro(selDate,p.id,"t3_i",e.target.value)} style={{width:48,textAlign:"center",fontFamily:"DM Mono",fontSize:13,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,color:th.text,padding:"3px 0"}}/></td>
+                  <td style={{padding:"9px 8px",textAlign:"center"}}><input type="text" inputMode="numeric" maxLength={3} value={data[p.id]?.t3_m||""} onChange={e=>setTiro(selDate,p.id,"t3_m",e.target.value)} style={{width:48,textAlign:"center",fontFamily:"DM Mono",fontSize:13,border:`1px solid ${th.border2}`,borderRadius:5,background:th.card2,color:th.text,padding:"3px 0"}}/></td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:700,color:"#8b5cf6"}}>{pct(data[p.id]?.t3_m||0,data[p.id]?.t3_i||0)}</td>
+                </>
+                :<>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{d.tl_i||0}</td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{d.tl_m||0}</td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:700,color:"#f59e0b"}}>{pct(d.tl_m,d.tl_i)}</td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{d.t3_i||0}</td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{d.t3_m||0}</td>
+                  <td style={{padding:"9px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,fontWeight:700,color:"#8b5cf6"}}>{pct(d.t3_m,d.t3_i)}</td>
+                </>}
+            </tr>;
+          })}
+          {/* Totales equipo */}
+          <tr style={{borderTop:`2px solid ${th.border}`,background:th.card2}}>
+            <td style={{padding:"10px 14px",fontFamily:"Barlow Condensed",fontSize:13,fontWeight:700,color:th.text}}>EQUIPO TOTAL</td>
+            <td style={{padding:"10px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{teamTlI}</td>
+            <td style={{padding:"10px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{teamTlM}</td>
+            <td style={{padding:"10px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:14,fontWeight:800,color:"#f59e0b"}}>{pct(teamTlM,teamTlI)}</td>
+            <td style={{padding:"10px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{teamT3I}</td>
+            <td style={{padding:"10px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:13,color:th.muted}}>{teamT3M}</td>
+            <td style={{padding:"10px 8px",textAlign:"center",fontFamily:"DM Mono",fontSize:14,fontWeight:800,color:"#8b5cf6"}}>{pct(teamT3M,teamT3I)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>;
+  };
+
+  // Session view data
+  const sessionData=getTirosForDate(selDate);
+
+  // Month view data
+  const monthSessions=allTirosSessions.filter(s=>s.date?.startsWith(selMonth));
+  const monthData=aggregate(monthSessions.map(s=>s._tirosData));
+
+  // Season data
+  const seasonData=aggregate(allTirosSessions.map(s=>s._tirosData));
+
+  return <div>
+    <SH title="Control de Tiros" sub="TL y Triples en entrenamientos · Por sesion · Por mes · Temporada"/>
+
+    {/* Vista selector */}
+    <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+      {[["session","📅 Sesión"],["month","📆 Mes"],["season","🏆 Temporada"]].map(([v,l])=>(
+        <button key={v} onClick={()=>setView(v)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:13,background:view===v?"#f97316":th.card2,color:view===v?"#fff":th.sub}}>{l}</button>
+      ))}
+
+      {view==="session"&&<input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{fontFamily:"DM Mono",fontSize:12,marginLeft:8}}/>}
+      {view==="month"&&<select value={selMonth} onChange={e=>setSelMonth(e.target.value)} style={{fontFamily:"Barlow Condensed",fontSize:13,marginLeft:8}}>
+        {months.length?months.map(m=><option key={m} value={m}>{m}</option>):<option value={selMonth}>{selMonth}</option>}
+      </select>}
+    </div>
+
+    {/* KPIs */}
+    {view!=="session"&&(()=>{
+      const d=view==="month"?monthData:seasonData;
+      const tlI=Object.values(d).reduce((a,v)=>a+(v.tl_i||0),0);
+      const tlM=Object.values(d).reduce((a,v)=>a+(v.tl_m||0),0);
+      const t3I=Object.values(d).reduce((a,v)=>a+(v.t3_i||0),0);
+      const t3M=Object.values(d).reduce((a,v)=>a+(v.t3_m||0),0);
+      return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:14}}>
+        {[{l:"TL%",v:pct(tlM,tlI),c:"#f59e0b",s:`${tlM}/${tlI} metidos`},
+          {l:"T3%",v:pct(t3M,t3I),c:"#8b5cf6",s:`${t3M}/${t3I} metidos`}].map(k=>(
+          <div key={k.l} className="card" style={{padding:"14px 16px",borderTop:`3px solid ${k.c}`}}>
+            <p style={{fontFamily:"DM Mono",fontSize:30,fontWeight:800,color:k.c,lineHeight:1,marginBottom:4}}>{k.v}</p>
+            <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:700,color:th.text}}>{k.l} Equipo</p>
+            <p style={{fontSize:10,color:th.muted}}>{k.s}</p>
+          </div>
+        ))}
+      </div>;
+    })()}
+
+    {view==="session"&&<TirosTable data={sessionData} showSessions={true}/>}
+    {view==="month"&&<TirosTable data={monthData} showSessions={false}/>}
+    {view==="season"&&<TirosTable data={seasonData} showSessions={false}/>}
+
+    {view==="season"&&allTirosSessions.length>0&&<div style={{marginTop:14}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:11,color:th.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Histórico de sesiones</p>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {allTirosSessions.slice().reverse().map(s=>{
+          const d=s._tirosData;
+          const tlI=Object.values(d).reduce((a,v)=>a+(v.tl_i||0),0);
+          const tlM=Object.values(d).reduce((a,v)=>a+(v.tl_m||0),0);
+          return <div key={s.id} className="card" style={{padding:"8px 12px",minWidth:120}}>
+            <p style={{fontFamily:"DM Mono",fontSize:10,color:th.muted,marginBottom:4}}>{s.date}</p>
+            <p style={{fontSize:11,color:"#f59e0b",fontFamily:"Barlow Condensed",fontWeight:700}}>TL: {pct(tlM,tlI)}</p>
+          </div>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
 const NAV=[
   // ── EQUIPO ──────────────────────────────────────────
   {id:"dashboard",  label:"Panel",          icon:LayoutDashboard},
@@ -6572,7 +6758,7 @@ const NAV=[
   // ── ANÁLISIS ─────────────────────────────────────────
   {id:"stats",      label:"Estadísticas",   icon:BarChart2},
   {id:"evolucion",  label:"Rendimiento",    icon:Activity},
-  {id:"evaluacion", label:"Evaluación",     icon:Star},
+  {id:"tiros",      label:"Control Tiros",  icon:Target},
   {id:"iq",         label:"Basketball IQ",  icon:Target},
   {sep:true,label:"ENTRENAMIENTOS"},
   // ── ENTRENAMIENTOS ───────────────────────────────────
@@ -6592,7 +6778,7 @@ const NAV=[
   {id:"buscador",   label:"Buscador IA",    icon:Search},
   {id:"recursos",   label:"Recursos",       icon:Link},
 ];
-const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,evaluacion:Evaluacion,recursos:Recursos};
+const VIEWS={dashboard:Dashboard,plantilla:Plantilla,partidos:Partidos,calendario:Calendario,plan:Planificacion,stats:Estadisticas,evolucion:EvolucionStats,train:Entrenamientos,carga:CargaTrabajo,informe:InformeSemanal,attend:Asistencia,lineup:Quinteto,partido:ModoPartido,playbook:Playbook,exercises:Ejercicios,shotchart:ShotChart,pizarra:Pizarra,ia:IAAsistente,iq:BasketballIQ,informes:Informes,buscador:BuscadorIA,clasificacion:Clasificacion,evaluacion:Evaluacion,tiros:ControlTiros,recursos:Recursos};
 
 /* ── Team Modal ───────────────────────────────────────────────── */
 const REGLAMENTOS={
