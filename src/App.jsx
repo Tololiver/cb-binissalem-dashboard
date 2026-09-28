@@ -6060,6 +6060,11 @@ function ClasifNI({field,wide,editRow,setEditRow,th}){
 
 function Clasificacion(){
   const{th}=useTheme();const{apiKey}=useData();
+  const{teamId}=useAppContext();
+  const LEAGUE_CFG={
+    mini_masc:  {liga:"Mini Masculí - Promoció G.1.",      temporada:"2026/27"},
+    cadete_masc:{liga:"Cadet Masculí - Preferent - G.2.3", temporada:"2026/27"},
+  };
   const[tabla,setTabla]=useState(INIT_CLASIFICACION);
   const[editIdx,setEditIdx]=useState(null);
   const[editRow,setEditRow]=useState(null);
@@ -6067,8 +6072,12 @@ function Clasificacion(){
   const[newRow,setNewRow]=useState({equip:"",j:0,g:0,p:0,np:0,pe:0,pf:0,pc:0,pts:0});
   const[aiLoading,setAiLoading]=useState(false);
   const[aiMsg,setAiMsg]=useState(null);
-  const[liga,setLiga]=useState("Cadet Masculí - Preferent - G.2.3");
-  const[temporada,setTemporada]=useState("2025/26");
+  const cfg=LEAGUE_CFG[teamId]||{liga:"Competición",temporada:"2026/27"};
+  const[liga,setLiga]=useState(cfg.liga);
+  const[temporada,setTemporada]=useState(cfg.temporada);
+  // Reset liga/temporada when team switches
+  const prevTeamRef=useRef(teamId);
+  if(prevTeamRef.current!==teamId){prevTeamRef.current=teamId;const c=LEAGUE_CFG[teamId];if(c){setLiga(c.liga);setTemporada(c.temporada);setTabla(INIT_CLASIFICACION);}}
   const imgRef=useRef();
 
   const sorted=[...tabla].sort((a,b)=>b.pts-a.pts||b.g-a.g||(a.pc-a.pf)-(b.pc-b.pf));
