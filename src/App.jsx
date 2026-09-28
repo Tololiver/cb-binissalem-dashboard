@@ -6065,7 +6065,7 @@ function Clasificacion(){
   const[newRow,setNewRow]=useState({equip:"",j:0,g:0,p:0,np:0,pe:0,pf:0,pc:0,pts:0});
   const[aiLoading,setAiLoading]=useState(false);
   const[aiMsg,setAiMsg]=useState(null);
-  const[liga,setLiga]=useState("3a Autonòmica Masculina - Mallorca");
+  const[liga,setLiga]=useState("Cadet Masculí - Preferent - G.2.3");
   const[temporada,setTemporada]=useState("2025/26");
   const imgRef=useRef();
 
@@ -6122,7 +6122,7 @@ function Clasificacion(){
     <SH title="Clasificación" sub={liga+" · "+temporada}
       right={<div style={{display:"flex",gap:8,alignItems:"center"}}>
         <input ref={imgRef} type="file" accept="image/*,.pdf" style={{display:"none"}} onChange={importFromImage}/>
-        <Btn onClick={()=>imgRef.current?.click()} variant="ghost" disabled={aiLoading}
+        <Btn onClick={()=>{if(imgRef.current){imgRef.current.value="";imgRef.current.click();}}} variant="ghost" disabled={aiLoading}
           icon={aiLoading?<Loader size={13} style={{animation:"spin 1s linear infinite"}}/>:<Camera size={13}/>}>
           {aiLoading?"Leyendo…":"Actualizar con foto"}
         </Btn>
