@@ -2543,10 +2543,12 @@ async function callClaude(apiKey, body){
     body:JSON.stringify(body)
   });
   if(!res.ok){
-    if(res.status===429) throw new Error("Límite de requests alcanzado (429). Espera 30 segundos e inténtalo de nuevo.");
-    if(res.status===401) throw new Error("API Key incorrecta (401). Revisa la clave en ⚙️ Ajustes.");
-    if(res.status===403) throw new Error("Sin permisos (403). Verifica tu plan en console.anthropic.com.");
-    throw new Error(`API error ${res.status}`);
+    let detail="";
+    try{const j=await res.json();detail=j?.error?.message||"";}catch{}
+    if(res.status===429) throw new Error("Límite de requests (429). Espera 30s.");
+    if(res.status===401) throw new Error("API Key incorrecta (401). Revisa en Ajustes.");
+    if(res.status===403) throw new Error("Sin permisos (403). Verifica tu plan.");
+    throw new Error(`API error ${res.status}${detail?" — "+detail.slice(0,80):""}` );
   }
   return res.json();
 }
@@ -6092,7 +6094,8 @@ function Clasificacion(){
       const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=ev=>res(ev.target.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
       // Detect media type robustly (file.type can be empty on some browsers)
       const isPDF=file.type==="application/pdf"||file.name?.toLowerCase().endsWith(".pdf");
-      const mt=isPDF?"application/pdf":(file.type||"image/jpeg");
+      const ext=file.name?.split(".").pop()?.toLowerCase();
+      const mt=isPDF?"application/pdf":file.type||(ext==="png"?"image/png":"image/jpeg");
       const contentBlock=isPDF
         ?{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
         :{type:"image",source:{type:"base64",media_type:mt.startsWith("image/")?mt:"image/jpeg",data:base64}};
