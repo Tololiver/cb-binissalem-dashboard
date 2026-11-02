@@ -34,6 +34,7 @@ const sb = createClient(
 
 /* ── BIBLIOTECA DE EJERCICIOS (tablas Supabase) ──────────────── */
 const BIB_BUCKET="ejercicios-media";
+const BIB_MAX_IMG=4;
 const BIB_CATS=["Mini","Cadet","Senior"];
 const BIB_FASES=[["calentamiento","Calentamiento"],["principal","Parte principal"],["final","Final"],["cualquiera","Cualquiera"]];
 const bibIntToDiff=n=>!n?"":n<=2?"Básico":n===3?"Medio":"Alto";
@@ -58,7 +59,7 @@ async function bibLoad(){
   (r3.data||[]).forEach(m=>{const url=sb.storage.from(BIB_BUCKET).getPublicUrl(m.storage_path).data.publicUrl;(mediaMap[m.ejercicio_id]=mediaMap[m.ejercicio_id]||[]).push({...m,url});});
   return{tipologias:r2.data||[],list:(r1.data||[]).map(r=>bibMap(r,tipMap,mediaMap))};
 }
-async function bibSave(id,fields,newImages=[],removedMedia=[]){
+async function bibSave(id,fields,mediaItems=[],removedMedia=[]){
   let exId=id;
   if(id){const{error}=await sb.from("ejercicios").update(fields).eq("id",id);if(error)throw error;}
   else{const{data,error}=await sb.from("ejercicios").insert({...fields,slug:bibSlug(fields.nombre)}).select("id").single();if(error)throw error;exId=data.id;}
@@ -66,14 +67,21 @@ async function bibSave(id,fields,newImages=[],removedMedia=[]){
     const{error}=await sb.from("ejercicio_media").delete().eq("id",m.id);if(error)throw error;
     await sb.storage.from(BIB_BUCKET).remove([m.storage_path]);
   }
-  for(let i=0;i<newImages.length;i++){
-    const blob=await (await fetch(newImages[i])).blob();
-    const ext=blob.type==="image/png"?"png":"jpg";
-    const path=`${exId}/${Date.now()}_${i}.${ext}`;
-    const up=await sb.storage.from(BIB_BUCKET).upload(path,blob,{contentType:blob.type||"image/jpeg"});
-    if(up.error)throw up.error;
-    const{error}=await sb.from("ejercicio_media").insert({ejercicio_id:exId,tipo:"pizarra",storage_path:path,orden:Date.now()%100000+i});
-    if(error)throw error;
+  for(let i=0;i<mediaItems.length;i++){
+    const it=mediaItems[i];const orden=i+1;const pie=(it.pie||"").trim()||null;
+    if(it.id){
+      if(it.orden!==orden||(it.pieOrig||null)!==pie){
+        const{error}=await sb.from("ejercicio_media").update({orden,pie}).eq("id",it.id);if(error)throw error;
+      }
+    }else{
+      const blob=await (await fetch(it.dataUrl)).blob();
+      const ext=blob.type==="image/png"?"png":"jpg";
+      const path=`${exId}/${Date.now()}_${i}.${ext}`;
+      const up=await sb.storage.from(BIB_BUCKET).upload(path,blob,{contentType:blob.type||"image/jpeg"});
+      if(up.error)throw up.error;
+      const{error}=await sb.from("ejercicio_media").insert({ejercicio_id:exId,tipo:"pizarra",storage_path:path,orden,pie});
+      if(error)throw error;
+    }
   }
   return exId;
 }
@@ -424,60 +432,191 @@ function mdToHtml(text){
 }
 
 /* ── PDF EXPORT FOR TRAINING ─────────────────────────────── */
-function exportSessionPDF(session){
-  const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
-  const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Técnico",tactico:"Táctico",fisico:"Físico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
-  const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
+/* ── CALENDARIO DE ENTRENOS · nombre automático de sesiones ──────────
+   "N Sessió d'entrenament": N = días de entreno desde el inicio del equipo
+   hasta la fecha, sin contar los días sin entreno (festivos, vacaciones). */
+const CAL_DEFAULT={
+  trainDays:[1,2,4],                                   // 0=domingo … 1=lunes, 2=martes, 4=jueves
+  starts:{cadete_masc:"2026-08-24",mini_masc:"2026-09-02"},
+  noTrain:[
+    {from:"2026-10-12",to:"2026-10-12",label:"Festa Nacional"},
+    {from:"2026-12-08",to:"2026-12-08",label:"Immaculada Concepció"},
+    {from:"2026-12-23",to:"2027-01-06",label:"Vacances de Nadal (calendari escolar)"},
+    {from:"2027-02-26",to:"2027-02-26",label:"Festa escolar unificada"},
+    {from:"2027-03-01",to:"2027-03-01",label:"Dia de les Illes Balears"},
+    {from:"2027-03-25",to:"2027-04-04",label:"Vacances de Pasqua (calendari escolar)"},
+    {from:"2027-05-01",to:"2027-05-01",label:"Festa del Treball"},
+    {from:"2027-06-24",to:"2027-06-24",label:"Sant Joan (festa local Muro)"},
+  ],
+};
+const CAL_DAYS=[[1,"L"],[2,"M"],[3,"X"],[4,"J"],[5,"V"],[6,"S"],[0,"D"]];
+const calToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+const calUTC=s=>{const[y,m,d]=String(s).split("-").map(Number);return Date.UTC(y,m-1,d);};
+const calStr=t=>new Date(t).toISOString().slice(0,10);
+const calIsNoTrain=(s,cal)=>(cal?.noTrain||[]).some(r=>r.from&&s>=r.from&&s<=(r.to||r.from));
+// Número de sesión para una fecha: días de entreno en [inicio, fecha) + 1. El día de inicio cuenta siempre como 1.
+function sesNumber(dateStr,cal,teamId){
+  const start=cal?.starts?.[teamId];
+  if(!start||!dateStr||!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)||dateStr<start)return null;
+  const days=cal.trainDays||[];let n=0;
+  for(let t=calUTC(start),end=calUTC(dateStr);t<end;t+=86400000){
+    const s=calStr(t);
+    if((s===start||days.includes(new Date(t).getUTCDay()))&&!calIsNoTrain(s,cal))n++;
+  }
+  return n+1;
+}
+const SES_AUTO_RE=/^\d+ Sessió d'entrenament$/;
+const sesAutoTitle=(dateStr,cal,teamId)=>{const n=sesNumber(dateStr,cal,teamId);return n?`${n} Sessió d'entrenament`:"";};
 
-  const exObjs=session.exObjs||[];
-  const w=window.open("","_blank");
+function CalendarioEntrenos({onClose}){
+  const{th}=useTheme();const{calendario,saveCalendario}=useData();const{teamId,teamsConfig}=useAppContext();
+  const[c,setC]=useState(()=>JSON.parse(JSON.stringify(calendario||CAL_DEFAULT)));
+  const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
+  const toggleDay=d=>setC(x=>({...x,trainDays:x.trainDays.includes(d)?x.trainDays.filter(y=>y!==d):[...x.trainDays,d]}));
+  const setRow=(i,k,v)=>setC(x=>({...x,noTrain:x.noTrain.map((r,j)=>j===i?{...r,[k]:v}:r)}));
+  const save=async()=>{
+    setBusy(true);setMsg("");
+    try{
+      const clean={...c,noTrain:c.noTrain.filter(r=>r.from).map(r=>({...r,to:r.to&&r.to>=r.from?r.to:r.from})).sort((a,b)=>a.from.localeCompare(b.from))};
+      await saveCalendario(clean);setMsg("✓ Guardado");setTimeout(onClose,600);
+    }catch(e){console.error(e);setMsg("❌ "+(e?.message||"No se ha podido guardar"));}
+    finally{setBusy(false);}
+  };
+  const hoy=calToday();const teams=Object.entries(teamsConfig||{});
+  const chip=on=>({width:32,height:32,borderRadius:7,border:`1px solid ${on?"#f97316":th.border2}`,background:on?"#f97316":th.card2,color:on?"#fff":th.sub,fontWeight:700,cursor:"pointer",fontFamily:"Barlow Condensed"});
+  return <div className="card" style={{padding:20,marginBottom:18,borderColor:"#f9731640"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",textTransform:"uppercase"}}>Calendario de entrenos</p>
+      <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px"}}>✕</button>
+    </div>
+    <p style={{fontSize:12,color:th.sub,marginBottom:14,lineHeight:1.6}}>Sirve para poner el nombre automático <strong>"N Sessió d'entrenament"</strong>. N cuenta los días de entreno desde el inicio de cada equipo, sin contar los días sin entreno. Común para todos los equipos.</p>
+    <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:20,marginBottom:16,alignItems:"start"}}>
+      <div><Lbl>Días de entreno</Lbl><div style={{display:"flex",gap:5}}>{CAL_DAYS.map(([d,l])=><button key={d} type="button" onClick={()=>toggleDay(d)} style={chip(c.trainDays.includes(d))}>{l}</button>)}</div></div>
+      <div><Lbl>Primer entreno de cada equipo (sesión nº 1)</Lbl>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>{teams.map(([id,t])=><div key={id} style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:12,color:th.text,whiteSpace:"nowrap"}}>{t.nombre}</span>
+          <input type="date" value={c.starts?.[id]||""} onChange={e=>{const v=e.target.value;setC(x=>({...x,starts:{...x.starts,[id]:v}}));}} style={{width:160}}/>
+        </div>)}</div>
+      </div>
+    </div>
+    <Lbl>Días sin entreno (festivos, vacaciones…)</Lbl>
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+      {c.noTrain.map((r,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"150px 150px 1fr 32px",gap:8,alignItems:"center"}}>
+        <input type="date" value={r.from||""} onChange={e=>setRow(i,"from",e.target.value)}/>
+        <input type="date" value={r.to||""} onChange={e=>setRow(i,"to",e.target.value)} title="Hasta (opcional)"/>
+        <input value={r.label||""} onChange={e=>setRow(i,"label",e.target.value)} placeholder="Motivo"/>
+        <button type="button" onClick={()=>setC(x=>({...x,noTrain:x.noTrain.filter((_,j)=>j!==i)}))} style={{height:32,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",cursor:"pointer"}}>✕</button>
+      </div>)}
+    </div>
+    <Btn sm variant="ghost" icon={<Plus size={12}/>} onClick={()=>setC(x=>({...x,noTrain:[...x.noTrain,{from:"",to:"",label:""}]}))}>Añadir día o periodo</Btn>
+    <div style={{marginTop:16,padding:"10px 12px",background:th.card2,borderRadius:8,fontSize:12,color:th.sub}}>
+      Hoy ({hoy}): {teams.map(([id,t])=><span key={id} style={{marginRight:14}}><strong style={{color:th.text}}>{t.nombre}</strong> → {sesAutoTitle(hoy,c,id)||"sin fecha de inicio"}{calIsNoTrain(hoy,c)?" (hoy es día sin entreno)":""}</span>)}
+    </div>
+    {msg&&<p style={{fontSize:12,marginTop:10,color:msg.startsWith("❌")?"#ef4444":"#10b981"}}>{msg}</p>}
+    <div style={{display:"flex",gap:8,marginTop:14}}><Btn onClick={save} disabled={busy}>{busy?"Guardando…":"Guardar"}</Btn><Btn variant="ghost" onClick={onClose}>Cancelar</Btn></div>
+  </div>;
+}
 
-  // Build exercise HTML — blocks as section headers, exercises inside
-  let contentHtml="";
-  let exCounter=0;
-  exObjs.forEach(e=>{
+/* ── PDF DE SESIÓN (diseño Tololiver) ─────────────────────────
+   · Lee la versión actual de los ejercicios de la biblioteca
+   · Tiempo por ejercicio y por bloque (suma automática)
+   · Imágenes numeradas con pie, de izquierda a derecha        */
+const SES_BLOCKS={
+  calentamiento:{label:"Calentamiento",color:"#f59e0b"},tecnico:{label:"Técnico",color:"#3b82f6"},
+  tactico:{label:"Táctico",color:"#8b5cf6"},fisico:{label:"Físico",color:"#10b981"},
+  mental:{label:"Mental",color:"#06b6d4"},competitivo:{label:"Competitivo",color:"#f97316"},
+  vuelta_calma:{label:"Vuelta a la calma",color:"#64748b"},otro:{label:"Otro",color:"#94a3b8"},
+};
+// Minutos de cada bloque = suma de sus ejercicios. Si un bloque no tiene ejercicios con minutos, se usa su valor manual.
+function sesBlockInfo(exObjs){
+  const out={};let cur=null;
+  (exObjs||[]).forEach((e,i)=>{
+    if(e.type==="block"){cur=i;out[i]={sum:0,count:0,exs:0,manual:parseInt(e.sesMin)||0};}
+    else if(cur!==null){const m=parseInt(e.sesMin)||0;out[cur].sum+=m;out[cur].exs++;if(m>0)out[cur].count++;}
+  });
+  Object.values(out).forEach(b=>{b.auto=b.count>0;b.min=b.auto?b.sum:b.manual;});
+  return out;
+}
+function sesTotalMin(exObjs){
+  const bi=sesBlockInfo(exObjs);
+  return (exObjs||[]).reduce((a,e,i)=>a+(e.type==="block"?(bi[i].auto?0:bi[i].manual):(parseInt(e.sesMin)||0)),0);
+}
+const sesEsc=t=>String(t??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const sesNl=t=>sesEsc(t).replace(/\n/g,"<br/>");
+
+function exportSessionPDF(s,biblioList=[]){
+  const exObjs=s.exObjs||[];
+  const bi=sesBlockInfo(exObjs);
+  const lib=Object.fromEntries((biblioList||[]).map(x=>[String(x.id),x]));
+  // Reloj: arranca en la hora de la sesión si existe
+  const m0=/^(\d{1,2}):(\d{2})/.exec(s.time||"");
+  let clock=m0?(+m0[1])*60+(+m0[2]):null;
+  const hm=m=>m===null?"":`${Math.floor(m/60)%24}:${String(m%60).padStart(2,"0")}`;
+  const range=(a,b)=>a===null?"":`${hm(a)} – ${hm(b)}`;
+
+  let body="";let n=0;const bars=[];
+  exObjs.forEach((e,i)=>{
     if(e.type==="block"){
-      const icon=BLOCK_ICONS[e.blockType]||"📋";
-      const label=BLOCK_LABELS[e.blockType]||"Bloque";
-      const color=BLOCK_COLORS[e.blockType]||"#64748b";
-      contentHtml+=`<div style="margin:18px 0 8px;padding:8px 14px;background:${color}18;border-left:4px solid ${color};border-radius:0 6px 6px 0;display:flex;align-items:center;gap:10;break-inside:avoid">
-        <span style="font-size:18px">${icon}</span>
-        <div>
-          <span style="font-family:Barlow Condensed,Arial;font-size:15px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px">${label}</span>
-          ${e.sesMin?`<span style="font-family:DM Mono,monospace;font-size:11px;color:${color};margin-left:10px">${e.sesMin} min</span>`:""}
-          ${e.desc?`<p style="font-size:12px;color:#475569;margin:3px 0 0">${e.desc}</p>`:""}
-        </div>
+      const cfg=SES_BLOCKS[e.blockType]||SES_BLOCKS.otro;const b=bi[i];
+      if(b.min>0)bars.push({label:cfg.label,color:cfg.color,min:b.min});
+      const start=clock;const end=clock===null?null:clock+b.min;
+      body+=`<div style="margin:20px 0 8px;padding:9px 14px;background:${cfg.color}18;border-left:4px solid ${cfg.color};border-radius:0 6px 6px 0;break-inside:avoid;break-after:avoid;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div><span style="font-size:14px;font-weight:800;color:${cfg.color};text-transform:uppercase;letter-spacing:.5px">${cfg.label}</span>
+        <p style="font-size:12px;color:#475569;margin:2px 0 0">${e.desc?sesEsc(e.desc)+" · ":""}${b.exs} ejercicio${b.exs!==1?"s":""}</p></div>
+        ${b.min>0?`<div style="text-align:right;flex-shrink:0"><div style="font-size:20px;font-weight:800;color:${cfg.color};line-height:1">${b.min}'</div>${start!==null?`<div style="font-family:monospace;font-size:10px;color:#64748b">${range(start,end)}</div>`:""}</div>`:""}
       </div>`;
-    } else {
-      exCounter++;
-      const name=e.name||(e.type==="free"?"Ejercicio libre":"Ejercicio");
-      const notes=e.sesNotes||e.desc||"";
-      contentHtml+=`<div style="display:flex;gap:10px;padding:7px 10px;background:${exCounter%2===0?"#f8fafc":"#fff"};border-radius:5px;margin:3px 0;break-inside:avoid">
-        <span style="font-family:DM Mono,monospace;font-size:11px;color:#94a3b8;min-width:20px">${exCounter}.</span>
-        <div style="flex:1">
-          <span style="font-size:13px;font-weight:600;color:#1e293b">${name}</span>
-          ${e.sesMin?`<span style="font-family:DM Mono,monospace;font-size:11px;color:#f97316;margin-left:8px">⏱ ${e.sesMin}'</span>`:""}
-          ${e.cat?`<span style="font-size:10px;color:#94a3b8;margin-left:6px">${e.cat}${e.diff?" · "+e.diff:""}</span>`:""}
-          ${notes?`<p style="font-size:11px;color:#64748b;margin:4px 0 0;line-height:1.5">${notes}</p>`:""}
-        </div>
-      </div>`;
+      // Un bloque sin ejercicios con minutos ocupa su propio tiempo en el reloj
+      if(!b.auto&&clock!==null)clock+=b.manual;
+      return;
     }
+    n++;
+    const cur=e.type==="catalog"?lib[String(e.id)]:null;   // versión actual de la biblioteca
+    const name=cur?.name||e.name||(e.type==="free"?"Ejercicio libre":"Ejercicio");
+    const desc=cur?cur.desc:(e.desc||"");
+    const cat=cur?(cur.tipos?.length?cur.tipos.join(" · "):cur.cat):(e.cat||"");
+    const imgs=cur?(cur.media||[]).map(m=>({url:m.url,pie:m.pie||""})):(e.images||[]).map(u=>({url:u,pie:""}));
+    const mins=parseInt(e.sesMin)||0;
+    const start=clock;const end=clock===null?null:clock+mins;
+    if(clock!==null)clock+=mins;
+    const gal=imgs.length?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">${imgs.slice(0,4).map((im,k)=>
+      `<figure style="margin:0;width:190px"><img src="${im.url}" style="width:190px;height:auto;max-height:190px;object-fit:contain;border:1px solid #e2e8f0;border-radius:6px;display:block;background:#fff"/>
+       <figcaption style="font-size:9.5px;color:#64748b;margin-top:3px;text-align:center"><strong>${k+1}</strong>${im.pie?" · "+sesEsc(im.pie):""}</figcaption></figure>`).join("")}</div>`:"";
+    body+=`<div style="padding:10px 12px;background:${n%2===0?"#f8fafc":"#fff"};border:1px solid #eef2f7;border-radius:6px;margin:6px 0;break-inside:avoid">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="font-family:monospace;font-size:11px;color:#94a3b8;min-width:18px;padding-top:2px">${n}.</span>
+        <div style="flex:1">
+          <span style="font-size:13px;font-weight:700;color:#1e293b">${sesEsc(name)}</span>
+          ${cat?`<div style="font-size:10px;color:#94a3b8;margin-top:1px">${sesEsc(cat)}</div>`:""}
+          ${desc?`<p style="font-size:11.5px;color:#475569;margin:5px 0 0;line-height:1.5">${sesNl(desc)}</p>`:""}
+          ${e.sesNotes?`<p style="font-size:11px;color:#1d4ed8;margin:5px 0 0;line-height:1.5"><strong>Nota:</strong> ${sesNl(e.sesNotes)}</p>`:""}
+        </div>
+        ${mins>0?`<div style="text-align:right;flex-shrink:0;min-width:70px"><div style="display:inline-block;background:#fff7ed;color:#f97316;font-weight:800;font-size:13px;padding:3px 9px;border-radius:5px;font-family:monospace">⏱ ${mins}'</div>${start!==null?`<div style="font-family:monospace;font-size:9.5px;color:#94a3b8;margin-top:3px">${range(start,end)}</div>`:""}</div>`:""}
+      </div>${gal}</div>`;
   });
 
-  // Fallback for old sessions without exObjs
-  if(!contentHtml&&session.exs?.length){
-    contentHtml=(session.exs||[]).map((e,i)=>
-      `<div style="padding:7px 10px"><strong>${i+1}.</strong> ${e}</div>`
-    ).join("");
-  }
+  const total=sesTotalMin(exObjs);
+  const barsHtml=bars.length?`<div class="section"><div class="section-title">Reparto del tiempo · ${total} min planificados</div><div style="display:flex;border-radius:6px;overflow:hidden">${bars.map(b=>`<div style="flex:${b.min};background:${b.color};color:#fff;font-size:10px;font-weight:700;padding:5px 6px;text-align:center">${b.label} ${b.min}'</div>`).join("")}</div></div>`:"";
+  const legacy=(s.exs&&!exObjs.length)?(Array.isArray(s.exs)?s.exs:String(s.exs).split("\n")).filter(Boolean):[];
+  const legacyHtml=legacy.length?`<div class="section"><div class="section-title">Ejercicios</div><div class="section-body">${legacy.map((e,i)=>`<div class="item"><div class="item-dot"></div><div class="item-text"><strong>${i+1}.</strong> ${sesEsc(e)}</div></div>`).join("")}</div></div>`:"";
+  const sesImgs=(s.images||[]).length?`<div class="section"><div class="section-title">Imágenes de la sesión</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.images.map(img=>`<img src="${img}" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>`).join("")}</div></div>`:"";
+  const sub=[s.date,s.time?s.time+"h":"",s.dur?s.dur+" min":"",s.type].filter(Boolean).join(" · ");
 
-  w.document.write(pdfOpen(`Sesión: ${session.title}`)
-    +pdfHeader(session.title,`${session.date} · ${session.dur} min · ${session.type}`)
-    +(session.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body">${mdToHtml(session.notes)}</div></div>`:"")
-    +(contentHtml?`<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">${contentHtml}</div></div>`:"")
-    +pdfClose()
-  );
-  w.document.close();setTimeout(()=>w.print(),400);
+  const w=window.open("","_blank");
+  if(!w){alert("El navegador ha bloqueado la ventana del PDF. Permite las ventanas emergentes para esta web.");return;}
+  w.document.write(pdfOpen("Sesión: "+(s.title||""))
+    +pdfHeader(sesEsc(s.title||"Sesión"),sesEsc(sub))
+    +(s.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body">${mdToHtml(s.notes)}</div></div>`:"")
+    +barsHtml
+    +(body?`<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">${body}</div></div>`:"")
+    +legacyHtml+sesImgs
+    +pdfClose());
+  w.document.close();
+  // Espera a que carguen las imágenes (máx. 6 s) antes de imprimir
+  const t0=Date.now();
+  const iv=setInterval(()=>{
+    const ims=[...w.document.images];
+    if(ims.every(im=>im.complete)||Date.now()-t0>6000){clearInterval(iv);w.focus();w.print();}
+  },250);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1590,6 +1729,7 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
 function SesionForm({session,ejercicios,onSave,onCancel}){
   const{th}=useTheme();
   const isEdit=!!session;
+  const{teamId}=useAppContext();const{calendario}=useData();
 
   // Migrate legacy exs (textarea) to unified exObjs on load
   const migrateExObjs=()=>{
@@ -1604,7 +1744,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   };
 
   const[f,setF]=useState({
-    date:session?.date||"",
+    date:session?.date||(isEdit?"":calToday()),
     time:session?.time||"",
     type:session?.type||"Técnico",
     dur:session?.dur||90,
@@ -1613,6 +1753,13 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     notes:session?.notes||"",
     images:session?.images||[],
   });
+  // Nombre automático "N Sessió d'entrenament" (solo si el título está vacío o ya es automático)
+  const[dateTouched,setDateTouched]=useState(!isEdit);
+  useEffect(()=>{
+    if(!dateTouched||!(f.title===""||SES_AUTO_RE.test(f.title)))return;
+    const t=sesAutoTitle(f.date,calendario,teamId);
+    if(t&&t!==f.title)setF(p=>({...p,title:t}));
+  },[f.date,calendario,teamId,dateTouched]);
   const[showPicker,setShowPicker]=useState(false);
   const[viewEx,setViewEx]=useState(null);
 
@@ -1661,7 +1808,8 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     });
   };
 
-  const totalMin=f.exObjs.reduce((a,e)=>a+(parseInt(e.sesMin)||0),0);
+  const blockInfo=sesBlockInfo(f.exObjs);
+  const totalMin=sesTotalMin(f.exObjs);
   const sesDur=parseInt(f.dur)||0;  const remaining=sesDur-totalMin;
   const pct=sesDur?Math.min(100,Math.round(totalMin/sesDur*100)):0;
   const timeColor=remaining<0?"#ef4444":remaining<=10?"#f59e0b":remaining<=20?"#3b82f6":"#10b981";
@@ -1672,7 +1820,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:16,textTransform:"uppercase"}}>{isEdit?"Editar Sesión":"Nueva Sesión"}</p>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:12}}>
-      <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))}/></div>
+      <div><Lbl>Fecha</Lbl><input type="date" value={f.date} onChange={e=>{setDateTouched(true);setF(p=>({...p,date:e.target.value}));}}/></div>
       <div><Lbl>Hora inicio</Lbl><input type="time" value={f.time} onChange={e=>setF(p=>({...p,time:e.target.value}))}/></div>
       <div><Lbl>Tipo</Lbl><select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))}>{Object.keys(TC).map(t=><option key={t}>{t}</option>)}</select></div>
       <div><Lbl>Duración (min)</Lbl><input type="number" value={f.dur} onChange={e=>setF(p=>({...p,dur:e.target.value}))}/></div>
@@ -1704,7 +1852,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
           transition:"width .3s ease"}}/>
       </div>
       {f.exObjs.length>0&&<div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
-        {f.exObjs.filter(e=>parseInt(e.sesMin)>0).map((e,i)=>{
+        {f.exObjs.map((e,idx)=>({...e,sesMin:e.type==="block"?String(blockInfo[idx]?.min||""):e.sesMin})).filter(e=>parseInt(e.sesMin)>0).map((e,i)=>{
           const isBlock=e.type==="block";
           const bc=isBlock?getBlockCfg(e.blockType):null;
           return <span key={i} style={{fontSize:10,color:isBlock?bc.color:th.muted,fontFamily:"DM Mono",
@@ -1757,7 +1905,12 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
                       width:"auto",minWidth:0,maxWidth:"100%"}}>
                     {BLOCK_TYPES.map(bt=><option key={bt.id} value={bt.id}>{bt.label}</option>)}
                   </select>
-                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  {blockInfo[idx]?.auto
+                  ?<div title="Suma automática de los ejercicios del bloque" style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontSize:10,color:bc.color,fontFamily:"Barlow Condensed"}}>auto</span>
+                    <span style={{minWidth:40,textAlign:"center",fontFamily:"DM Mono",fontSize:14,fontWeight:700,color:bc.color,border:`1px dashed ${bc.color}55`,borderRadius:5,padding:"3px 4px"}}>{blockInfo[idx].min}'</span>
+                  </div>
+                  :<div style={{display:"flex",alignItems:"center",gap:4}}>
                     <span style={{fontSize:10,color:bc.color,fontFamily:"Barlow Condensed"}}>min</span>
                     <input type="text" inputMode="numeric" maxLength={3} value={ex.sesMin||""}
                       onChange={e=>{if(/^\d*$/.test(e.target.value))updateEx(idx,"sesMin",e.target.value);}}
@@ -1765,7 +1918,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
                       style={{width:40,textAlign:"center",fontFamily:"DM Mono",fontSize:14,fontWeight:700,
                         color:bc.color,border:`1px solid ${bc.color}55`,borderRadius:5,
                         background:bc.color+"12",padding:"3px 2px"}}/>
-                  </div>
+                  </div>}
                   <div style={{display:"flex",gap:4}}>
                     <button onClick={()=>moveEx(idx,-1)} disabled={idx===0} style={{background:"transparent",border:"none",cursor:"pointer",color:bc.color,opacity:.6,padding:2}}>▲</button>
                     <button onClick={()=>moveEx(idx,1)} disabled={idx===f.exObjs.length-1} style={{background:"transparent",border:"none",cursor:"pointer",color:bc.color,opacity:.6,padding:2}}>▼</button>
@@ -1859,7 +2012,8 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
 }
 
 function Entrenamientos(){
-  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios}=useData();
+  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios,biblio}=useData();
+  const[showCal,setShowCal]=useState(false);
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
   const[editSes,setEditSes]=useState(null);
@@ -1888,7 +2042,7 @@ function Entrenamientos(){
     if(wakeLock.current){try{wakeLock.current.release();}catch(e){}wakeLock.current=null;}
   };
 
-  const getGymExs=s=>(s?.exObjs||[]).filter(e=>parseInt(e.sesMin||e.dur||0)>0);
+  const getGymExs=s=>{const bi=sesBlockInfo(s?.exObjs);return (s?.exObjs||[]).filter((e,i)=>e.type==="block"?(!bi[i].auto&&parseInt(e.sesMin)>0):parseInt(e.sesMin||e.dur||0)>0);};
 
   const startGym=s=>{
     const exs=getGymExs(s);
@@ -2076,69 +2230,18 @@ function Entrenamientos(){
   };
   const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
 
-  const exportPDF=s=>{
-    const BLOCK_ICONS={calentamiento:"🔥",tecnico:"⚙️",tactico:"🧠",fisico:"💪",mental:"🎯",competitivo:"🏀",vuelta_calma:"🧘",otro:"📋"};
-    const BLOCK_LABELS={calentamiento:"Calentamiento",tecnico:"Tecnico",tactico:"Tactico",fisico:"Fisico",mental:"Mental",competitivo:"Competitivo",vuelta_calma:"Vuelta a la calma",otro:"Otro"};
-    const BLOCK_COLORS={calentamiento:"#f59e0b",tecnico:"#3b82f6",tactico:"#8b5cf6",fisico:"#10b981",mental:"#06b6d4",competitivo:"#f97316",vuelta_calma:"#64748b",otro:"#94a3b8"};
-    const w=window.open("","_blank");
-    // Build content: blocks as headers, then exercises (keep catalog badge)
-    let contentHtml="";
-    let exCounter=0;
-    (s.exObjs||[]).forEach(e=>{
-      if(e.type==="block"){
-        const icon=BLOCK_ICONS[e.blockType]||"📋";
-        const label=BLOCK_LABELS[e.blockType]||"Bloque";
-        const color=BLOCK_COLORS[e.blockType]||"#64748b";
-        contentHtml+='<div style="margin:16px 0 6px;padding:9px 14px;background:'+color+'18;border-left:4px solid '+color+';border-radius:0 6px 6px 0">'
-          +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px;line-height:1">'+icon+'</span>'
-          +'<span style="font-family:Barlow Condensed,Arial;font-size:16px;font-weight:700;color:'+color+';text-transform:uppercase">'+label+'</span>'
-          +(e.sesMin?'<span style="font-family:DM Mono,monospace;font-size:11px;color:'+color+'"> '+e.sesMin+' min</span>':"")
-          +'</div>'+(e.desc?'<p style="font-size:12px;color:#475569;margin:4px 0 0">'+e.desc+'</p>':"")+'</div>';
-      } else {
-        exCounter++;
-        const imgsH=(e.images||[]).length?'<div class="exobj-imgs">'+e.images.map(img=>'<img src="'+img+'" class="exobj-img"/>').join("")+"</div>":"";
-        const notes=e.sesNotes||"";
-        contentHtml+='<div class="exobj">'
-          +'<div class="exobj-header">'
-          +'<span class="exobj-name">'+(e.name||"Ejercicio")+'</span>'
-          +(e.sesMin?'<span class="exobj-dur">'+e.sesMin+"'</span>":e.dur?'<span class="exobj-dur">'+e.dur+'</span>':"")
-          +(e.cat?'<span class="exobj-badge">'+e.cat+'</span>':"")
-          +'</div>'
-          +(e.desc?'<p class="exobj-desc">'+e.desc+'</p>':"")
-          +(notes?'<p class="exobj-desc" style="color:#64748b">'+notes+'</p>':"")
-          +imgsH+'</div>';
-      }
-    });
-    const exsHtml=(s.exs||[]).map((e,i)=>'<div class="item"><div class="item-dot"></div><div class="item-text"><strong>'+(i+1)+'.</strong> '+e+'</div></div>').join("");
-    const imgsHtml=(s.images||[]).length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+s.images.map(img=>'<img src="'+img+'" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>').join("")+"</div>":"";
-    const timeStr=s.time?" · "+s.time+"h":"";
-    w.document.write(pdfOpen("Sesión: "+s.title)
-      +pdfHeader(s.title,s.date+timeStr+" · "+s.dur+" min · "+s.type)
-      +'<style>.exobj{margin-bottom:14px;padding:12px;border-left:3px solid #1d4ed8;background:#f8fafc;border-radius:0 8px 8px 0;page-break-inside:avoid}'
-      +'.exobj-header{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}'
-      +'.exobj-name{font-weight:700;font-size:14px;color:#1e293b}'
-      +'.exobj-dur{font-size:11px;color:#f97316;font-weight:700;background:#fff7ed;padding:1px 7px;border-radius:4px}'
-      +'.exobj-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:#dbeafe;color:#1d4ed8;text-transform:uppercase}'
-      +'.exobj-desc{font-size:12px;color:#475569;line-height:1.6;margin-bottom:5px}'
-      +'.exobj-imgs{display:flex;gap:6px;flex-wrap:wrap}'
-      +'.exobj-img{height:90px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0}</style>'
-      +(s.notes?'<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body"><p>'+s.notes+'</p></div></div>':"")
-      +(contentHtml?'<div class="section"><div class="section-title">Ejercicios</div><div class="section-body">'+contentHtml+'</div></div>':"")
-      +(exsHtml?'<div class="section"><div class="section-title">Ejercicios adicionales</div><div class="section-body">'+exsHtml+'</div></div>':"")
-      +(imgsHtml?'<div class="section"><div class="section-title">Imágenes de la sesión</div>'+imgsHtml+'</div>':"")
-      +pdfClose()
-    );
-    w.document.close();setTimeout(()=>w.print(),400);
-  };
+  const exportPDF=s=>exportSessionPDF(s,biblio?.list||[]);
 
   return <div>
     {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
     {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8}}/></div>}
 
     <SH title="Entrenamientos" sub="Sesiones · Ejercicios · Notas · PDF" right={<div style={{display:"flex",gap:8}}>
+      <Btn onClick={()=>setShowCal(v=>!v)} variant="ghost" icon={<Calendar size={14}/>} sm>Calendario</Btn>
       <Btn onClick={()=>setShowTemplates(!showTemplates)} variant="ghost" icon={<Copy size={14}/>} sm>Plantillas {sesionTemplates.length>0&&`(${sesionTemplates.length})`}</Btn>
       <Btn onClick={()=>{setShowAdd(true);setEditSes(null);setShowTemplates(false);}} icon={<Plus size={14}/>}>Nueva Sesión</Btn>
     </div>}/>
+    {showCal&&<CalendarioEntrenos onClose={()=>setShowCal(false)}/>}
 
     {/* Plantillas */}
     {showTemplates&&<div className="card" style={{padding:18,marginBottom:14,borderColor:"rgba(139,92,246,.3)"}}>
@@ -2812,7 +2915,7 @@ function Ejercicios(){
     finally{setBusy(false);}
   };
   const setEstado=(ex,estado)=>run(async()=>{const{error}=await sb.from("ejercicios").update({estado}).eq("id",ex.id);if(error)throw error;});
-  const saveEx=p=>run(async()=>{await bibSave(p.id,p.fields,p.newImages,p.removedMedia);setEditEx(null);setShowAdd(false);},"✓ Guardado");
+  const saveEx=p=>run(async()=>{await bibSave(p.id,p.fields,p.mediaItems,p.removedMedia);setEditEx(null);setShowAdd(false);},"✓ Guardado");
 
   const selStyle={width:"auto",minWidth:150};
   return <div>
@@ -2845,7 +2948,10 @@ function Ejercicios(){
       <span style={{fontSize:12,color:th.muted}}>{filtered.length} resultados</span>
     </div>
 
-    {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
+    {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:10}}>
+      <img src={viewImg.url} alt="" style={{maxWidth:"90vw",maxHeight:"82vh",borderRadius:8,objectFit:"contain",background:"#fff"}}/>
+      <p style={{color:"#fff",fontSize:14}}><strong>{viewImg.n}</strong>{viewImg.pie?" · "+viewImg.pie:""}</p>
+    </div>}
 
     <div className="g3">
       {filtered.map(ex=>{
@@ -2877,8 +2983,11 @@ function Ejercicios(){
             {longDesc&&<span onClick={()=>setOpenDesc(o=>({...o,[ex.id]:!showAll}))} style={{color:"#f97316",cursor:"pointer",marginLeft:4}}>{showAll?"ver menos":"ver más"}</span>}
           </p>}
           {ex.estado==="borrador"&&ex.row.notas_migracion&&<p style={{fontSize:11,color:th.muted,fontStyle:"italic",lineHeight:1.5,marginBottom:8}}>{ex.row.notas_migracion}</p>}
-          {ex.images.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {ex.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
+          {ex.media.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {ex.media.slice(0,BIB_MAX_IMG).map((m,i)=><div key={m.id} onClick={()=>setViewImg({url:m.url,pie:m.pie,n:i+1})} title={m.pie||""} style={{position:"relative",cursor:"pointer"}}>
+              <img src={m.url} alt="" style={{width:60,height:60,objectFit:"cover",borderRadius:6,border:`1px solid ${th.border}`,display:"block"}}/>
+              <span style={{position:"absolute",top:2,left:2,width:16,height:16,borderRadius:8,background:"#f97316",color:"#fff",fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</span>
+            </div>)}
           </div>}
         </div>;
       })}
@@ -2899,16 +3008,16 @@ function EjercicioEditForm({ex,tipologias,busy,onSave,onCancel}){
     jugadores_min:s(r.jugadores_min),jugadores_max:s(r.jugadores_max),canastas:s(r.canastas),
     material:(r.material||[]).join(", "),
   });
-  const[media,setMedia]=useState(ex?.media||[]);
+  const[items,setItems]=useState((ex?.media||[]).slice(0,BIB_MAX_IMG).map(m=>({key:m.id,id:m.id,url:m.url,pie:m.pie||"",pieOrig:m.pie||null,orden:m.orden,storage_path:m.storage_path})));
   const[removed,setRemoved]=useState([]);
-  const[newImgs,setNewImgs]=useState([]);
+  const fileRef=useRef();
   const set=(k,v)=>setF(x=>({...x,[k]:v}));
   const toggle=(k,v)=>setF(x=>({...x,[k]:x[k].includes(v)?x[k].filter(y=>y!==v):[...x[k],v]}));
   const int=v=>{const n=parseInt(v,10);return isNaN(n)?null:n;};
   const txt=v=>v.trim()?v.trim():null;
   const save=()=>{
     if(!f.nombre.trim()||busy)return;
-    onSave({id:ex?.id||null,newImages:newImgs,removedMedia:removed,fields:{
+    onSave({id:ex?.id||null,mediaItems:items,removedMedia:removed,fields:{
       nombre:f.nombre.trim(),estado:f.estado,objetivo:txt(f.objetivo),descripcion:txt(f.descripcion),
       reglas:txt(f.reglas),variantes:txt(f.variantes),puntos_clave:txt(f.puntos_clave),
       tipologia_ids:f.tipologia_ids,categorias:f.categorias,fase_sesion:f.fase_sesion,
@@ -2918,7 +3027,6 @@ function EjercicioEditForm({ex,tipologias,busy,onSave,onCancel}){
     }});
   };
   const chip=(on,color="#f97316")=>({padding:"4px 12px",borderRadius:7,border:`1px solid ${on?color:th.border2}`,cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:on?color+"22":th.card2,color:on?color:th.sub});
-  const maxNew=Math.max(0,6-media.length);
   return <div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
     <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>{ex?"Editar Ejercicio":"Nuevo Ejercicio"}</p>
     <div style={{display:"grid",gridTemplateColumns:"1fr 150px",gap:12,marginBottom:12}}>
@@ -2948,14 +3056,37 @@ function EjercicioEditForm({ex,tipologias,busy,onSave,onCancel}){
       <div><Lbl>Variantes</Lbl><textarea rows={3} value={f.variantes} onChange={e=>set("variantes",e.target.value)}/></div>
       <div><Lbl>Puntos clave</Lbl><textarea rows={3} value={f.puntos_clave} onChange={e=>set("puntos_clave",e.target.value)}/></div>
     </div>
-    <div style={{marginBottom:16}}><Lbl>Imágenes y pizarras (hasta 6)</Lbl>
-      {media.length>0&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-        {media.map(m=><div key={m.id} style={{position:"relative",width:80,height:80,borderRadius:8,overflow:"hidden",border:`1px solid ${th.border}`}}>
-          <img src={m.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-          <button type="button" onClick={()=>{setMedia(x=>x.filter(y=>y.id!==m.id));setRemoved(x=>[...x,m]);}} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,background:"rgba(239,68,68,.9)",border:"none",cursor:"pointer",color:"#fff",fontSize:10}}>x</button>
+    <div style={{marginBottom:16}}><Lbl>Imágenes y pizarras (hasta {BIB_MAX_IMG}) · se muestran numeradas y en este orden</Lbl>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        {items.map((it,k)=><div key={it.key} style={{width:170,border:`1px solid ${th.border}`,borderRadius:8,overflow:"hidden",background:th.card2}}>
+          <div style={{position:"relative",height:110,background:"#fff"}}>
+            <img src={it.url} alt="" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+            <span style={{position:"absolute",top:4,left:4,width:20,height:20,borderRadius:10,background:"#f97316",color:"#fff",fontSize:11,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{k+1}</span>
+            <button type="button" title="Quitar" onClick={()=>{setItems(x=>x.filter(y=>y.key!==it.key));if(it.id)setRemoved(x=>[...x,it]);}} style={{position:"absolute",top:4,right:4,width:20,height:20,borderRadius:10,background:"rgba(239,68,68,.9)",border:"none",cursor:"pointer",color:"#fff",fontSize:11}}>✕</button>
+          </div>
+          <div style={{padding:6,display:"flex",flexDirection:"column",gap:5}}>
+            <input value={it.pie} onChange={e=>{const v=e.target.value;setItems(x=>x.map(y=>y.key===it.key?{...y,pie:v}:y));}} placeholder={`Pie de la imagen ${k+1}`} style={{fontSize:11,padding:"5px 7px"}}/>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <button type="button" disabled={k===0} onClick={()=>setItems(x=>{const a=[...x];[a[k-1],a[k]]=[a[k],a[k-1]];return a;})} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:5,cursor:k===0?"default":"pointer",color:th.sub,opacity:k===0?.3:1,fontSize:11,padding:"1px 8px"}}>◀</button>
+              <button type="button" disabled={k===items.length-1} onClick={()=>setItems(x=>{const a=[...x];[a[k+1],a[k]]=[a[k],a[k+1]];return a;})} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:5,cursor:k===items.length-1?"default":"pointer",color:th.sub,opacity:k===items.length-1?.3:1,fontSize:11,padding:"1px 8px"}}>▶</button>
+            </div>
+          </div>
         </div>)}
-      </div>}
-      {maxNew>0&&<ImageUploader images={newImgs} setImages={setNewImgs} max={maxNew}/>}
+        {items.length<BIB_MAX_IMG&&<div onClick={()=>fileRef.current?.click()} style={{width:170,height:170,borderRadius:8,border:`2px dashed ${th.border2}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",gap:4,color:th.muted}}>
+          <Image size={20}/><span style={{fontSize:11}}>Añadir imagen</span><span style={{fontSize:10}}>{items.length}/{BIB_MAX_IMG}</span>
+        </div>}
+      </div>
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png" multiple style={{display:"none"}} onChange={e=>{
+        const files=[...e.target.files].slice(0,BIB_MAX_IMG-items.length);e.target.value="";
+        files.forEach(file=>{
+          if(!file.type.startsWith("image/"))return;
+          if(file.size>2*1024*1024){alert(`"${file.name}" pesa más de 2 MB. Usa una imagen más pequeña.`);return;}
+          const r=new FileReader();
+          r.onload=ev=>setItems(x=>x.length>=BIB_MAX_IMG?x:[...x,{key:"new_"+Date.now()+Math.random(),dataUrl:ev.target.result,url:ev.target.result,pie:""}]);
+          r.readAsDataURL(file);
+        });
+      }}/>
+      <p style={{fontSize:10,color:th.muted,marginTop:6}}>JPG o PNG, máximo 2 MB cada una. Usa ◀ ▶ para cambiar el orden.</p>
     </div>
     <div style={{display:"flex",gap:8}}><Btn onClick={save} disabled={busy||!f.nombre.trim()}>{busy?"Guardando…":"Guardar"}</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
   </div>;
@@ -7168,6 +7299,19 @@ export default function App(){
     catch(e){console.error("Biblioteca:",e);setBiblio(b=>({...b,error:e,loaded:true}));}
   },[]);
   useEffect(()=>{reloadBiblio();},[reloadBiblio]);
+  const[calendario,setCalendario]=useState(CAL_DEFAULT);
+  useEffect(()=>{(async()=>{
+    try{const{data}=await sb.from("dashboard").select("data").eq("id","_config").maybeSingle();
+      if(data?.data?.calendario)setCalendario({...CAL_DEFAULT,...data.data.calendario});}
+    catch(e){console.error("Calendario:",e);}
+  })();},[]);
+  const saveCalendario=useCallback(async cal=>{
+    const{data,error:e1}=await sb.from("dashboard").select("data").eq("id","_config").maybeSingle();
+    if(e1)throw e1;
+    const{error}=await sb.from("dashboard").upsert({id:"_config",data:{...(data?.data||{}),calendario:cal},updated_at:new Date().toISOString()});
+    if(error)throw error;
+    setCalendario(cal);
+  },[]);
 
   const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
@@ -7377,7 +7521,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
     <AppCtx.Provider value={{teamId,teamsConfig}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,calendario,saveCalendario,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
