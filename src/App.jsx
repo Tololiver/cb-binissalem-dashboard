@@ -1,4 +1,4 @@
-// CB BINISSALEM DASHBOARD v3 — Supabase + Todas las mejoras
+// TOLOLIVER DASHBOARD v3 — Supabase + Todas las mejoras
 import { useState, useRef, useEffect, useCallback, useContext, createContext, Fragment, Component } from "react";
 
 class ErrorBoundary extends Component{
@@ -31,6 +31,52 @@ const sb = createClient(
   "https://ckznrzmuxwbuixrbjsnw.supabase.co",
   "sb_publishable_Tz9Qvz8a-FxqN3Vp0PdbKw_Qzzp4cZ5"
 );
+
+/* ── BIBLIOTECA DE EJERCICIOS (tablas Supabase) ──────────────── */
+const BIB_BUCKET="ejercicios-media";
+const BIB_CATS=["Mini","Cadet","Senior"];
+const BIB_FASES=[["calentamiento","Calentamiento"],["principal","Parte principal"],["final","Final"],["cualquiera","Cualquiera"]];
+const bibIntToDiff=n=>!n?"":n<=2?"Básico":n===3?"Medio":"Alto";
+const bibTeamCat=c=>{const s=String(c||"").toLowerCase();if(!s)return"";if(s.startsWith("cad"))return"Cadet";if(s.startsWith("mini"))return"Mini";if(s.startsWith("sen")||s.startsWith("sén"))return"Senior";return c;};
+const bibSlug=name=>String(name||"ejercicio").normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")+"-"+Date.now().toString(36);
+function bibMap(r,tipMap,mediaMap){
+  const tipos=(r.tipologia_ids||[]).map(id=>tipMap[id]).filter(Boolean);
+  const media=mediaMap[r.id]||[];
+  return{id:r.id,name:r.nombre,cat:tipos[0]||"Sin clasificar",tipos,dur:r.duracion_min?r.duracion_min+"'":"",min:r.duracion_min||"",
+    diff:bibIntToDiff(r.intensidad),desc:r.descripcion||"",images:media.map(m=>m.url),media,estado:r.estado,
+    categorias:r.categorias||[],fase:r.fase_sesion||"",row:r};
+}
+async function bibLoad(){
+  const[r1,r2,r3]=await Promise.all([
+    sb.from("ejercicios").select("*").order("nombre"),
+    sb.from("tipologias").select("*").order("id"),
+    sb.from("ejercicio_media").select("*").order("orden"),
+  ]);
+  const err=r1.error||r2.error||r3.error;if(err)throw err;
+  const tipMap=Object.fromEntries((r2.data||[]).map(t=>[t.id,t.nombre]));
+  const mediaMap={};
+  (r3.data||[]).forEach(m=>{const url=sb.storage.from(BIB_BUCKET).getPublicUrl(m.storage_path).data.publicUrl;(mediaMap[m.ejercicio_id]=mediaMap[m.ejercicio_id]||[]).push({...m,url});});
+  return{tipologias:r2.data||[],list:(r1.data||[]).map(r=>bibMap(r,tipMap,mediaMap))};
+}
+async function bibSave(id,fields,newImages=[],removedMedia=[]){
+  let exId=id;
+  if(id){const{error}=await sb.from("ejercicios").update(fields).eq("id",id);if(error)throw error;}
+  else{const{data,error}=await sb.from("ejercicios").insert({...fields,slug:bibSlug(fields.nombre)}).select("id").single();if(error)throw error;exId=data.id;}
+  for(const m of removedMedia){
+    const{error}=await sb.from("ejercicio_media").delete().eq("id",m.id);if(error)throw error;
+    await sb.storage.from(BIB_BUCKET).remove([m.storage_path]);
+  }
+  for(let i=0;i<newImages.length;i++){
+    const blob=await (await fetch(newImages[i])).blob();
+    const ext=blob.type==="image/png"?"png":"jpg";
+    const path=`${exId}/${Date.now()}_${i}.${ext}`;
+    const up=await sb.storage.from(BIB_BUCKET).upload(path,blob,{contentType:blob.type||"image/jpeg"});
+    if(up.error)throw up.error;
+    const{error}=await sb.from("ejercicio_media").insert({ejercicio_id:exId,tipo:"pizarra",storage_path:path,orden:Date.now()%100000+i});
+    if(error)throw error;
+  }
+  return exId;
+}
 
 /* ── CONTEXTS ─────────────────────────────────────────────── */
 const ThemeCtx = createContext();
@@ -1485,11 +1531,17 @@ function EjercicioModal({ex,onClose}){
 
 /* ── Selector de ejercicios para entrenos ──────────────────── */
 function EjercicioPicker({ejercicios,onAdd,onClose}){
-  const{th}=useTheme();
+  const{th}=useTheme();const{teamId,teamsConfig}=useAppContext();
+  const teamCat=bibTeamCat(teamsConfig?.[teamId]?.categoria);
   const[filter,setFilter]=useState("Todos");
   const[sel,setSel]=useState([]);
-  const cats=["Todos","Técnico","Táctico","Físico","Recuperación","Mental"];
-  const filtered=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
+  const[soloEquipo,setSoloEquipo]=useState(!!teamCat);
+  const[q,setQ]=useState("");
+  const tiposDe=e=>(e.tipos&&e.tipos.length?e.tipos:[e.cat]);
+  const cats=["Todos",...Array.from(new Set(ejercicios.flatMap(tiposDe))).filter(Boolean)];
+  const filtered=ejercicios.filter(e=>(filter==="Todos"||tiposDe(e).includes(filter))
+    &&(!soloEquipo||!e.categorias||e.categorias.length===0||e.categorias.includes(teamCat))
+    &&(!q||(e.name+" "+(e.desc||"")).toLowerCase().includes(q.toLowerCase())));
   const toggle=id=>setSel(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
   return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div onClick={e=>e.stopPropagation()} style={{background:th.card,borderRadius:16,padding:24,maxWidth:680,width:"100%",maxHeight:"85vh",display:"flex",flexDirection:"column",border:`1px solid ${th.border}`,boxShadow:"0 24px 60px rgba(0,0,0,.4)"}}>
@@ -1499,6 +1551,12 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"4px 14px",borderRadius:7,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub}}>{c}</button>)}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar ejercicio…" style={{flex:1}}/>
+        {teamCat&&<label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.sub,whiteSpace:"nowrap",cursor:"pointer"}}>
+          <input type="checkbox" checked={soloEquipo} onChange={e=>setSoloEquipo(e.target.checked)} style={{width:"auto"}}/>Solo {teamCat}
+        </label>}
       </div>
       <div style={{overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:6}}>
         {filtered.length===0&&<p style={{color:th.muted,fontSize:12,textAlign:"center",padding:24}}>Sin ejercicios en esta categoría</p>}
@@ -1511,7 +1569,7 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
             </div>
             <div style={{flex:1,minWidth:0}}>
               <p style={{fontFamily:"Barlow Condensed",fontSize:15,fontWeight:700,color:th.text}}>{ex.name}</p>
-              <p style={{fontSize:11,color:th.muted}}>{ex.cat} · {ex.diff}{ex.dur?` · ${ex.dur}`:""}</p>
+              <p style={{fontSize:11,color:th.muted}}>{[(ex.tipos&&ex.tipos.length?ex.tipos.join(", "):ex.cat),ex.diff,ex.dur].filter(Boolean).join(" · ")}{ex.estado==="borrador"?" · borrador":""}</p>
             </div>
             {(ex.images||[]).length>0&&<img src={ex.images[0]} alt="" style={{width:40,height:40,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
           </div>;
@@ -1561,7 +1619,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   const addExFromCatalog=ids=>{
     const toAdd=ids.map(id=>ejercicios.find(e=>e.id===id)).filter(Boolean)
       .filter(e=>!f.exObjs.some(o=>o.id===e.id))
-      .map(e=>({...e,type:"catalog",sesMin:e.dur||"",sesNotes:""}));
+      .map(e=>({id:e.id,name:e.name,cat:e.cat,dur:e.dur,diff:e.diff,desc:e.desc,images:e.images||[],type:"catalog",sesMin:e.min?String(e.min):(e.dur||""),sesNotes:""}));
     setF(prev=>({...prev,exObjs:[...prev.exObjs,...toAdd]}));
   };
   const BLOCK_TYPES=[
@@ -2720,69 +2778,186 @@ function Playbook(){
 ══════════════════════════════════════════════════════════ */
 /* EjercicioEditForm is defined inside the Ejercicios section below */
 
+/* ── Biblioteca de ejercicios (tablas: ejercicios, tipologias, ejercicio_media) ── */
+const BIB_ESTADO_COLOR={borrador:"#f59e0b",aprobado:"#10b981",descartado:"#64748b"};
 function Ejercicios(){
-  const{th}=useTheme();const{ejercicios,setEjercicios}=useData();
-  const[filter,setFilter]=useState("Todos");const[editEx,setEditEx]=useState(null);const[showAdd,setShowAdd]=useState(false);const[viewImg,setViewImg]=useState(null);
-  const cats=["Todos","Técnico","Táctico","Físico","Recuperación","Mental"];
-  const filtered=filter==="Todos"?ejercicios:ejercicios.filter(e=>e.cat===filter);
+  const{th}=useTheme();const{biblio,reloadBiblio}=useData();
+  const list=biblio?.list||[];const tipologias=biblio?.tipologias||[];
+  const[fEstado,setFEstado]=useState("activos");
+  const[fTipo,setFTipo]=useState("Todos");
+  const[fCat,setFCat]=useState("Todas");
+  const[q,setQ]=useState("");
+  const[editEx,setEditEx]=useState(null);const[showAdd,setShowAdd]=useState(false);
+  const[viewImg,setViewImg]=useState(null);const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
+  const[openDesc,setOpenDesc]=useState({});
 
-  const saveEx=ex=>{
-    if(!editEx){setEjercicios(prev=>[...prev,{...ex,id:Date.now()}]);}
-    else{setEjercicios(prev=>prev.map(x=>x.id===editEx.id?{...x,...ex}:x));}
-    setEditEx(null);setShowAdd(false);
+  if(!biblio?.loaded)return <div><SH title="Ejercicios" sub="Biblioteca"/><p style={{color:th.muted,fontSize:13}}>Cargando biblioteca…</p></div>;
+  if(biblio.error)return <div><SH title="Ejercicios" sub="Biblioteca"/>
+    <div className="card" style={{padding:20}}>
+      <p style={{color:"#ef4444",fontSize:13,marginBottom:10}}>No se ha podido cargar la biblioteca: {String(biblio.error.message||biblio.error)}</p>
+      <Btn sm variant="ghost" onClick={reloadBiblio} icon={<RotateCcw size={12}/>}>Reintentar</Btn>
+    </div></div>;
+
+  const count=st=>list.filter(e=>e.estado===st).length;
+  const filtered=list.filter(e=>
+    (fEstado==="activos"?e.estado!=="descartado":e.estado===fEstado)
+    &&(fTipo==="Todos"||(fTipo==="__sin"?e.tipos.length===0:e.tipos.includes(fTipo)))
+    &&(fCat==="Todas"||(fCat==="__sin"?e.categorias.length===0:e.categorias.includes(fCat)))
+    &&(!q||(e.name+" "+e.desc).toLowerCase().includes(q.toLowerCase())));
+
+  const run=async(fn,ok)=>{
+    setBusy(true);setMsg("");
+    try{await fn();await reloadBiblio();if(ok)setMsg(ok);}
+    catch(err){console.error(err);setMsg("❌ "+(err?.message||"Error al guardar"));}
+    finally{setBusy(false);}
   };
-  const delEx=id=>setEjercicios(prev=>prev.filter(e=>e.id!==id));
+  const setEstado=(ex,estado)=>run(async()=>{const{error}=await sb.from("ejercicios").update({estado}).eq("id",ex.id);if(error)throw error;});
+  const saveEx=p=>run(async()=>{await bibSave(p.id,p.fields,p.newImages,p.removedMedia);setEditEx(null);setShowAdd(false);},"✓ Guardado");
 
+  const selStyle={width:"auto",minWidth:150};
   return <div>
-    <SH title="Ejercicios" sub="Biblioteca por categoría · Todos editables" right={<div style={{display:"flex",gap:8}}><Btn onClick={()=>exportEjerciciosPDF(ejercicios,filter)} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn><Btn onClick={()=>{setShowAdd(true);setEditEx(null);}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn></div>}/>
-    {showAdd&&<EjercicioEditForm ex={null} onSave={saveEx} onCancel={()=>setShowAdd(false)}/>}
-    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-      {cats.map(c=><button key={c} onClick={()=>setFilter(c)} style={{padding:"6px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:filter===c?(CC[c]||"#f97316"):th.card2,color:filter===c?"#fff":th.sub,transition:"all .15s"}}>{c}</button>)}
+    <SH title="Ejercicios" sub={`Biblioteca común a todos los equipos · ${count("aprobado")} aprobados · ${count("borrador")} borradores`}
+      right={<div style={{display:"flex",gap:8}}>
+        <Btn onClick={()=>exportEjerciciosPDF(filtered,"Todos")} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn>
+        <Btn onClick={()=>{setShowAdd(true);setEditEx(null);}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn>
+      </div>}/>
+    {msg&&<p style={{fontSize:12,marginBottom:12,color:msg.startsWith("❌")?"#ef4444":"#10b981"}}>{msg}</p>}
+    {showAdd&&<EjercicioEditForm ex={null} tipologias={tipologias} busy={busy} onSave={saveEx} onCancel={()=>setShowAdd(false)}/>}
+
+    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+      <select value={fEstado} onChange={e=>setFEstado(e.target.value)} style={selStyle}>
+        <option value="activos">Borradores + aprobados</option>
+        <option value="borrador">Solo borradores ({count("borrador")})</option>
+        <option value="aprobado">Solo aprobados ({count("aprobado")})</option>
+        <option value="descartado">Descartados ({count("descartado")})</option>
+      </select>
+      <select value={fTipo} onChange={e=>setFTipo(e.target.value)} style={selStyle}>
+        <option value="Todos">Todas las tipologías</option>
+        {tipologias.map(t=><option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+        <option value="__sin">Sin clasificar</option>
+      </select>
+      <select value={fCat} onChange={e=>setFCat(e.target.value)} style={selStyle}>
+        <option value="Todas">Todas las categorías</option>
+        {BIB_CATS.map(c=><option key={c} value={c}>{c}</option>)}
+        <option value="__sin">Sin categoría</option>
+      </select>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar…" style={{flex:1,minWidth:160}}/>
+      <span style={{fontSize:12,color:th.muted}}>{filtered.length} resultados</span>
     </div>
+
     {viewImg&&<div onClick={()=>setViewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><img src={viewImg} alt="" style={{maxWidth:"90vw",maxHeight:"90vh",borderRadius:8,objectFit:"contain"}}/></div>}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+
+    <div className="g3">
       {filtered.map(ex=>{
-        const c=CC[ex.cat]||"#f97316";const dc=DC[ex.diff]||"#10b981";
-        // Inline edit — replace card with form
-        if(editEx&&editEx.id===ex.id)return <div key={ex.id} style={{gridColumn:"1/-1"}}><EjercicioEditForm ex={editEx} onSave={saveEx} onCancel={()=>setEditEx(null)}/></div>;
-        return <div key={ex.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`}}>
+        const c=CC[ex.cat]||"#f97316";const ec=BIB_ESTADO_COLOR[ex.estado]||"#64748b";
+        if(editEx&&editEx.id===ex.id)return <div key={ex.id} style={{gridColumn:"1/-1"}}><EjercicioEditForm ex={editEx} tipologias={tipologias} busy={busy} onSave={saveEx} onCancel={()=>setEditEx(null)}/></div>;
+        const longDesc=ex.desc.length>220;const showAll=openDesc[ex.id];
+        const iconBtn={width:28,height:28,borderRadius:6,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"};
+        return <div key={ex.id} className="card" style={{padding:20,borderTop:`3px solid ${c}`,opacity:ex.estado==="descartado"?.6:1}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
             <div style={{flex:1,marginRight:8}}>
               <h3 style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:th.text,marginBottom:6}}>{ex.name}</h3>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><Badge color={c} sm>{ex.cat}</Badge><Badge color={dc} sm>{ex.diff}</Badge>{ex.dur&&<Badge color="#3b82f6" sm>{ex.dur}</Badge>}</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                <Badge color={ec} sm>{ex.estado}</Badge>
+                {ex.tipos.length?ex.tipos.map(t=><Badge key={t} color={tagColor(t)} sm>{t}</Badge>):<Badge color="#94a3b8" sm>Sin clasificar</Badge>}
+                {ex.categorias.map(k=><Badge key={k} color="#3b82f6" sm>{k}</Badge>)}
+                {ex.dur&&<Badge color="#06b6d4" sm>{ex.row.duracion_max&&ex.row.duracion_max!==ex.row.duracion_min?`${ex.row.duracion_min}-${ex.row.duracion_max}'`:ex.dur}</Badge>}
+              </div>
             </div>
             <div style={{display:"flex",gap:4,flexShrink:0}}>
-              <button onClick={()=>{setEditEx(ex);setShowAdd(false);}} title="Editar" style={{width:28,height:28,borderRadius:6,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={12}/></button>
-              <button onClick={()=>delEx(ex.id)} title="Eliminar" style={{width:28,height:28,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#ef4444"}}><Trash2 size={12}/></button>
+              {ex.estado!=="aprobado"&&<button disabled={busy} onClick={()=>setEstado(ex,"aprobado")} title="Aprobar" style={{...iconBtn,border:"1px solid rgba(16,185,129,.3)",background:"rgba(16,185,129,.08)",color:"#10b981"}}><Check size={13}/></button>}
+              <button disabled={busy} onClick={()=>{setEditEx(ex);setShowAdd(false);}} title="Editar" style={{...iconBtn,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub}}><Edit2 size={12}/></button>
+              {ex.estado!=="descartado"
+                ?<button disabled={busy} onClick={()=>setEstado(ex,"descartado")} title="Descartar" style={{...iconBtn,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444"}}><X size={13}/></button>
+                :<button disabled={busy} onClick={()=>setEstado(ex,"borrador")} title="Recuperar" style={{...iconBtn,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub}}><RotateCcw size={12}/></button>}
             </div>
           </div>
-          {ex.desc&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,marginBottom:8}}>{ex.desc}</p>}
-          {(ex.images||[]).length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {ex.desc&&<p style={{fontSize:12,color:th.sub,lineHeight:1.6,marginBottom:8,whiteSpace:"pre-wrap"}}>
+            {longDesc&&!showAll?ex.desc.slice(0,220)+"…":ex.desc}
+            {longDesc&&<span onClick={()=>setOpenDesc(o=>({...o,[ex.id]:!showAll}))} style={{color:"#f97316",cursor:"pointer",marginLeft:4}}>{showAll?"ver menos":"ver más"}</span>}
+          </p>}
+          {ex.estado==="borrador"&&ex.row.notas_migracion&&<p style={{fontSize:11,color:th.muted,fontStyle:"italic",lineHeight:1.5,marginBottom:8}}>{ex.row.notas_migracion}</p>}
+          {ex.images.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {ex.images.map((img,i)=><img key={i} src={img} alt="" onClick={()=>setViewImg(img)} style={{width:60,height:60,objectFit:"cover",borderRadius:6,cursor:"pointer",border:`1px solid ${th.border}`}}/>)}
           </div>}
         </div>;
       })}
     </div>
+    {filtered.length===0&&<p style={{color:th.muted,fontSize:13,textAlign:"center",padding:30}}>No hay ejercicios con estos filtros.</p>}
   </div>;
 }
 
-function EjercicioEditForm({ex,onSave,onCancel}){
+function EjercicioEditForm({ex,tipologias,busy,onSave,onCancel}){
   const{th}=useTheme();
-  const cats=["Técnico","Táctico","Físico","Recuperación","Mental"];
-  const diffs=["Básico","Medio","Alto"];
-  const[f,setF]=useState({name:ex?.name||"",cat:ex?.cat||"Técnico",dur:ex?.dur||"",diff:ex?.diff||"Básico",desc:ex?.desc||"",images:ex?.images||[]});
-  const save=()=>{if(!f.name)return;onSave({...(ex||{}),id:ex?.id||Date.now(),...f});};
+  const r=ex?.row||{};
+  const s=v=>v===null||v===undefined?"":String(v);
+  const[f,setF]=useState({
+    nombre:r.nombre||"",estado:r.estado||"aprobado",objetivo:s(r.objetivo),descripcion:s(r.descripcion),
+    reglas:s(r.reglas),variantes:s(r.variantes),puntos_clave:s(r.puntos_clave),
+    tipologia_ids:r.tipologia_ids||[],categorias:r.categorias||[],fase_sesion:r.fase_sesion||"cualquiera",
+    intensidad:s(r.intensidad),duracion_min:s(r.duracion_min),duracion_max:s(r.duracion_max),
+    jugadores_min:s(r.jugadores_min),jugadores_max:s(r.jugadores_max),canastas:s(r.canastas),
+    material:(r.material||[]).join(", "),
+  });
+  const[media,setMedia]=useState(ex?.media||[]);
+  const[removed,setRemoved]=useState([]);
+  const[newImgs,setNewImgs]=useState([]);
+  const set=(k,v)=>setF(x=>({...x,[k]:v}));
+  const toggle=(k,v)=>setF(x=>({...x,[k]:x[k].includes(v)?x[k].filter(y=>y!==v):[...x[k],v]}));
+  const int=v=>{const n=parseInt(v,10);return isNaN(n)?null:n;};
+  const txt=v=>v.trim()?v.trim():null;
+  const save=()=>{
+    if(!f.nombre.trim()||busy)return;
+    onSave({id:ex?.id||null,newImages:newImgs,removedMedia:removed,fields:{
+      nombre:f.nombre.trim(),estado:f.estado,objetivo:txt(f.objetivo),descripcion:txt(f.descripcion),
+      reglas:txt(f.reglas),variantes:txt(f.variantes),puntos_clave:txt(f.puntos_clave),
+      tipologia_ids:f.tipologia_ids,categorias:f.categorias,fase_sesion:f.fase_sesion,
+      intensidad:int(f.intensidad),duracion_min:int(f.duracion_min),duracion_max:int(f.duracion_max),
+      jugadores_min:int(f.jugadores_min),jugadores_max:int(f.jugadores_max),canastas:int(f.canastas),
+      material:f.material.split(",").map(x=>x.trim()).filter(Boolean),
+    }});
+  };
+  const chip=(on,color="#f97316")=>({padding:"4px 12px",borderRadius:7,border:`1px solid ${on?color:th.border2}`,cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Barlow Condensed",background:on?color+"22":th.card2,color:on?color:th.sub});
+  const maxNew=Math.max(0,6-media.length);
   return <div className="card" style={{padding:20,marginBottom:14,borderColor:"#f9731640"}}>
     <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",marginBottom:14,textTransform:"uppercase"}}>{ex?"Editar Ejercicio":"Nuevo Ejercicio"}</p>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 130px 100px 80px",gap:12,marginBottom:12}}>
-      <div><Lbl>Nombre</Lbl><input value={f.name} onChange={e=>setF(x=>({...x,name:e.target.value}))} placeholder="Nombre del ejercicio"/></div>
-      <div><Lbl>Categoría</Lbl><select value={f.cat} onChange={e=>setF(x=>({...x,cat:e.target.value}))}>{cats.map(c=><option key={c}>{c}</option>)}</select></div>
-      <div><Lbl>Dificultad</Lbl><select value={f.diff} onChange={e=>setF(x=>({...x,diff:e.target.value}))}>{diffs.map(d=><option key={d}>{d}</option>)}</select></div>
-      <div><Lbl>Duración</Lbl><input value={f.dur} onChange={e=>setF(x=>({...x,dur:e.target.value}))} placeholder="15'"/></div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 150px",gap:12,marginBottom:12}}>
+      <div><Lbl>Nombre</Lbl><input value={f.nombre} onChange={e=>set("nombre",e.target.value)} placeholder="Nombre del ejercicio"/></div>
+      <div><Lbl>Estado</Lbl><select value={f.estado} onChange={e=>set("estado",e.target.value)}><option value="borrador">Borrador</option><option value="aprobado">Aprobado</option><option value="descartado">Descartado</option></select></div>
     </div>
-    <div style={{marginBottom:12}}><Lbl>Descripción</Lbl><textarea rows={3} value={f.desc} onChange={e=>setF(x=>({...x,desc:e.target.value}))} placeholder="Describe el ejercicio…"/></div>
-    <div style={{marginBottom:16}}><Lbl>Imágenes (hasta 4)</Lbl><ImageUploader images={f.images} setImages={imgs=>setF(x=>({...x,images:imgs}))}/></div>
-    <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
+    <div style={{marginBottom:12}}><Lbl>Tipologías</Lbl>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{tipologias.map(t=><button key={t.id} type="button" onClick={()=>toggle("tipologia_ids",t.id)} style={chip(f.tipologia_ids.includes(t.id),tagColor(t.nombre))}>{t.nombre}</button>)}</div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+      <div><Lbl>Categorías</Lbl><div style={{display:"flex",gap:6}}>{BIB_CATS.map(c=><button key={c} type="button" onClick={()=>toggle("categorias",c)} style={chip(f.categorias.includes(c),"#3b82f6")}>{c}</button>)}</div></div>
+      <div><Lbl>Fase de la sesión</Lbl><select value={f.fase_sesion} onChange={e=>set("fase_sesion",e.target.value)}>{BIB_FASES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:12}}>
+      <div><Lbl>Min. mín.</Lbl><input type="number" value={f.duracion_min} onChange={e=>set("duracion_min",e.target.value)}/></div>
+      <div><Lbl>Min. máx.</Lbl><input type="number" value={f.duracion_max} onChange={e=>set("duracion_max",e.target.value)}/></div>
+      <div><Lbl>Jug. mín.</Lbl><input type="number" value={f.jugadores_min} onChange={e=>set("jugadores_min",e.target.value)}/></div>
+      <div><Lbl>Jug. máx.</Lbl><input type="number" value={f.jugadores_max} onChange={e=>set("jugadores_max",e.target.value)}/></div>
+      <div><Lbl>Canastas</Lbl><input type="number" value={f.canastas} onChange={e=>set("canastas",e.target.value)}/></div>
+      <div><Lbl>Intensidad</Lbl><select value={f.intensidad} onChange={e=>set("intensidad",e.target.value)}><option value="">—</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n}</option>)}</select></div>
+    </div>
+    <div style={{marginBottom:12}}><Lbl>Material (separado por comas)</Lbl><input value={f.material} onChange={e=>set("material",e.target.value)} placeholder="conos, petos, balón por jugador"/></div>
+    <div style={{marginBottom:12}}><Lbl>Objetivo</Lbl><input value={f.objetivo} onChange={e=>set("objetivo",e.target.value)} placeholder="Qué se trabaja, en una frase"/></div>
+    <div style={{marginBottom:12}}><Lbl>Descripción</Lbl><textarea rows={4} value={f.descripcion} onChange={e=>set("descripcion",e.target.value)} placeholder="Desarrollo del ejercicio…"/></div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+      <div><Lbl>Reglas</Lbl><textarea rows={3} value={f.reglas} onChange={e=>set("reglas",e.target.value)}/></div>
+      <div><Lbl>Variantes</Lbl><textarea rows={3} value={f.variantes} onChange={e=>set("variantes",e.target.value)}/></div>
+      <div><Lbl>Puntos clave</Lbl><textarea rows={3} value={f.puntos_clave} onChange={e=>set("puntos_clave",e.target.value)}/></div>
+    </div>
+    <div style={{marginBottom:16}}><Lbl>Imágenes y pizarras (hasta 6)</Lbl>
+      {media.length>0&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+        {media.map(m=><div key={m.id} style={{position:"relative",width:80,height:80,borderRadius:8,overflow:"hidden",border:`1px solid ${th.border}`}}>
+          <img src={m.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          <button type="button" onClick={()=>{setMedia(x=>x.filter(y=>y.id!==m.id));setRemoved(x=>[...x,m]);}} style={{position:"absolute",top:2,right:2,width:18,height:18,borderRadius:9,background:"rgba(239,68,68,.9)",border:"none",cursor:"pointer",color:"#fff",fontSize:10}}>x</button>
+        </div>)}
+      </div>}
+      {maxNew>0&&<ImageUploader images={newImgs} setImages={setNewImgs} max={maxNew}/>}
+    </div>
+    <div style={{display:"flex",gap:8}}><Btn onClick={save} disabled={busy||!f.nombre.trim()}>{busy?"Guardando…":"Guardar"}</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
   </div>;
 }
 
@@ -6986,6 +7161,12 @@ export default function App(){
   const[matchAnalyses,setMatchAnalysesRaw]= useState([]);
   const[basketballIQ, setBasketballIQRaw] = useState([]);
   const[apiKey,    setApiKeyRaw]   = useState(()=>localStorage.getItem("cb_apikey")||"");
+  const[biblio,setBiblio]=useState({list:[],tipologias:[],error:null,loaded:false});
+  const reloadBiblio=useCallback(async()=>{
+    try{const r=await bibLoad();setBiblio({...r,error:null,loaded:true});}
+    catch(e){console.error("Biblioteca:",e);setBiblio(b=>({...b,error:e,loaded:true}));}
+  },[]);
+  useEffect(()=>{reloadBiblio();},[reloadBiblio]);
 
   const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
@@ -7180,6 +7361,8 @@ export default function App(){
 
   const th=dark?DARK:LIGHT;
   const AV=VIEWS[view]||Dashboard;
+  // Si la biblioteca nueva no carga, se usa la lista antigua del JSON
+  const bibPickList=biblio.loaded&&!biblio.error?biblio.list.filter(e=>e.estado!=="descartado"):ejercicios;
 
   if(loading)return <>
     <GS th={th}/>
@@ -7193,7 +7376,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
     <AppCtx.Provider value={{teamId,teamsConfig}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios,setEjercicios,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
