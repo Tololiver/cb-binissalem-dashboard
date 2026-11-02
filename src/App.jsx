@@ -403,8 +403,8 @@ td.note{text-align:left;font-size:11px;color:#64748b}
 @media print{body{padding:0}.page{padding:18px 22px}}`;
 
 function pdfOpen(title){return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>${PDF_CSS}</style></head><body><div class="page">`;}
-function pdfClose(){return `<div class="pdf-footer"><span>C.B. Muro · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span></div></div></body></html>`;}
-function pdfHeader(title,subtitle){return `<div class="pdf-header"><div class="pdf-header-left"><div class="pdf-club">C.B. Muro · Basketball Coach</div><div class="pdf-title">${title}</div><div class="pdf-subtitle">${subtitle}</div></div><img class="pdf-logo" src="${LOGO_B64}" alt="Logo"/></div>`;}
+function pdfClose(){return `<div class="pdf-footer"><span>Tololiver Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span></div></div></body></html>`;}
+function pdfHeader(title,subtitle){return `<div class="pdf-header"><div class="pdf-header-left"><div class="pdf-club">Tololiver Basketball Coach</div><div class="pdf-title">${title}</div><div class="pdf-subtitle">${subtitle}</div></div><img class="pdf-logo" src="${LOGO_B64}" alt="Logo"/></div>`;}
 function mdToHtml(text){
   if(!text)return"";
   const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -541,7 +541,7 @@ function Dashboard(){
         ⚠️ P1-P5: mín 2 períodos jugando + 2 descansando por jugador
       </div>}
       <div style={{marginLeft:"auto",textAlign:"right"}}>
-        <p style={{fontSize:10,color:th.muted}}>Tololiver Basketball Coach</p>
+        <p style={{fontSize:10,color:th.muted}}>Tololiver Dashboard</p>
       </div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
@@ -5276,7 +5276,7 @@ function MatchAnalysisBlock({m,players}){
     const w=window.open("","_blank");
     w.document.write(
       pdfOpen("Análisis Post-Partido")
-      +pdfHeader("Análisis Post-Partido","CB Binissalem vs "+a.rival+" · "+a.date+" · "+a.result)
+      +pdfHeader("Análisis Post-Partido","C.B. Muro vs "+a.rival+" · "+a.date+" · "+a.result)
       +mdToHtml(a.text)
       +pdfClose()
     );
@@ -6218,11 +6218,12 @@ const INIT_CLASIFICACION=[
   {pos:2,equip:"ESPORLES BC",              j:7,g:5,p:2,np:0,pe:0,pf:460,pc:405,pts:12},
   {pos:3,equip:"SA POBLA BC A MIQUEL SAMPOL TREBALLS D'OBRA",j:8,g:4,p:4,np:0,pe:0,pf:523,pc:552,pts:12},
   {pos:4,equip:"CB SON COTONER",           j:7,g:5,p:2,np:0,pe:0,pf:497,pc:418,pts:12},
-  {pos:5,equip:"CB BINISSALEM BLAU - FORN NOU A",j:7,g:3,p:4,np:0,pe:0,pf:452,pc:474,pts:10},
+  {pos:5,equip:"CB MURO (EJEMPLO)",j:7,g:3,p:4,np:0,pe:0,pf:452,pc:474,pts:10},
   {pos:6,equip:"GUIDO SITGER BASQUET SON SERVERA",j:8,g:2,p:6,np:0,pe:0,pf:476,pc:521,pts:10},
   {pos:7,equip:"BC SANTANYÍ - CONSTRUCCIONES HLG MALLORCA",j:7,g:2,p:5,np:0,pe:0,pf:411,pc:466,pts:9},
 ];
-const MY_TEAM="CB BINISSALEM";
+// Detecta tu equipo en la clasificación aunque la federación añada patrocinador o letra (ej. "CB MURO A")
+const MY_TEAM="MURO";
 
 /* ── ClasifNI — input numérico para edición de clasificación, top-level para evitar pérdida de foco ── */
 function ClasifNI({field,wide,editRow,setEditRow,th}){
@@ -6546,7 +6547,7 @@ function exportEvalPDF(player,evalType,template,scores,notes,aiReport){
     ${notes?`<div style="margin-top:16px;padding:14px;background:#f8fafc;border-left:4px solid #f97316;border-radius:4px"><p style="font-size:11px;font-weight:700;color:#1e3a5f;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Observaciones</p><p style="font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap">${notes}</p></div>`:""}
     ${aiReport?`<div style="margin-top:16px;padding:14px;background:#f0fdf4;border-left:4px solid #10b981;border-radius:4px"><p style="font-size:11px;font-weight:700;color:#065f46;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Informe IA</p><p style="font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap">${aiReport}</p></div>`:""}
     <div style="margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8">
-      <span>C.B. Muro · Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span>
+      <span>Tololiver Basketball Coach</span><span>${new Date().toLocaleDateString("es")}</span>
     </div>
     <script>setTimeout(()=>window.print(),400)</script>
   </body></html>`);
@@ -7368,7 +7369,7 @@ export default function App(){
     <GS th={th}/>
     <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,flexDirection:"column",gap:18}}>
       <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:120,height:"auto",objectFit:"contain",marginBottom:4}}/>
-      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text,letterSpacing:2,textTransform:"uppercase"}}>Cargando…</p>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:16,fontWeight:700,color:th.text,letterSpacing:2,textTransform:"uppercase"}}>Tololiver Dashboard · Cargando…</p>
       <Loader size={20} color="#f97316" style={{animation:"spin 1s linear infinite"}}/>
     </div>
   </>;
@@ -7390,7 +7391,7 @@ export default function App(){
                 <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:36,height:36,objectFit:"contain",flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9",letterSpacing:.5,lineHeight:1.1}}>Tololiver</p>
-                  <p style={{fontSize:9,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Basketball Coach</p>
+                  <p style={{fontSize:9,color:"rgba(255,255,255,.3)",fontFamily:"DM Mono"}}>Dashboard</p>
                 </div>
                 <button className="close-sidebar" onClick={()=>setMenuOpen(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"rgba(255,255,255,.4)",cursor:"pointer",padding:4}}>✕</button>
               </div>
@@ -7462,7 +7463,7 @@ export default function App(){
               <button onClick={()=>setMenuOpen(true)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer",fontSize:20,padding:0,lineHeight:1}}>☰</button>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:30,height:30,objectFit:"contain"}}/>
-                <span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9"}}>Tololiver</span>
+                <span style={{fontFamily:"Barlow Condensed",fontSize:14,fontWeight:800,color:"#f1f5f9"}}>Tololiver Dashboard</span>
               </div>
               <div style={{marginLeft:"auto"}}><SyncBadge status={sync}/></div>
             </div>
