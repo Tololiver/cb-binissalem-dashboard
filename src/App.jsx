@@ -517,6 +517,325 @@ function CalendarioEntrenos({onClose}){
   </div>;
 }
 
+/* ── IMPORTADOR DE EJERCICIOS (PDF · URL · texto) ───────────────
+   Claude extrae los ejercicios → los revisas → se guardan como borradores. */
+const PDFJS_URL="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
+const PDFJS_WORKER="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+async function pdfPageImages(file,pages){
+  // Devuelve {numPágina: dataURL JPEG}. Si pdf.js no carga, devuelve {} y el resto sigue funcionando.
+  try{
+    const pdfjs=await import(/* @vite-ignore */ PDFJS_URL);
+    pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;
+    const doc=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+    const out={};
+    for(const n of pages){
+      if(!n||n<1||n>doc.numPages)continue;
+      const page=await doc.getPage(n);const vp=page.getViewport({scale:1.6});
+      const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
+      await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+      out[n]=cv.toDataURL("image/jpeg",0.82);
+    }
+    return out;
+  }catch(e){console.warn("pdf.js:",e);return {};}
+}
+const fileToB64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
+const bibNorm=s=>String(s||"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+function bibExtractPrompt(tipos,idioma){
+  return `Eres un asistente técnico de baloncesto. Te paso material de una fuente (PDF, página web o texto). Extrae TODOS los ejercicios de entrenamiento que contenga y conviértelos en fichas.
+
+Reglas:
+1. Extrae solo lo que está en la fuente. Si un dato no aparece (duración, jugadores, material…), pon null. No lo inventes.
+2. Si deduces algo que no está explícito (por ejemplo la categoría), añádelo y explícalo en "deducciones".
+3. Idioma de nombre, descripción, reglas, variantes y puntos clave: ${idioma==="orig"?"el mismo de la fuente":idioma==="ca"?"català":"castellano"}. Mantén los términos técnicos que se usan así en la pista (pick and roll, closeout, spacing…).
+4. "tipologias" solo puede contener valores EXACTOS de esta lista: ${JSON.stringify(tipos)}. Si ninguna encaja, deja [].
+5. "categorias" solo puede contener: "Mini", "Cadet", "Senior".
+6. "fase_sesion": "calentamiento", "principal", "final" o "cualquiera".
+7. "pagina": número de página del PDF donde está el ejercicio (null si no es un PDF). "grafico": true si el ejercicio tiene un diagrama o dibujo en la fuente.
+8. Si no hay ejercicios, devuelve {"ejercicios":[]}.
+
+Responde SOLO con JSON válido, sin texto antes ni después:
+{"titulo_fuente":"","ejercicios":[{"nombre":"","objetivo":null,"descripcion":"","reglas":null,"variantes":null,"puntos_clave":null,"tipologias":[],"categorias":[],"fase_sesion":"cualquiera","intensidad":null,"duracion_min":null,"duracion_max":null,"jugadores_min":null,"jugadores_max":null,"canastas":null,"material":[],"pagina":null,"grafico":false,"deducciones":[]}]}`;
+}
+function parseJsonLoose(txt){
+  const s=txt.indexOf("{"),e=txt.lastIndexOf("}");
+  if(s<0||e<s)throw new Error("La IA no ha devuelto JSON.");
+  return JSON.parse(txt.slice(s,e+1));
+}
+
+function ImportadorEjercicios({onClose}){
+  const{th}=useTheme();const{apiKey,biblio,reloadBiblio}=useData();
+  const tipologias=biblio?.tipologias||[];
+  const[modo,setModo]=useState("pdf");const[file,setFile]=useState(null);const[url,setUrl]=useState("");const[texto,setTexto]=useState("");
+  const[idioma,setIdioma]=useState("ca");
+  const[fase,setFase]=useState("input");// input · procesando · revisar · guardando · hecho
+  const[msg,setMsg]=useState("");const[items,setItems]=useState([]);const[fuenteTitulo,setFuenteTitulo]=useState("");
+  const[conImagen,setConImagen]=useState(true);
+
+  const existentes=new Set((biblio?.list||[]).map(e=>bibNorm(e.name)));
+  const extraer=async()=>{
+    if(!apiKey){setMsg("❌ Falta la API Key de Anthropic (⚙️ en la barra lateral).");return;}
+    setFase("procesando");setMsg("");
+    try{
+      const tipos=tipologias.map(t=>t.nombre);
+      let content;let titulo="";
+      if(modo==="pdf"){
+        if(!file)throw new Error("Elige un PDF.");
+        if(file.size>30*1024*1024)throw new Error("El PDF pesa más de 30 MB. Divídelo en partes.");
+        setMsg("Enviando el PDF a la IA… (puede tardar 1-2 minutos si es largo)");
+        content=[{type:"document",source:{type:"base64",media_type:"application/pdf",data:await fileToB64(file)}},{type:"text",text:bibExtractPrompt(tipos,idioma)}];
+        titulo=file.name.replace(/\.pdf$/i,"");
+      }else if(modo==="url"){
+        if(!/^https?:\/\//.test(url.trim()))throw new Error("Pega una URL que empiece por http:// o https://");
+        setMsg("Leyendo la página…");
+        const r=await fetch("/.netlify/functions/fetch-url?url="+encodeURIComponent(url.trim()));
+        if(!r.ok){let d="";try{d=(await r.json()).error||"";}catch{}throw new Error("No se ha podido leer la página"+(r.status===404?" (falta la función fetch-url en Netlify)":"")+(d?": "+d:""));}
+        const page=await r.json();titulo=page.title||url;
+        if(!page.text||page.text.length<200)throw new Error("La página no tiene texto suficiente (puede que necesite login o que cargue el contenido con JavaScript). Copia el texto y usa la pestaña Texto.");
+        setMsg("Enviando el texto a la IA…");
+        content=[{type:"text",text:`FUENTE: ${titulo}\nURL: ${url}\n\n${page.text.slice(0,120000)}`},{type:"text",text:bibExtractPrompt(tipos,idioma)}];
+      }else{
+        if(texto.trim().length<50)throw new Error("Pega más texto.");
+        setMsg("Enviando el texto a la IA…");
+        content=[{type:"text",text:texto.slice(0,120000)},{type:"text",text:bibExtractPrompt(tipos,idioma)}];
+        titulo="Texto pegado "+calToday();
+      }
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:16000,messages:[{role:"user",content}]});
+      const txt=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+      if(data.stop_reason==="max_tokens")throw new Error("La fuente tiene demasiados ejercicios para una sola pasada. Divide el PDF en partes más pequeñas.");
+      const parsed=parseJsonLoose(txt);
+      const tipMap=Object.fromEntries(tipologias.map(t=>[t.nombre,t.id]));
+      const list=(parsed.ejercicios||[]).filter(x=>x&&x.nombre).map((x,i)=>{
+        const dup=existentes.has(bibNorm(x.nombre));
+        return{key:i,sel:!dup,dup,...x,tipologia_ids:(x.tipologias||[]).map(n=>tipMap[n]).filter(Boolean),
+          categorias:(x.categorias||[]).filter(c=>BIB_CATS.includes(c))};
+      });
+      setFuenteTitulo(parsed.titulo_fuente||titulo);setItems(list);
+      setFase("revisar");setMsg(list.length?"":"La IA no ha encontrado ejercicios en esta fuente.");
+    }catch(e){console.error(e);setFase("input");setMsg("❌ "+(e.message||"Error"));}
+  };
+
+  const guardar=async()=>{
+    const sel=items.filter(x=>x.sel);if(!sel.length)return;
+    setFase("guardando");setMsg("Guardando…");
+    try{
+      const{data:fu,error:fe}=await sb.from("fuentes").insert({tipo:modo==="texto"?"manual":modo,titulo:fuenteTitulo||null,url:modo==="url"?url.trim():null,estado:"procesada"}).select("id").single();
+      if(fe)throw fe;
+      let imgs={};
+      if(modo==="pdf"&&conImagen){
+        const pages=[...new Set(sel.filter(x=>x.grafico&&x.pagina).map(x=>+x.pagina))];
+        if(pages.length){setMsg(`Generando imágenes de ${pages.length} página(s)…`);imgs=await pdfPageImages(file,pages);}
+      }
+      let n=0,nImg=0;
+      for(const x of sel){
+        const int=v=>{const k=parseInt(v,10);return isNaN(k)?null:k;};
+        const txt=v=>v===null||v===undefined||String(v).trim()===""?null:String(v).trim();
+        const notas=["Importat per IA de: "+(fuenteTitulo||"fuente")+(x.pagina?` (pàg. ${x.pagina})`:"")+"."].concat((x.deducciones||[]).length?["Deduccions: "+x.deducciones.join("; ")]:[]).join(" ");
+        const fields={nombre:String(x.nombre).trim(),estado:"borrador",objetivo:txt(x.objetivo),descripcion:txt(x.descripcion),reglas:txt(x.reglas),
+          variantes:txt(x.variantes),puntos_clave:txt(x.puntos_clave),tipologia_ids:x.tipologia_ids,categorias:x.categorias,
+          fase_sesion:["calentamiento","principal","final","cualquiera"].includes(x.fase_sesion)?x.fase_sesion:"cualquiera",
+          intensidad:int(x.intensidad)&&int(x.intensidad)>=1&&int(x.intensidad)<=5?int(x.intensidad):null,
+          duracion_min:int(x.duracion_min),duracion_max:int(x.duracion_max),jugadores_min:int(x.jugadores_min),jugadores_max:int(x.jugadores_max),
+          canastas:int(x.canastas),material:Array.isArray(x.material)?x.material.map(String).filter(Boolean):[],
+          fuente_id:fu.id,fuente_ref:x.pagina?`pàg. ${x.pagina}`:null,creado_por_ia:true,notas_migracion:notas};
+        const img=x.pagina&&imgs[+x.pagina];
+        await bibSave(null,fields,img?[{dataUrl:img,pie:`Pàgina ${x.pagina} de la font (retalla-la si cal)`}]:[],[]);
+        n++;if(img)nImg++;setMsg(`Guardando… ${n}/${sel.length}`);
+      }
+      await reloadBiblio();
+      setFase("hecho");setMsg(`✓ ${n} ejercicios guardados como borradores${nImg?` · ${nImg} con la imagen de su página`:""}.`+(modo==="pdf"&&conImagen&&sel.some(x=>x.grafico&&x.pagina)&&!Object.keys(imgs).length?" No se han podido generar las imágenes de las páginas.":""));
+    }catch(e){console.error(e);setFase("revisar");setMsg("❌ "+(e.message||"Error al guardar"));}
+  };
+
+  const upd=(k,f,v)=>setItems(x=>x.map(y=>y.key===k?{...y,[f]:v}:y));
+  const tab=on=>({padding:"6px 16px",borderRadius:7,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:on?"#f97316":th.card2,color:on?"#fff":th.sub});
+  const tipName=id=>tipologias.find(t=>t.id===id)?.nombre;
+  return <div className="card" style={{padding:20,marginBottom:18,borderColor:"#f9731640"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#f97316",textTransform:"uppercase"}}>Importar ejercicios</p>
+      <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px"}}>✕</button>
+    </div>
+    {(fase==="input"||fase==="procesando")&&<>
+      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+        <button style={tab(modo==="pdf")} onClick={()=>setModo("pdf")}>PDF</button>
+        <button style={tab(modo==="url")} onClick={()=>setModo("url")}>URL</button>
+        <button style={tab(modo==="texto")} onClick={()=>setModo("texto")}>Texto</button>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,color:th.muted}}>Idioma de las fichas</span>
+          <select value={idioma} onChange={e=>setIdioma(e.target.value)} style={{width:"auto"}}><option value="ca">Català</option><option value="es">Castellano</option><option value="orig">El de la fuente</option></select></div>
+      </div>
+      {modo==="pdf"&&<div><input type="file" accept="application/pdf" onChange={e=>setFile(e.target.files?.[0]||null)}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.sub,marginTop:10,cursor:"pointer"}}><input type="checkbox" checked={conImagen} onChange={e=>setConImagen(e.target.checked)} style={{width:"auto"}}/>Añadir la imagen de la página a los ejercicios que tienen gráfico</label>
+        <p style={{fontSize:11,color:th.muted,marginTop:6}}>Máx. 30 MB. Si el PDF es muy largo, mejor por partes (capítulos).</p></div>}
+      {modo==="url"&&<div><input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://… (página concreta del ejercicio o artículo)"/>
+        <p style={{fontSize:11,color:th.muted,marginTop:6}}>Solo páginas públicas. Si la web pide login o no se puede leer, copia el texto y usa la pestaña Texto.</p></div>}
+      {modo==="texto"&&<textarea rows={8} value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Pega aquí el texto de los ejercicios…"/>}
+      <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
+        <Btn onClick={extraer} disabled={fase==="procesando"} icon={fase==="procesando"?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>{fase==="procesando"?"Analizando…":"Extraer ejercicios"}</Btn>
+        {msg&&<span style={{fontSize:12,color:msg.startsWith("❌")?"#ef4444":th.sub}}>{msg}</span>}
+      </div>
+    </>}
+    {(fase==="revisar"||fase==="guardando")&&<>
+      <p style={{fontSize:13,color:th.sub,marginBottom:10}}><strong style={{color:th.text}}>{items.length}</strong> ejercicios encontrados en <em>{fuenteTitulo}</em>. Marca los que quieres guardar (se guardan como <strong>borrador</strong>). Los que ya existen con el mismo nombre salen desmarcados.</p>
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <Btn sm variant="ghost" onClick={()=>setItems(x=>x.map(y=>({...y,sel:true})))}>Marcar todos</Btn>
+        <Btn sm variant="ghost" onClick={()=>setItems(x=>x.map(y=>({...y,sel:false})))}>Ninguno</Btn>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"55vh",overflowY:"auto",paddingRight:4}}>
+        {items.map(x=><div key={x.key} style={{display:"grid",gridTemplateColumns:"24px 1fr",gap:10,padding:12,borderRadius:8,border:`1px solid ${x.sel?"#f9731660":th.border}`,background:th.card2}}>
+          <input type="checkbox" checked={x.sel} onChange={e=>upd(x.key,"sel",e.target.checked)} style={{width:18,height:18,marginTop:4}}/>
+          <div>
+            <input value={x.nombre} onChange={e=>upd(x.key,"nombre",e.target.value)} style={{fontWeight:700,marginBottom:6}}/>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
+              {x.dup&&<Badge color="#ef4444" sm>Ya existe un ejercicio con este nombre</Badge>}
+              {x.tipologia_ids.map(id=><Badge key={id} color={tagColor(tipName(id))} sm>{tipName(id)}</Badge>)}
+              {!x.tipologia_ids.length&&<Badge color="#94a3b8" sm>Sin clasificar</Badge>}
+              {x.categorias.map(c=><Badge key={c} color="#3b82f6" sm>{c}</Badge>)}
+              {x.duracion_min&&<Badge color="#06b6d4" sm>{x.duracion_min}{x.duracion_max&&x.duracion_max!==x.duracion_min?"-"+x.duracion_max:""}'</Badge>}
+              {x.pagina&&<Badge color="#64748b" sm>pàg. {x.pagina}{x.grafico?" · gràfic":""}</Badge>}
+            </div>
+            <p style={{fontSize:12,color:th.sub,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{x.descripcion}</p>
+            {(x.deducciones||[]).length>0&&<p style={{fontSize:11,color:th.muted,fontStyle:"italic",marginTop:4}}>Deducido por la IA: {x.deducciones.join("; ")}</p>}
+          </div>
+        </div>)}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
+        <Btn onClick={guardar} disabled={fase==="guardando"||!items.some(x=>x.sel)}>{fase==="guardando"?"Guardando…":`Guardar ${items.filter(x=>x.sel).length} como borradores`}</Btn>
+        <Btn variant="ghost" onClick={()=>{setFase("input");setItems([]);setMsg("");}}>Volver</Btn>
+        {msg&&<span style={{fontSize:12,color:msg.startsWith("❌")?"#ef4444":th.sub}}>{msg}</span>}
+      </div>
+    </>}
+    {fase==="hecho"&&<div>
+      <p style={{fontSize:13,color:"#10b981",marginBottom:12}}>{msg}</p>
+      <p style={{fontSize:12,color:th.sub,marginBottom:12}}>Revísalos en la lista (filtro "Solo borradores") y apruébalos con ✓.</p>
+      <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setFase("input");setItems([]);setMsg("");setFile(null);setUrl("");setTexto("");}}>Importar otra fuente</Btn><Btn variant="ghost" onClick={onClose}>Cerrar</Btn></div>
+    </div>}
+  </div>;
+}
+
+/* ── PLANIFICADOR IA ─────────────────────────────────────────────
+   Tú marcas bloques, minutos y objetivo → la IA elige ejercicios SOLO de tu biblioteca
+   → la sesión se abre en el editor normal para retocarla antes de guardar. */
+const PIA_BLOCKS=[["calentamiento","Calentamiento"],["tecnico","Técnico"],["tactico","Táctico"],["fisico","Físico"],["mental","Mental"],["competitivo","Competitivo"],["vuelta_calma","Vuelta a la calma"],["otro","Otro"]];
+function PlanificadorIA({onClose,onResult}){
+  const{th}=useTheme();const{apiKey,ejercicios,sessions,calendario}=useData();const{teamId,teamsConfig}=useAppContext();
+  const teamCat=bibTeamCat(teamsConfig?.[teamId]?.categoria);
+  const[date,setDate]=useState(calToday());const[time,setTime]=useState("");
+  const[blocks,setBlocks]=useState([
+    {blockType:"calentamiento",min:15,foco:"Activació amb pilota"},
+    {blockType:"tecnico",min:25,foco:""},
+    {blockType:"competitivo",min:40,foco:""},
+    {blockType:"vuelta_calma",min:10,foco:"Competició final"},
+  ]);
+  const[objetivo,setObjetivo]=useState("");const[jugadores,setJugadores]=useState("");const[canastas,setCanastas]=useState("");
+  const[soloAprobados,setSoloAprobados]=useState(false);const[evitar,setEvitar]=useState(3);
+  const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
+  const total=blocks.reduce((a,b)=>a+(parseInt(b.min)||0),0);
+  const setB=(i,k,v)=>setBlocks(x=>x.map((b,j)=>j===i?{...b,[k]:v}:b));
+
+  const candidatos=()=>{
+    const n=parseInt(jugadores)||0;const c=parseInt(canastas)||0;
+    return (ejercicios||[]).filter(e=>e.row&&e.estado!=="descartado"&&(!soloAprobados||e.estado==="aprobado")
+      &&(!e.categorias.length||!teamCat||e.categorias.includes(teamCat))
+      &&(!n||!e.row.jugadores_min||e.row.jugadores_min<=n)
+      &&(!c||!e.row.canastas||e.row.canastas<=c));
+  };
+  const recientes=()=>{
+    const ses=[...(sessions||[])].filter(s=>s.date&&s.date<date).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,parseInt(evitar)||0);
+    return new Set(ses.flatMap(s=>(s.exObjs||[]).filter(e=>e.type==="catalog").map(e=>String(e.id))));
+  };
+
+  const generar=async()=>{
+    if(!apiKey){setMsg("❌ Falta la API Key de Anthropic (⚙️ en la barra lateral).");return;}
+    const cands=candidatos();
+    if(cands.length<3){setMsg("❌ Hay muy pocos ejercicios en la biblioteca para este equipo y filtros.");return;}
+    const usados=recientes();
+    setBusy(true);setMsg("La IA está montando la sesión…");
+    try{
+      const lista=cands.map(e=>({id:String(e.id),nombre:e.name,tipologias:e.tipos,fase:e.fase||"cualquiera",
+        min:e.row.duracion_min||null,max:e.row.duracion_max||null,jugadores_min:e.row.jugadores_min||null,canastas:e.row.canastas||null,
+        intensidad:e.row.intensidad||null,reciente:usados.has(String(e.id)),resumen:(e.desc||"").slice(0,180)}));
+      const prompt=`Eres el preparador de Tololiver Basketball Coach. Monta una sesión de entrenamiento de ${total} minutos para el equipo ${teamsConfig?.[teamId]?.nombre||""} (categoría ${teamCat||"?"}).
+
+BLOQUES (en este orden, con sus minutos exactos):
+${blocks.map((b,i)=>`${i+1}. ${PIA_BLOCKS.find(x=>x[0]===b.blockType)?.[1]} · ${b.min} min${b.foco?` · foco: ${b.foco}`:""}`).join("\n")}
+
+OBJETIVO DE LA SESIÓN: ${objetivo||"(no indicado)"}
+JUGADORES DISPONIBLES: ${jugadores||"(no indicado)"} · CANASTAS: ${canastas||"(no indicado)"}
+
+EJERCICIOS DISPONIBLES (usa SOLO estos, por su id):
+${JSON.stringify(lista)}
+
+Reglas:
+- Usa únicamente ids de la lista. No inventes ejercicios.
+- En cada bloque, la suma de minutos debe ser exactamente la del bloque. Respeta min/max del ejercicio cuando existan.
+- Evita los ejercicios con "reciente": true salvo que no haya alternativa.
+- No repitas un ejercicio en la misma sesión.
+- Progresión lógica: de menos a más intensidad y de lo analítico a lo competitivo, encajando la fase de cada ejercicio con el bloque.
+- "nota": una frase corta en català con el énfasis o la variante para esta sesión (puede ir vacía).
+- Si un bloque no se puede cubrir bien con la biblioteca, dilo en "huecos" (en castellano).
+
+Responde SOLO con JSON:
+{"bloques":[{"items":[{"id":"","minutos":0,"nota":""}]}],"huecos":[],"comentario":""}`;
+      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]});
+      const txt=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+      const out=parseJsonLoose(txt);
+      const byId=Object.fromEntries(cands.map(e=>[String(e.id),e]));
+      const exObjs=[];const huecos=[...(out.huecos||[])];const usadosSes=new Set();let t0=Date.now();
+      blocks.forEach((b,i)=>{
+        const its=((out.bloques||[])[i]?.items||[]).filter(it=>byId[String(it.id)]&&!usadosSes.has(String(it.id)));
+        // Si el bloque queda vacío conserva sus minutos (para que el total cuadre y lo completes a mano)
+        exObjs.push({type:"block",id:"block_"+(t0++),blockType:b.blockType,desc:b.foco||"",sesMin:its.length?"":String(parseInt(b.min)||"")});
+        its.forEach(it=>usadosSes.add(String(it.id)));
+        // Ajuste exacto de minutos del bloque (lo hace el código, no la IA)
+        const objetivoMin=parseInt(b.min)||0;let mins=its.map(it=>Math.max(1,parseInt(it.minutos)||0));
+        const suma=mins.reduce((a,m)=>a+m,0);
+        if(its.length&&suma!==objetivoMin){const dif=objetivoMin-suma;mins[mins.length-1]=Math.max(1,mins[mins.length-1]+dif);}
+        if(!its.length)huecos.push(`Bloque ${PIA_BLOCKS.find(x=>x[0]===b.blockType)?.[1]}: la IA no ha encontrado ejercicios adecuados.`);
+        its.forEach((it,k)=>{const e=byId[String(it.id)];
+          exObjs.push({id:e.id,name:e.name,cat:e.cat,dur:e.dur,diff:e.diff,desc:e.desc,images:e.images||[],type:"catalog",sesMin:String(mins[k]),sesNotes:it.nota||""});});
+      });
+      const notas=[objetivo?`Objectiu: ${objetivo}`:"",out.comentario?`IA: ${out.comentario}`:"",huecos.length?`⚠️ Huecos: ${huecos.join(" · ")}`:""].filter(Boolean).join("\n");
+      onResult({date,time,type:"Técnico-Táctico",dur:total,title:sesAutoTitle(date,calendario,teamId)||"Sessió d'entrenament",exObjs,notes:notas,images:[]});
+    }catch(e){console.error(e);setMsg("❌ "+(e.message||"Error"));}
+    finally{setBusy(false);}
+  };
+
+  const nC=candidatos().length;
+  return <div className="card" style={{padding:20,marginBottom:18,borderColor:"#8b5cf660"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+      <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#8b5cf6",textTransform:"uppercase"}}>Planificar con IA</p>
+      <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px"}}>✕</button>
+    </div>
+    <p style={{fontSize:12,color:th.sub,marginBottom:14}}>La IA solo usa ejercicios de tu biblioteca ({nC} disponibles para {teamCat||"este equipo"} con estos filtros). La sesión se abre en el editor para que la retoques antes de guardarla.</p>
+    <div style={{display:"grid",gridTemplateColumns:"160px 120px 120px 120px",gap:10,marginBottom:12}}>
+      <div><Lbl>Fecha</Lbl><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+      <div><Lbl>Hora</Lbl><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></div>
+      <div><Lbl>Jugadores</Lbl><input type="number" value={jugadores} onChange={e=>setJugadores(e.target.value)} placeholder="—"/></div>
+      <div><Lbl>Canastas</Lbl><input type="number" value={canastas} onChange={e=>setCanastas(e.target.value)} placeholder="—"/></div>
+    </div>
+    <Lbl>Bloques · total {total} min</Lbl>
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+      {blocks.map((b,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"170px 80px 1fr 28px 28px 28px",gap:6,alignItems:"center"}}>
+        <select value={b.blockType} onChange={e=>setB(i,"blockType",e.target.value)}>{PIA_BLOCKS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+        <input type="number" value={b.min} onChange={e=>setB(i,"min",e.target.value)}/>
+        <input value={b.foco} onChange={e=>setB(i,"foco",e.target.value)} placeholder="Foco del bloque (opcional): tir després de bot, defensa 1c1…"/>
+        <button type="button" disabled={i===0} onClick={()=>setBlocks(x=>{const a=[...x];[a[i-1],a[i]]=[a[i],a[i-1]];return a;})} style={{height:30,borderRadius:6,border:`1px solid ${th.border2}`,background:"transparent",color:th.sub,cursor:"pointer",opacity:i===0?.3:1}}>▲</button>
+        <button type="button" disabled={i===blocks.length-1} onClick={()=>setBlocks(x=>{const a=[...x];[a[i+1],a[i]]=[a[i],a[i+1]];return a;})} style={{height:30,borderRadius:6,border:`1px solid ${th.border2}`,background:"transparent",color:th.sub,cursor:"pointer",opacity:i===blocks.length-1?.3:1}}>▼</button>
+        <button type="button" onClick={()=>setBlocks(x=>x.filter((_,j)=>j!==i))} style={{height:30,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",cursor:"pointer"}}>✕</button>
+      </div>)}
+    </div>
+    <Btn sm variant="ghost" icon={<Plus size={12}/>} onClick={()=>setBlocks(x=>[...x,{blockType:"tecnico",min:10,foco:""}])}>Añadir bloque</Btn>
+    <div style={{marginTop:12}}><Lbl>Objetivo de la sesión</Lbl><textarea rows={2} value={objetivo} onChange={e=>setObjetivo(e.target.value)} placeholder="Ej: mejorar la selección de tiro tras pase de fondo y decidir bien en superioridad"/></div>
+    <div style={{display:"flex",gap:18,marginTop:10,flexWrap:"wrap",fontSize:12,color:th.sub,alignItems:"center"}}>
+      <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={soloAprobados} onChange={e=>setSoloAprobados(e.target.checked)} style={{width:"auto"}}/>Solo ejercicios aprobados</label>
+      <label style={{display:"flex",alignItems:"center",gap:6}}>Evitar los de las últimas <input type="number" min={0} max={10} value={evitar} onChange={e=>setEvitar(e.target.value)} style={{width:56}}/> sesiones</label>
+    </div>
+    <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
+      <Btn onClick={generar} disabled={busy||!total} icon={busy?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>{busy?"Generando…":"Generar sesión"}</Btn>
+      {msg&&<span style={{fontSize:12,color:msg.startsWith("❌")?"#ef4444":th.sub}}>{msg}</span>}
+    </div>
+  </div>;
+}
+
 /* ── PDF DE SESIÓN (diseño Tololiver) ─────────────────────────
    · Lee la versión actual de los ejercicios de la biblioteca
    · Tiempo por ejercicio y por bloque (suma automática)
@@ -2013,7 +2332,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
 
 function Entrenamientos(){
   const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios,biblio}=useData();
-  const[showCal,setShowCal]=useState(false);
+  const[showCal,setShowCal]=useState(false);const[showIA,setShowIA]=useState(false);
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
   const[editSes,setEditSes]=useState(null);
@@ -2238,10 +2557,12 @@ function Entrenamientos(){
 
     <SH title="Entrenamientos" sub="Sesiones · Ejercicios · Notas · PDF" right={<div style={{display:"flex",gap:8}}>
       <Btn onClick={()=>setShowCal(v=>!v)} variant="ghost" icon={<Calendar size={14}/>} sm>Calendario</Btn>
+      <Btn onClick={()=>{setShowIA(v=>!v);setShowAdd(false);setEditSes(null);}} variant="ghost" icon={<Brain size={14}/>} sm>Planificar con IA</Btn>
       <Btn onClick={()=>setShowTemplates(!showTemplates)} variant="ghost" icon={<Copy size={14}/>} sm>Plantillas {sesionTemplates.length>0&&`(${sesionTemplates.length})`}</Btn>
       <Btn onClick={()=>{setShowAdd(true);setEditSes(null);setShowTemplates(false);}} icon={<Plus size={14}/>}>Nueva Sesión</Btn>
     </div>}/>
     {showCal&&<CalendarioEntrenos onClose={()=>setShowCal(false)}/>}
+    {showIA&&<PlanificadorIA onClose={()=>setShowIA(false)} onResult={s=>{setShowIA(false);setEditSes({...s,id:null});setShowAdd(true);}}/>}
 
     {/* Plantillas */}
     {showTemplates&&<div className="card" style={{padding:18,marginBottom:14,borderColor:"rgba(139,92,246,.3)"}}>
@@ -2892,7 +3213,7 @@ function Ejercicios(){
   const[q,setQ]=useState("");
   const[editEx,setEditEx]=useState(null);const[showAdd,setShowAdd]=useState(false);
   const[viewImg,setViewImg]=useState(null);const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
-  const[openDesc,setOpenDesc]=useState({});
+  const[openDesc,setOpenDesc]=useState({});const[showImport,setShowImport]=useState(false);
 
   if(!biblio?.loaded)return <div><SH title="Ejercicios" sub="Biblioteca"/><p style={{color:th.muted,fontSize:13}}>Cargando biblioteca…</p></div>;
   if(biblio.error)return <div><SH title="Ejercicios" sub="Biblioteca"/>
@@ -2921,10 +3242,12 @@ function Ejercicios(){
   return <div>
     <SH title="Ejercicios" sub={`Biblioteca común a todos los equipos · ${count("aprobado")} aprobados · ${count("borrador")} borradores`}
       right={<div style={{display:"flex",gap:8}}>
+        <Btn onClick={()=>setShowImport(v=>!v)} variant="ghost" icon={<Upload size={14}/>} sm>Importar</Btn>
         <Btn onClick={()=>exportEjerciciosPDF(filtered,"Todos")} variant="ghost" icon={<Printer size={14}/>} sm>PDF</Btn>
         <Btn onClick={()=>{setShowAdd(true);setEditEx(null);}} icon={<Plus size={14}/>}>Nuevo Ejercicio</Btn>
       </div>}/>
     {msg&&<p style={{fontSize:12,marginBottom:12,color:msg.startsWith("❌")?"#ef4444":"#10b981"}}>{msg}</p>}
+    {showImport&&<ImportadorEjercicios onClose={()=>setShowImport(false)}/>}
     {showAdd&&<EjercicioEditForm ex={null} tipologias={tipologias} busy={busy} onSave={saveEx} onCancel={()=>setShowAdd(false)}/>}
 
     <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
@@ -7249,7 +7572,7 @@ const TEAM_ROWS = {
   "cadete_masc": "state_26_27_cadete_masc",
 };
 
-export default function App(){
+function AppMain(){
   const[dark,setDarkRaw]=useState(true);const[view,setView]=useState("dashboard");
   // TEAM_ROWS is now defined at module level
   const[teamId,setTeamId]=useState(()=>localStorage.getItem("cb_team")||"mini_masc");
@@ -7592,6 +7915,9 @@ export default function App(){
                 <span style={{fontSize:13}}>⚙️</span>
                 <span style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:600}}>{apiKey?"API Key ✓":"Configurar API Key"}</span>
               </button>
+              <button onClick={()=>{if(confirm("¿Cerrar sesión en este navegador?"))sb.auth.signOut();}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.08)",cursor:"pointer",color:"rgba(255,255,255,.45)"}}>
+                <span style={{fontSize:13}}>🔒</span><span style={{fontFamily:"Barlow Condensed",fontSize:12,fontWeight:600}}>Cerrar sesión</span>
+              </button>
               <div onClick={()=>setDark(d=>!d)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"8px 10px",borderRadius:8,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.08)"}}>
                 {dark?<Sun size={13} color="#f59e0b"/>:<Moon size={13} color="#8b5cf6"/>}
                 <span style={{fontFamily:"Barlow Condensed",fontSize:12,color:"rgba(255,255,255,.45)",fontWeight:600}}>{dark?"Modo Claro":"Modo Oscuro"}</span>
@@ -7622,4 +7948,82 @@ export default function App(){
     </AppCtx.Provider>
     </ThemeCtx.Provider>
   );
+}
+
+/* ── LOGIN (Supabase Auth) ──────────────────────────────────── */
+function LoginScreen(){
+  const th=DARK;
+  const[email,setEmail]=useState(()=>{try{return localStorage.getItem("cb_last_email")||"";}catch{return "";}});
+  const[pass,setPass]=useState("");const[busy,setBusy]=useState(false);const[err,setErr]=useState("");const[info,setInfo]=useState("");
+  const entrar=async e=>{
+    e?.preventDefault();if(!email||!pass||busy)return;
+    setBusy(true);setErr("");setInfo("");
+    const{error}=await sb.auth.signInWithPassword({email:email.trim(),password:pass});
+    setBusy(false);
+    if(error){setErr(error.message==="Invalid login credentials"?"Email o contraseña incorrectos.":error.message);return;}
+    try{localStorage.setItem("cb_last_email",email.trim());}catch{}
+  };
+  const recuperar=async()=>{
+    if(!email){setErr("Escribe tu email y vuelve a pulsar.");return;}
+    setErr("");setInfo("");
+    const{error}=await sb.auth.resetPasswordForEmail(email.trim(),{redirectTo:window.location.origin});
+    if(error)setErr(error.message);else setInfo("Te hemos enviado un email para cambiar la contraseña.");
+  };
+  return <>
+    <GS th={th}/>
+    <div style={{minHeight:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,padding:20}}>
+      <form onSubmit={entrar} className="card" style={{width:"100%",maxWidth:360,padding:28,display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{textAlign:"center",marginBottom:6}}>
+          <img src="/tololiver_logo_sidebar.png" alt="Tololiver" style={{width:90,height:"auto",objectFit:"contain"}}/>
+          <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:800,color:th.text,letterSpacing:1,textTransform:"uppercase",marginTop:8}}>Tololiver Dashboard</p>
+        </div>
+        <div><Lbl>Email</Lbl><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+        <div><Lbl>Contraseña</Lbl><input type="password" autoComplete="current-password" value={pass} onChange={e=>setPass(e.target.value)}/></div>
+        {err&&<p style={{color:"#ef4444",fontSize:12}}>{err}</p>}
+        {info&&<p style={{color:"#10b981",fontSize:12}}>{info}</p>}
+        <Btn onClick={entrar} disabled={busy||!email||!pass} style={{justifyContent:"center"}}>{busy?"Entrando…":"Entrar"}</Btn>
+        <button type="button" onClick={recuperar} style={{background:"transparent",border:"none",color:th.sub,fontSize:12,cursor:"pointer"}}>He olvidado la contraseña</button>
+        <button type="submit" style={{display:"none"}}/>
+      </form>
+    </div>
+  </>;
+}
+
+// Pantalla para poner contraseña nueva cuando se entra desde el email de recuperación
+function NuevaPassword({onDone}){
+  const th=DARK;const[p1,setP1]=useState("");const[p2,setP2]=useState("");const[err,setErr]=useState("");const[busy,setBusy]=useState(false);
+  const guardar=async e=>{
+    e?.preventDefault();
+    if(p1.length<8){setErr("Mínimo 8 caracteres.");return;}
+    if(p1!==p2){setErr("Las contraseñas no coinciden.");return;}
+    setBusy(true);const{error}=await sb.auth.updateUser({password:p1});setBusy(false);
+    if(error)setErr(error.message);else onDone();
+  };
+  return <><GS th={th}/>
+    <div style={{minHeight:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,padding:20}}>
+      <form onSubmit={guardar} className="card" style={{width:"100%",maxWidth:360,padding:28,display:"flex",flexDirection:"column",gap:14}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:800,color:th.text,textTransform:"uppercase"}}>Nueva contraseña</p>
+        <div><Lbl>Contraseña nueva</Lbl><input type="password" autoComplete="new-password" value={p1} onChange={e=>setP1(e.target.value)}/></div>
+        <div><Lbl>Repítela</Lbl><input type="password" autoComplete="new-password" value={p2} onChange={e=>setP2(e.target.value)}/></div>
+        {err&&<p style={{color:"#ef4444",fontSize:12}}>{err}</p>}
+        <Btn onClick={guardar} disabled={busy} style={{justifyContent:"center"}}>{busy?"Guardando…":"Guardar"}</Btn>
+      </form>
+    </div></>;
+}
+
+export default function App(){
+  const[session,setSession]=useState(undefined);
+  const[recovery,setRecovery]=useState(false);
+  useEffect(()=>{
+    sb.auth.getSession().then(({data})=>setSession(data.session||null));
+    const{data:sub}=sb.auth.onAuthStateChange((event,s)=>{
+      if(event==="PASSWORD_RECOVERY")setRecovery(true);
+      setSession(s||null);
+    });
+    return()=>sub.subscription.unsubscribe();
+  },[]);
+  if(session===undefined)return <><GS th={DARK}/><div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:DARK.bg}}><Loader size={20} color="#f97316" style={{animation:"spin 1s linear infinite"}}/></div></>;
+  if(recovery&&session)return <NuevaPassword onDone={()=>setRecovery(false)}/>;
+  if(!session)return <LoginScreen/>;
+  return <ErrorBoundary><AppMain/></ErrorBoundary>;
 }
