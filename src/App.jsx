@@ -538,10 +538,40 @@ async function pdfPageImages(file,pages){
     return out;
   }catch(e){console.warn("pdf.js:",e);return {};}
 }
+// Saca fotogramas de un vídeo en el navegador (sin subir el vídeo a ningún sitio)
+const fmtMin=t=>`${String(Math.floor(t/60)).padStart(2,"0")}:${String(Math.floor(t%60)).padStart(2,"0")}`;
+async function videoFrames(file,{every=10,max=30,width=768}={},onProgress){
+  const url=URL.createObjectURL(file);
+  const v=document.createElement("video");v.muted=true;v.playsInline=true;v.preload="auto";v.src=url;
+  try{
+    await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=()=>rej(new Error("El navegador no puede leer este vídeo. Prueba con MP4 (H.264) o WEBM."));});
+    const dur=v.duration;if(!isFinite(dur)||dur<=0)throw new Error("No se ha podido leer la duración del vídeo.");
+    const n=Math.max(2,Math.min(max,Math.floor(dur/every)||2));
+    const step=dur/n;const times=Array.from({length:n},(_,i)=>Math.min(dur-0.05,step*i+step/2));
+    const scale=Math.min(1,width/(v.videoWidth||width));
+    const cv=document.createElement("canvas");cv.width=Math.round((v.videoWidth||width)*scale);cv.height=Math.round((v.videoHeight||432)*scale);
+    const ctx=cv.getContext("2d");const out=[];
+    for(let i=0;i<times.length;i++){
+      await new Promise((res,rej)=>{const to=setTimeout(()=>rej(new Error("El vídeo tarda demasiado en avanzar.")),15000);
+        v.onseeked=()=>{clearTimeout(to);res();};v.currentTime=times[i];});
+      ctx.drawImage(v,0,0,cv.width,cv.height);
+      out.push({n:i+1,t:times[i],min:fmtMin(times[i]),dataUrl:cv.toDataURL("image/jpeg",0.72)});
+      onProgress&&onProgress(i+1,times.length);
+    }
+    return {frames:out,duration:dur};
+  }finally{URL.revokeObjectURL(url);}
+}
 const fileToB64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
 const bibNorm=s=>String(s||"").normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-function bibExtractPrompt(tipos,idioma){
-  return `Eres un asistente técnico de baloncesto. Te paso material de una fuente (PDF, página web o texto). Extrae TODOS los ejercicios de entrenamiento que contenga y conviértelos en fichas.
+function bibExtractPrompt(tipos,idioma,esVideo){
+  const extraVideo=esVideo?`
+EN ESTE CASO LA FUENTE ES UN VÍDEO: te paso fotogramas numerados con su minuto (y, si hay, notas o transcripción).
+- Describe cada ejercicio a partir de lo que se ve (posiciones, desplazamientos, pases, conos) y de las notas. Si algo no se ve claro, dilo en "deducciones" en vez de inventarlo.
+- "pagina" y "grafico" no aplican: ponlos a null/false.
+- Añade "minuto": el minuto (mm:ss) donde empieza el ejercicio, y "fotogramas": los números (máx. 4) de los fotogramas que mejor lo muestran, en orden.
+`:"";
+  return `Eres un asistente técnico de baloncesto. Te paso material de una fuente (PDF, página web, texto o vídeo). Extrae TODOS los ejercicios de entrenamiento que contenga y conviértelos en fichas.
+${extraVideo}
 
 Reglas:
 1. Extrae solo lo que está en la fuente. Si un dato no aparece (duración, jugadores, material…), pon null. No lo inventes.
@@ -554,7 +584,7 @@ Reglas:
 8. Si no hay ejercicios, devuelve {"ejercicios":[]}.
 
 Responde SOLO con JSON válido, sin texto antes ni después:
-{"titulo_fuente":"","ejercicios":[{"nombre":"","objetivo":null,"descripcion":"","reglas":null,"variantes":null,"puntos_clave":null,"tipologias":[],"categorias":[],"fase_sesion":"cualquiera","intensidad":null,"duracion_min":null,"duracion_max":null,"jugadores_min":null,"jugadores_max":null,"canastas":null,"material":[],"pagina":null,"grafico":false,"deducciones":[]}]}`;
+{"titulo_fuente":"","ejercicios":[{"nombre":"","objetivo":null,"descripcion":"","reglas":null,"variantes":null,"puntos_clave":null,"tipologias":[],"categorias":[],"fase_sesion":"cualquiera","intensidad":null,"duracion_min":null,"duracion_max":null,"jugadores_min":null,"jugadores_max":null,"canastas":null,"material":[],"pagina":null,"grafico":false,"minuto":null,"fotogramas":[],"deducciones":[]}]}`;
 }
 function parseJsonLoose(txt){
   const s=txt.indexOf("{"),e=txt.lastIndexOf("}");
@@ -570,6 +600,8 @@ function ImportadorEjercicios({onClose}){
   const[fase,setFase]=useState("input");// input · procesando · revisar · guardando · hecho
   const[msg,setMsg]=useState("");const[items,setItems]=useState([]);const[fuenteTitulo,setFuenteTitulo]=useState("");
   const[conImagen,setConImagen]=useState(true);
+  const[video,setVideo]=useState(null);const[videoUrl,setVideoUrl]=useState("");const[videoNotas,setVideoNotas]=useState("");const[every,setEvery]=useState(10);
+  const[frames,setFrames]=useState([]);
 
   const existentes=new Set((biblio?.list||[]).map(e=>bibNorm(e.name)));
   const extraer=async()=>{
@@ -593,6 +625,21 @@ function ImportadorEjercicios({onClose}){
         if(!page.text||page.text.length<200)throw new Error("La página no tiene texto suficiente (puede que necesite login o que cargue el contenido con JavaScript). Copia el texto y usa la pestaña Texto.");
         setMsg("Enviando el texto a la IA…");
         content=[{type:"text",text:`FUENTE: ${titulo}\nURL: ${url}\n\n${page.text.slice(0,120000)}`},{type:"text",text:bibExtractPrompt(tipos,idioma)}];
+      }else if(modo==="video"){
+        if(!video&&videoNotas.trim().length<50)throw new Error("Elige un vídeo (o pega al menos la transcripción o unas notas).");
+        let fr=[];
+        if(video){
+          setMsg("Sacando fotogramas del vídeo…");
+          const r=await videoFrames(video,{every:+every,max:30},(i,n)=>setMsg(`Sacando fotogramas del vídeo… ${i}/${n}`));
+          fr=r.frames;
+        }
+        setFrames(fr);
+        setMsg(`Enviando ${fr.length} fotogramas a la IA…`);
+        content=[];
+        fr.forEach(f=>{content.push({type:"text",text:`Fotograma ${f.n} · min ${f.min}`});content.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:f.dataUrl.split(",")[1]}});});
+        if(videoNotas.trim())content.push({type:"text",text:"NOTAS / TRANSCRIPCIÓN DEL VÍDEO:\n"+videoNotas.slice(0,60000)});
+        content.push({type:"text",text:bibExtractPrompt(tipos,idioma,true)});
+        titulo=video?video.name.replace(/\.[^.]+$/,""):(videoUrl||"Vídeo");
       }else{
         if(texto.trim().length<50)throw new Error("Pega más texto.");
         setMsg("Enviando el texto a la IA…");
@@ -618,7 +665,9 @@ function ImportadorEjercicios({onClose}){
     const sel=items.filter(x=>x.sel);if(!sel.length)return;
     setFase("guardando");setMsg("Guardando…");
     try{
-      const{data:fu,error:fe}=await sb.from("fuentes").insert({tipo:modo==="texto"?"manual":modo,titulo:fuenteTitulo||null,url:modo==="url"?url.trim():null,estado:"procesada"}).select("id").single();
+      const tipoFuente=modo==="texto"?"manual":modo==="video"?(video?"video_propio":"youtube"):modo;
+      const urlFuente=modo==="url"?url.trim():modo==="video"&&videoUrl.trim()?videoUrl.trim():null;
+      const{data:fu,error:fe}=await sb.from("fuentes").insert({tipo:tipoFuente,titulo:fuenteTitulo||null,url:urlFuente,estado:"procesada"}).select("id").single();
       if(fe)throw fe;
       let imgs={};
       if(modo==="pdf"&&conImagen){
@@ -629,20 +678,28 @@ function ImportadorEjercicios({onClose}){
       for(const x of sel){
         const int=v=>{const k=parseInt(v,10);return isNaN(k)?null:k;};
         const txt=v=>v===null||v===undefined||String(v).trim()===""?null:String(v).trim();
-        const notas=["Importat per IA de: "+(fuenteTitulo||"fuente")+(x.pagina?` (pàg. ${x.pagina})`:"")+"."].concat((x.deducciones||[]).length?["Deduccions: "+x.deducciones.join("; ")]:[]).join(" ");
+        const esV=modo==="video";
+        const ref=esV?(x.minuto?`min ${x.minuto}`:null):(x.pagina?`pàg. ${x.pagina}`:null);
+        const notas=["Importat per IA de: "+(fuenteTitulo||"fuente")+(ref?` (${ref})`:"")+(esV&&urlFuente?` · ${urlFuente}`:"")+"."].concat((x.deducciones||[]).length?["Deduccions: "+x.deducciones.join("; ")]:[]).join(" ");
         const fields={nombre:String(x.nombre).trim(),estado:"borrador",objetivo:txt(x.objetivo),descripcion:txt(x.descripcion),reglas:txt(x.reglas),
           variantes:txt(x.variantes),puntos_clave:txt(x.puntos_clave),tipologia_ids:x.tipologia_ids,categorias:x.categorias,
           fase_sesion:["calentamiento","principal","final","cualquiera"].includes(x.fase_sesion)?x.fase_sesion:"cualquiera",
           intensidad:int(x.intensidad)&&int(x.intensidad)>=1&&int(x.intensidad)<=5?int(x.intensidad):null,
           duracion_min:int(x.duracion_min),duracion_max:int(x.duracion_max),jugadores_min:int(x.jugadores_min),jugadores_max:int(x.jugadores_max),
           canastas:int(x.canastas),material:Array.isArray(x.material)?x.material.map(String).filter(Boolean):[],
-          fuente_id:fu.id,fuente_ref:x.pagina?`pàg. ${x.pagina}`:null,creado_por_ia:true,notas_migracion:notas};
-        const img=x.pagina&&imgs[+x.pagina];
-        await bibSave(null,fields,img?[{dataUrl:img,pie:`Pàgina ${x.pagina} de la font (retalla-la si cal)`}]:[],[]);
-        n++;if(img)nImg++;setMsg(`Guardando… ${n}/${sel.length}`);
+          fuente_id:fu.id,fuente_ref:ref,creado_por_ia:true,notas_migracion:notas};
+        let media=[];
+        if(esV){
+          media=(x.fotogramas||[]).map(k=>frames.find(f=>f.n===+k)).filter(Boolean).slice(0,BIB_MAX_IMG).map(f=>({dataUrl:f.dataUrl,pie:`min ${f.min}`}));
+        }else{
+          const img=x.pagina&&imgs[+x.pagina];
+          if(img)media=[{dataUrl:img,pie:`Pàgina ${x.pagina} de la font (retalla-la si cal)`}];
+        }
+        await bibSave(null,fields,media,[]);
+        n++;if(media.length)nImg++;setMsg(`Guardando… ${n}/${sel.length}`);
       }
       await reloadBiblio();
-      setFase("hecho");setMsg(`✓ ${n} ejercicios guardados como borradores${nImg?` · ${nImg} con la imagen de su página`:""}.`+(modo==="pdf"&&conImagen&&sel.some(x=>x.grafico&&x.pagina)&&!Object.keys(imgs).length?" No se han podido generar las imágenes de las páginas.":""));
+      setFase("hecho");setMsg(`✓ ${n} ejercicios guardados como borradores${nImg?` · ${nImg} con imágenes (${modo==="video"?"fotogramas":"página del PDF"})`:""}.`+(modo==="pdf"&&conImagen&&sel.some(x=>x.grafico&&x.pagina)&&!Object.keys(imgs).length?" No se han podido generar las imágenes de las páginas.":""));
     }catch(e){console.error(e);setFase("revisar");setMsg("❌ "+(e.message||"Error al guardar"));}
   };
 
@@ -658,6 +715,7 @@ function ImportadorEjercicios({onClose}){
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         <button style={tab(modo==="pdf")} onClick={()=>setModo("pdf")}>PDF</button>
         <button style={tab(modo==="url")} onClick={()=>setModo("url")}>URL</button>
+        <button style={tab(modo==="video")} onClick={()=>setModo("video")}>Vídeo</button>
         <button style={tab(modo==="texto")} onClick={()=>setModo("texto")}>Texto</button>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,color:th.muted}}>Idioma de las fichas</span>
           <select value={idioma} onChange={e=>setIdioma(e.target.value)} style={{width:"auto"}}><option value="ca">Català</option><option value="es">Castellano</option><option value="orig">El de la fuente</option></select></div>
@@ -667,6 +725,17 @@ function ImportadorEjercicios({onClose}){
         <p style={{fontSize:11,color:th.muted,marginTop:6}}>Máx. 30 MB. Si el PDF es muy largo, mejor por partes (capítulos).</p></div>}
       {modo==="url"&&<div><input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://… (página concreta del ejercicio o artículo)"/>
         <p style={{fontSize:11,color:th.muted,marginTop:6}}>Solo páginas públicas. Si la web pide login o no se puede leer, copia el texto y usa la pestaña Texto.</p></div>}
+      {modo==="video"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div><Lbl>Vídeo (archivo de tu ordenador o móvil)</Lbl><input type="file" accept="video/*" onChange={e=>setVideo(e.target.files?.[0]||null)}/></div>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:th.sub}}>Un fotograma cada</span>
+          <select value={every} onChange={e=>setEvery(e.target.value)} style={{width:"auto"}}>{[3,5,10,20,30].map(s=><option key={s} value={s}>{s} s</option>)}</select>
+          <span style={{fontSize:11,color:th.muted}}>(máx. 30 fotogramas; en vídeos largos se reparten a lo largo de todo el vídeo)</span>
+        </div>
+        <div><Lbl>Enlace del vídeo (opcional, p. ej. YouTube) — se guarda como fuente</Lbl><input value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…"/></div>
+        <div><Lbl>Notas o transcripción (opcional, ayuda mucho)</Lbl><textarea rows={4} value={videoNotas} onChange={e=>setVideoNotas(e.target.value)} placeholder="Pega aquí la transcripción de YouTube (… → Mostrar transcripción) o tus notas: qué ejercicios salen, reglas, etc."/></div>
+        <p style={{fontSize:11,color:th.muted}}>El vídeo no se sube a ningún sitio: los fotogramas se sacan en tu navegador y solo se envían las imágenes a la IA. La IA no oye el audio: si el vídeo explica cosas hablando, pega la transcripción.</p>
+      </div>}
       {modo==="texto"&&<textarea rows={8} value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Pega aquí el texto de los ejercicios…"/>}
       <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
         <Btn onClick={extraer} disabled={fase==="procesando"} icon={fase==="procesando"?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>{fase==="procesando"?"Analizando…":"Extraer ejercicios"}</Btn>
@@ -691,8 +760,10 @@ function ImportadorEjercicios({onClose}){
               {x.categorias.map(c=><Badge key={c} color="#3b82f6" sm>{c}</Badge>)}
               {x.duracion_min&&<Badge color="#06b6d4" sm>{x.duracion_min}{x.duracion_max&&x.duracion_max!==x.duracion_min?"-"+x.duracion_max:""}'</Badge>}
               {x.pagina&&<Badge color="#64748b" sm>pàg. {x.pagina}{x.grafico?" · gràfic":""}</Badge>}
+              {x.minuto&&<Badge color="#64748b" sm>min {x.minuto}</Badge>}
             </div>
             <p style={{fontSize:12,color:th.sub,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{x.descripcion}</p>
+            {modo==="video"&&(x.fotogramas||[]).length>0&&<div style={{display:"flex",gap:6,marginTop:6}}>{(x.fotogramas||[]).slice(0,BIB_MAX_IMG).map(k=>{const f=frames.find(z=>z.n===+k);return f?<div key={k} style={{textAlign:"center"}}><img src={f.dataUrl} alt="" style={{width:110,borderRadius:5,display:"block"}}/><span style={{fontSize:9,color:th.muted}}>min {f.min}</span></div>:null;})}</div>}
             {(x.deducciones||[]).length>0&&<p style={{fontSize:11,color:th.muted,fontStyle:"italic",marginTop:4}}>Deducido por la IA: {x.deducciones.join("; ")}</p>}
           </div>
         </div>)}
@@ -712,13 +783,45 @@ function ImportadorEjercicios({onClose}){
 }
 
 /* ── PLANIFICADOR IA ─────────────────────────────────────────────
-   Tú marcas bloques, minutos y objetivo → la IA elige ejercicios SOLO de tu biblioteca
-   → la sesión se abre en el editor normal para retocarla antes de guardar. */
+   Modo "Una sesión": la sesión se abre en el editor para retocarla.
+   Modo "Semana": crea las sesiones de todos los días de entreno de la semana (según el Calendario).
+   La IA solo usa ejercicios de tu biblioteca y tiene en cuenta tus valoraciones. */
 const PIA_BLOCKS=[["calentamiento","Calentamiento"],["tecnico","Técnico"],["tactico","Táctico"],["fisico","Físico"],["mental","Mental"],["competitivo","Competitivo"],["vuelta_calma","Vuelta a la calma"],["otro","Otro"]];
-function PlanificadorIA({onClose,onResult}){
-  const{th}=useTheme();const{apiKey,ejercicios,sessions,calendario}=useData();const{teamId,teamsConfig}=useAppContext();
+const piaBlockName=t=>PIA_BLOCKS.find(x=>x[0]===t)?.[1]||t;
+const DIAS_ES=["Diumenge","Dilluns","Dimarts","Dimecres","Dijous","Divendres","Dissabte"];
+const calDow=s=>new Date(calUTC(s)).getUTCDay();
+function calMonday(s){const t=calUTC(s);const d=new Date(t).getUTCDay();return calStr(t-((d+6)%7)*86400000);}
+// Días de entreno de la semana que empieza en `monday`, según el calendario y el inicio del equipo
+function calWeekDays(monday,cal,teamId){
+  const start=cal?.starts?.[teamId]||"0000-00-00";const out=[];
+  for(let i=0;i<7;i++){const s=calStr(calUTC(monday)+i*86400000);
+    if((cal?.trainDays||[]).includes(calDow(s))&&!calIsNoTrain(s,cal)&&s>=start)out.push(s);}
+  return out;
+}
+// Convierte la respuesta de la IA para una sesión en exObjs (minutos cuadrados por código)
+function piaBuildExObjs(blocks,outBloques,byId,huecos,etiqueta=""){
+  const exObjs=[];const usados=new Set();let t0=Date.now()+Math.floor(Math.random()*1000);
+  blocks.forEach((b,i)=>{
+    const its=((outBloques||[])[i]?.items||[]).filter(it=>byId[String(it.id)]&&!usados.has(String(it.id)));
+    its.forEach(it=>usados.add(String(it.id)));
+    exObjs.push({type:"block",id:"block_"+(t0++),blockType:b.blockType,desc:b.foco||"",sesMin:its.length?"":String(parseInt(b.min)||"")});
+    const objetivoMin=parseInt(b.min)||0;const mins=its.map(it=>Math.max(1,parseInt(it.minutos)||0));
+    const suma=mins.reduce((a,m)=>a+m,0);
+    if(its.length&&suma!==objetivoMin)mins[mins.length-1]=Math.max(1,mins[mins.length-1]+objetivoMin-suma);
+    if(!its.length)huecos.push(`${etiqueta}${piaBlockName(b.blockType)}: sin ejercicios adecuados en la biblioteca.`);
+    its.forEach((it,k)=>{const e=byId[String(it.id)];
+      exObjs.push({id:e.id,name:e.name,cat:e.cat,dur:e.dur,diff:e.diff,desc:e.desc,images:e.images||[],type:"catalog",sesMin:String(mins[k]),sesNotes:it.nota||""});});
+  });
+  return exObjs;
+}
+
+function PlanificadorIA({onClose,onResult,onEdit}){
+  const{th}=useTheme();const{apiKey,ejercicios,sessions,setSessions,calendario}=useData();const{teamId,teamsConfig}=useAppContext();
   const teamCat=bibTeamCat(teamsConfig?.[teamId]?.categoria);
+  const[modo,setModo]=useState("sesion");
   const[date,setDate]=useState(calToday());const[time,setTime]=useState("");
+  const[week,setWeek]=useState(()=>calMonday(calToday()));
+  const[focoDia,setFocoDia]=useState({});const[sobrescribir,setSobrescribir]=useState(false);
   const[blocks,setBlocks]=useState([
     {blockType:"calentamiento",min:15,foco:"Activació amb pilota"},
     {blockType:"tecnico",min:25,foco:""},
@@ -727,9 +830,11 @@ function PlanificadorIA({onClose,onResult}){
   ]);
   const[objetivo,setObjetivo]=useState("");const[jugadores,setJugadores]=useState("");const[canastas,setCanastas]=useState("");
   const[soloAprobados,setSoloAprobados]=useState(false);const[evitar,setEvitar]=useState(3);
-  const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
+  const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");const[creadas,setCreadas]=useState(null);
   const total=blocks.reduce((a,b)=>a+(parseInt(b.min)||0),0);
   const setB=(i,k,v)=>setBlocks(x=>x.map((b,j)=>j===i?{...b,[k]:v}:b));
+  const diasSemana=calWeekDays(week,calendario,teamId);
+  const diasConSesion=new Set((sessions||[]).map(s=>s.date));
 
   const candidatos=()=>{
     const n=parseInt(jugadores)||0;const c=parseInt(canastas)||0;
@@ -738,100 +843,241 @@ function PlanificadorIA({onClose,onResult}){
       &&(!n||!e.row.jugadores_min||e.row.jugadores_min<=n)
       &&(!c||!e.row.canastas||e.row.canastas<=c));
   };
-  const recientes=()=>{
-    const ses=[...(sessions||[])].filter(s=>s.date&&s.date<date).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,parseInt(evitar)||0);
+  const recientes=antesDe=>{
+    const ses=[...(sessions||[])].filter(s=>s.date&&s.date<antesDe).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,parseInt(evitar)||0);
     return new Set(ses.flatMap(s=>(s.exObjs||[]).filter(e=>e.type==="catalog").map(e=>String(e.id))));
+  };
+  const listaIA=(cands,usados)=>cands.map(e=>({id:String(e.id),nombre:e.name,tipologias:e.tipos,fase:e.fase||"cualquiera",
+    min:e.row.duracion_min||null,max:e.row.duracion_max||null,jugadores_min:e.row.jugadores_min||null,canastas:e.row.canastas||null,
+    intensidad:e.row.intensidad||null,valoracion:e.row.valoracion??null,n_valoraciones:e.row.n_valoraciones||0,
+    reciente:usados.has(String(e.id)),resumen:(e.desc||"").slice(0,160)}));
+  const bloquesTxt=blocks.map((b,i)=>`${i+1}. ${piaBlockName(b.blockType)} · ${b.min} min${b.foco?` · foco: ${b.foco}`:""}`).join("\n");
+  const reglas=`- Usa únicamente ids de la lista. No inventes ejercicios.
+- En cada bloque, la suma de minutos debe ser exactamente la del bloque. Respeta min/max del ejercicio cuando existan.
+- Valoraciones del entrenador (1-5): prioriza los ejercicios con valoración 4-5; evita los de valoración 1-2 salvo que no haya alternativa. Los que no tienen valoración son neutros.
+- Evita los ejercicios con "reciente": true salvo que no haya alternativa.
+- No repitas un ejercicio en la misma sesión.
+- Progresión lógica: de menos a más intensidad y de lo analítico a lo competitivo, encajando la fase de cada ejercicio con el bloque.
+- "nota": una frase corta en català con el énfasis o la variante para esa sesión (puede ir vacía).
+- Si un bloque no se puede cubrir bien con la biblioteca, dilo en "huecos" (en castellano).`;
+  const cabecera=()=>`Eres el preparador de Tololiver Basketball Coach. Equipo: ${teamsConfig?.[teamId]?.nombre||""} (categoría ${teamCat||"?"}).
+JUGADORES DISPONIBLES: ${jugadores||"(no indicado)"} · CANASTAS: ${canastas||"(no indicado)"}
+OBJETIVO: ${objetivo||"(no indicado)"}`;
+
+  const generarSesion=async()=>{
+    const cands=candidatos();
+    if(cands.length<3)throw new Error("Hay muy pocos ejercicios en la biblioteca para este equipo y filtros.");
+    const prompt=`${cabecera()}
+
+Monta UNA sesión de ${total} minutos para el ${date}.
+BLOQUES (en este orden, con sus minutos exactos):
+${bloquesTxt}
+
+EJERCICIOS DISPONIBLES (usa SOLO estos, por su id):
+${JSON.stringify(listaIA(cands,recientes(date)))}
+
+Reglas:
+${reglas}
+
+Responde SOLO con JSON:
+{"bloques":[{"items":[{"id":"","minutos":0,"nota":""}]}],"huecos":[],"comentario":""}`;
+    const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]});
+    const out=parseJsonLoose((data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""));
+    const byId=Object.fromEntries(cands.map(e=>[String(e.id),e]));const huecos=[...(out.huecos||[])];
+    const exObjs=piaBuildExObjs(blocks,out.bloques,byId,huecos);
+    const notas=[objetivo?`Objectiu: ${objetivo}`:"",out.comentario?`IA: ${out.comentario}`:"",huecos.length?`⚠️ Huecos: ${huecos.join(" · ")}`:""].filter(Boolean).join("\n");
+    onResult({date,time,type:"Técnico-Táctico",dur:total,title:sesAutoTitle(date,calendario,teamId)||"Sessió d'entrenament",exObjs,notes:notas,images:[]});
+  };
+
+  const generarSemana=async()=>{
+    const dias=diasSemana.filter(d=>sobrescribir||!diasConSesion.has(d));
+    if(!diasSemana.length)throw new Error("Esta semana no hay días de entreno según el Calendario (festivos o vacaciones).");
+    if(!dias.length)throw new Error("Todos los días de entreno de esta semana ya tienen sesión. Marca «Crear también en días que ya tienen sesión» si quieres otra.");
+    const cands=candidatos();
+    if(cands.length<6)throw new Error("Hay muy pocos ejercicios en la biblioteca para planificar una semana con estos filtros.");
+    const prompt=`${cabecera()}
+
+Planifica la SEMANA (microciclo) con ${dias.length} sesiones de ${total} minutos cada una, en estos días y con estos focos:
+${dias.map((d,i)=>`Sesión ${i+1}: ${DIAS_ES[calDow(d)]} ${d}${focoDia[d]?` · foco del día: ${focoDia[d]}`:""}`).join("\n")}
+
+BLOQUES de cada sesión (en este orden, con sus minutos exactos):
+${bloquesTxt}
+
+EJERCICIOS DISPONIBLES (usa SOLO estos, por su id):
+${JSON.stringify(listaIA(cands,recientes(dias[0])))}
+
+Reglas:
+${reglas}
+- Reparte el trabajo a lo largo de la semana con coherencia (progresión entre sesiones, variedad). Entre sesiones de la misma semana no repitas ejercicios de la parte principal; los de calentamiento sí se pueden repetir.
+
+Responde SOLO con JSON (una entrada por sesión, en el mismo orden):
+{"sesiones":[{"fecha":"","bloques":[{"items":[{"id":"","minutos":0,"nota":""}]}],"comentario":""}],"huecos":[]}`;
+    const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:9000,messages:[{role:"user",content:prompt}]});
+    if(data.stop_reason==="max_tokens")throw new Error("La respuesta de la IA se ha cortado. Prueba con menos bloques.");
+    const out=parseJsonLoose((data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""));
+    const byId=Object.fromEntries(cands.map(e=>[String(e.id),e]));
+    const nuevas=dias.map((d,i)=>{
+      const s=(out.sesiones||[]).find(x=>x.fecha===d)||(out.sesiones||[])[i]||{};
+      const huecos=i===0?[...(out.huecos||[])]:[];
+      const exObjs=piaBuildExObjs(blocks,s.bloques,byId,huecos);
+      const notas=[objetivo?`Objectiu setmana: ${objetivo}`:"",focoDia[d]?`Focus del dia: ${focoDia[d]}`:"",s.comentario?`IA: ${s.comentario}`:"",huecos.length?`⚠️ Huecos: ${huecos.join(" · ")}`:""].filter(Boolean).join("\n");
+      return{id:Date.now()+i,date:d,time,type:"Técnico-Táctico",dur:total,title:sesAutoTitle(d,calendario,teamId)||"Sessió d'entrenament",exObjs,notes:notas,images:[],exs:[]};
+    });
+    setSessions(prev=>[...prev,...nuevas]);
+    setCreadas(nuevas);
   };
 
   const generar=async()=>{
     if(!apiKey){setMsg("❌ Falta la API Key de Anthropic (⚙️ en la barra lateral).");return;}
-    const cands=candidatos();
-    if(cands.length<3){setMsg("❌ Hay muy pocos ejercicios en la biblioteca para este equipo y filtros.");return;}
-    const usados=recientes();
-    setBusy(true);setMsg("La IA está montando la sesión…");
-    try{
-      const lista=cands.map(e=>({id:String(e.id),nombre:e.name,tipologias:e.tipos,fase:e.fase||"cualquiera",
-        min:e.row.duracion_min||null,max:e.row.duracion_max||null,jugadores_min:e.row.jugadores_min||null,canastas:e.row.canastas||null,
-        intensidad:e.row.intensidad||null,reciente:usados.has(String(e.id)),resumen:(e.desc||"").slice(0,180)}));
-      const prompt=`Eres el preparador de Tololiver Basketball Coach. Monta una sesión de entrenamiento de ${total} minutos para el equipo ${teamsConfig?.[teamId]?.nombre||""} (categoría ${teamCat||"?"}).
-
-BLOQUES (en este orden, con sus minutos exactos):
-${blocks.map((b,i)=>`${i+1}. ${PIA_BLOCKS.find(x=>x[0]===b.blockType)?.[1]} · ${b.min} min${b.foco?` · foco: ${b.foco}`:""}`).join("\n")}
-
-OBJETIVO DE LA SESIÓN: ${objetivo||"(no indicado)"}
-JUGADORES DISPONIBLES: ${jugadores||"(no indicado)"} · CANASTAS: ${canastas||"(no indicado)"}
-
-EJERCICIOS DISPONIBLES (usa SOLO estos, por su id):
-${JSON.stringify(lista)}
-
-Reglas:
-- Usa únicamente ids de la lista. No inventes ejercicios.
-- En cada bloque, la suma de minutos debe ser exactamente la del bloque. Respeta min/max del ejercicio cuando existan.
-- Evita los ejercicios con "reciente": true salvo que no haya alternativa.
-- No repitas un ejercicio en la misma sesión.
-- Progresión lógica: de menos a más intensidad y de lo analítico a lo competitivo, encajando la fase de cada ejercicio con el bloque.
-- "nota": una frase corta en català con el énfasis o la variante para esta sesión (puede ir vacía).
-- Si un bloque no se puede cubrir bien con la biblioteca, dilo en "huecos" (en castellano).
-
-Responde SOLO con JSON:
-{"bloques":[{"items":[{"id":"","minutos":0,"nota":""}]}],"huecos":[],"comentario":""}`;
-      const data=await callClaude(apiKey,{model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]});
-      const txt=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-      const out=parseJsonLoose(txt);
-      const byId=Object.fromEntries(cands.map(e=>[String(e.id),e]));
-      const exObjs=[];const huecos=[...(out.huecos||[])];const usadosSes=new Set();let t0=Date.now();
-      blocks.forEach((b,i)=>{
-        const its=((out.bloques||[])[i]?.items||[]).filter(it=>byId[String(it.id)]&&!usadosSes.has(String(it.id)));
-        // Si el bloque queda vacío conserva sus minutos (para que el total cuadre y lo completes a mano)
-        exObjs.push({type:"block",id:"block_"+(t0++),blockType:b.blockType,desc:b.foco||"",sesMin:its.length?"":String(parseInt(b.min)||"")});
-        its.forEach(it=>usadosSes.add(String(it.id)));
-        // Ajuste exacto de minutos del bloque (lo hace el código, no la IA)
-        const objetivoMin=parseInt(b.min)||0;let mins=its.map(it=>Math.max(1,parseInt(it.minutos)||0));
-        const suma=mins.reduce((a,m)=>a+m,0);
-        if(its.length&&suma!==objetivoMin){const dif=objetivoMin-suma;mins[mins.length-1]=Math.max(1,mins[mins.length-1]+dif);}
-        if(!its.length)huecos.push(`Bloque ${PIA_BLOCKS.find(x=>x[0]===b.blockType)?.[1]}: la IA no ha encontrado ejercicios adecuados.`);
-        its.forEach((it,k)=>{const e=byId[String(it.id)];
-          exObjs.push({id:e.id,name:e.name,cat:e.cat,dur:e.dur,diff:e.diff,desc:e.desc,images:e.images||[],type:"catalog",sesMin:String(mins[k]),sesNotes:it.nota||""});});
-      });
-      const notas=[objetivo?`Objectiu: ${objetivo}`:"",out.comentario?`IA: ${out.comentario}`:"",huecos.length?`⚠️ Huecos: ${huecos.join(" · ")}`:""].filter(Boolean).join("\n");
-      onResult({date,time,type:"Técnico-Táctico",dur:total,title:sesAutoTitle(date,calendario,teamId)||"Sessió d'entrenament",exObjs,notes:notas,images:[]});
-    }catch(e){console.error(e);setMsg("❌ "+(e.message||"Error"));}
+    setBusy(true);setMsg(modo==="semana"?"La IA está planificando la semana…":"La IA está montando la sesión…");
+    try{if(modo==="semana")await generarSemana();else await generarSesion();setMsg("");}
+    catch(e){console.error(e);setMsg("❌ "+(e.message||"Error"));}
     finally{setBusy(false);}
   };
 
   const nC=candidatos().length;
+  const tab=on=>({padding:"6px 16px",borderRadius:7,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,fontFamily:"Barlow Condensed",background:on?"#8b5cf6":th.card2,color:on?"#fff":th.sub});
+  const moveWeek=d=>{setWeek(w=>calStr(calUTC(w)+d*7*86400000));setCreadas(null);};
+
+  if(creadas)return <div className="card" style={{padding:20,marginBottom:18,borderColor:"#8b5cf660"}}>
+    <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#8b5cf6",textTransform:"uppercase",marginBottom:10}}>Semana creada · {creadas.length} sesiones</p>
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+      {creadas.map(s=>{const n=(s.exObjs||[]).filter(e=>e.type!=="block").length;const hueco=(s.notes||"").includes("⚠️");
+        return <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:th.card2,borderRadius:8}}>
+          <span style={{fontFamily:"DM Mono",fontSize:12,color:th.muted,minWidth:150}}>{DIAS_ES[calDow(s.date)]} {s.date}</span>
+          <span style={{flex:1,fontSize:13,color:th.text,fontWeight:600}}>{s.title}</span>
+          <span style={{fontSize:11,color:th.sub}}>{n} ejercicios · {s.dur} min</span>
+          {hueco&&<Badge color="#f59e0b" sm>con huecos</Badge>}
+          <Btn sm variant="ghost" icon={<Edit2 size={12}/>} onClick={()=>onEdit(s)}>Revisar</Btn>
+        </div>;})}
+    </div>
+    <p style={{fontSize:12,color:th.sub,marginBottom:12}}>Las sesiones ya están guardadas en la lista. Revísalas y ajusta lo que quieras.</p>
+    <div style={{display:"flex",gap:8}}><Btn onClick={()=>setCreadas(null)}>Planificar otra semana</Btn><Btn variant="ghost" onClick={onClose}>Cerrar</Btn></div>
+  </div>;
+
   return <div className="card" style={{padding:20,marginBottom:18,borderColor:"#8b5cf660"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
       <p style={{fontFamily:"Barlow Condensed",fontSize:18,fontWeight:700,color:"#8b5cf6",textTransform:"uppercase"}}>Planificar con IA</p>
       <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px"}}>✕</button>
     </div>
-    <p style={{fontSize:12,color:th.sub,marginBottom:14}}>La IA solo usa ejercicios de tu biblioteca ({nC} disponibles para {teamCat||"este equipo"} con estos filtros). La sesión se abre en el editor para que la retoques antes de guardarla.</p>
-    <div style={{display:"grid",gridTemplateColumns:"160px 120px 120px 120px",gap:10,marginBottom:12}}>
+    <div style={{display:"flex",gap:6,marginBottom:10}}>
+      <button style={tab(modo==="sesion")} onClick={()=>setModo("sesion")}>Una sesión</button>
+      <button style={tab(modo==="semana")} onClick={()=>setModo("semana")}>Semana completa</button>
+    </div>
+    <p style={{fontSize:12,color:th.sub,marginBottom:14}}>La IA solo usa ejercicios de tu biblioteca ({nC} disponibles para {teamCat||"este equipo"} con estos filtros) y prioriza los que mejor has valorado. {modo==="sesion"?"La sesión se abre en el editor para que la retoques antes de guardarla.":"Las sesiones de la semana se crean directamente y luego las revisas una a una."}</p>
+
+    {modo==="sesion"?<div style={{display:"grid",gridTemplateColumns:"160px 120px 120px 120px",gap:10,marginBottom:12}}>
       <div><Lbl>Fecha</Lbl><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
       <div><Lbl>Hora</Lbl><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></div>
       <div><Lbl>Jugadores</Lbl><input type="number" value={jugadores} onChange={e=>setJugadores(e.target.value)} placeholder="—"/></div>
       <div><Lbl>Canastas</Lbl><input type="number" value={canastas} onChange={e=>setCanastas(e.target.value)} placeholder="—"/></div>
     </div>
-    <Lbl>Bloques · total {total} min</Lbl>
+    :<div style={{marginBottom:12}}>
+      <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap",marginBottom:10}}>
+        <div><Lbl>Semana</Lbl><div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <button type="button" onClick={()=>moveWeek(-1)} style={{height:34,width:34,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,cursor:"pointer"}}>◀</button>
+          <input type="date" value={week} onChange={e=>e.target.value&&setWeek(calMonday(e.target.value))} style={{width:160}}/>
+          <button type="button" onClick={()=>moveWeek(1)} style={{height:34,width:34,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,cursor:"pointer"}}>▶</button>
+        </div></div>
+        <div><Lbl>Hora</Lbl><input type="time" value={time} onChange={e=>setTime(e.target.value)} style={{width:120}}/></div>
+        <div><Lbl>Jugadores</Lbl><input type="number" value={jugadores} onChange={e=>setJugadores(e.target.value)} placeholder="—" style={{width:100}}/></div>
+        <div><Lbl>Canastas</Lbl><input type="number" value={canastas} onChange={e=>setCanastas(e.target.value)} placeholder="—" style={{width:100}}/></div>
+      </div>
+      <Lbl>Días de entreno de la semana ({diasSemana.length}) · foco de cada día (opcional)</Lbl>
+      {diasSemana.length===0&&<p style={{fontSize:12,color:"#f59e0b"}}>No hay días de entreno esta semana según el Calendario.</p>}
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {diasSemana.map(d=><div key={d} style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:12,color:th.text}}>{DIAS_ES[calDow(d)]} {d}{diasConSesion.has(d)&&<span style={{color:"#f59e0b"}}> · ya tiene sesión</span>}</span>
+          <input value={focoDia[d]||""} onChange={e=>{const v=e.target.value;setFocoDia(x=>({...x,[d]:v}));}} placeholder="Ej: tir · defensa 1c1 · preparació partit…"/>
+        </div>)}
+      </div>
+      {diasSemana.some(d=>diasConSesion.has(d))&&<label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.sub,marginTop:8,cursor:"pointer"}}><input type="checkbox" checked={sobrescribir} onChange={e=>setSobrescribir(e.target.checked)} style={{width:"auto"}}/>Crear también en días que ya tienen sesión (no se borra la existente)</label>}
+    </div>}
+
+    <Lbl>Bloques {modo==="semana"?"de cada sesión":""} · total {total} min</Lbl>
     <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
       {blocks.map((b,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"170px 80px 1fr 28px 28px 28px",gap:6,alignItems:"center"}}>
         <select value={b.blockType} onChange={e=>setB(i,"blockType",e.target.value)}>{PIA_BLOCKS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
         <input type="number" value={b.min} onChange={e=>setB(i,"min",e.target.value)}/>
-        <input value={b.foco} onChange={e=>setB(i,"foco",e.target.value)} placeholder="Foco del bloque (opcional): tir després de bot, defensa 1c1…"/>
+        <input value={b.foco} onChange={e=>setB(i,"foco",e.target.value)} placeholder="Foco del bloque (opcional)"/>
         <button type="button" disabled={i===0} onClick={()=>setBlocks(x=>{const a=[...x];[a[i-1],a[i]]=[a[i],a[i-1]];return a;})} style={{height:30,borderRadius:6,border:`1px solid ${th.border2}`,background:"transparent",color:th.sub,cursor:"pointer",opacity:i===0?.3:1}}>▲</button>
         <button type="button" disabled={i===blocks.length-1} onClick={()=>setBlocks(x=>{const a=[...x];[a[i+1],a[i]]=[a[i],a[i+1]];return a;})} style={{height:30,borderRadius:6,border:`1px solid ${th.border2}`,background:"transparent",color:th.sub,cursor:"pointer",opacity:i===blocks.length-1?.3:1}}>▼</button>
         <button type="button" onClick={()=>setBlocks(x=>x.filter((_,j)=>j!==i))} style={{height:30,borderRadius:6,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.07)",color:"#ef4444",cursor:"pointer"}}>✕</button>
       </div>)}
     </div>
     <Btn sm variant="ghost" icon={<Plus size={12}/>} onClick={()=>setBlocks(x=>[...x,{blockType:"tecnico",min:10,foco:""}])}>Añadir bloque</Btn>
-    <div style={{marginTop:12}}><Lbl>Objetivo de la sesión</Lbl><textarea rows={2} value={objetivo} onChange={e=>setObjetivo(e.target.value)} placeholder="Ej: mejorar la selección de tiro tras pase de fondo y decidir bien en superioridad"/></div>
+    <div style={{marginTop:12}}><Lbl>{modo==="semana"?"Objetivo de la semana":"Objetivo de la sesión"}</Lbl><textarea rows={2} value={objetivo} onChange={e=>setObjetivo(e.target.value)} placeholder="Ej: mejorar la selección de tiro tras pase de fondo y decidir bien en superioridad"/></div>
     <div style={{display:"flex",gap:18,marginTop:10,flexWrap:"wrap",fontSize:12,color:th.sub,alignItems:"center"}}>
       <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><input type="checkbox" checked={soloAprobados} onChange={e=>setSoloAprobados(e.target.checked)} style={{width:"auto"}}/>Solo ejercicios aprobados</label>
       <label style={{display:"flex",alignItems:"center",gap:6}}>Evitar los de las últimas <input type="number" min={0} max={10} value={evitar} onChange={e=>setEvitar(e.target.value)} style={{width:56}}/> sesiones</label>
     </div>
     <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center"}}>
-      <Btn onClick={generar} disabled={busy||!total} icon={busy?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>{busy?"Generando…":"Generar sesión"}</Btn>
+      <Btn onClick={generar} disabled={busy||!total||(modo==="semana"&&!diasSemana.length)} icon={busy?<Loader size={14} style={{animation:"spin 1s linear infinite"}}/>:<Brain size={14}/>}>{busy?"Generando…":modo==="semana"?`Planificar ${diasSemana.filter(d=>sobrescribir||!diasConSesion.has(d)).length} sesiones`:"Generar sesión"}</Btn>
       {msg&&<span style={{fontSize:12,color:msg.startsWith("❌")?"#ef4444":th.sub}}>{msg}</span>}
+    </div>
+  </div>;
+}
+
+/* ── VALORAR EJERCICIOS DESPUÉS DEL ENTRENO ─────────────────────
+   Cada valoración (1-5) se guarda en la tabla "valoraciones"; la media
+   y el número de valoraciones se actualizan solos en la biblioteca. */
+function Estrellas({value,onChange,size=20}){
+  const[hover,setHover]=useState(0);
+  return <div style={{display:"flex",gap:2}} onMouseLeave={()=>setHover(0)}>
+    {[1,2,3,4,5].map(n=><button key={n} type="button" onMouseEnter={()=>setHover(n)} onClick={()=>onChange(value===n?0:n)} title={["","Mal","Regular","Bien","Muy bien","Excelente"][n]}
+      style={{background:"transparent",border:"none",cursor:"pointer",padding:1,lineHeight:0}}>
+      <Star size={size} color="#f59e0b" fill={(hover||value)>=n?"#f59e0b":"transparent"}/>
+    </button>)}
+  </div>;
+}
+function ValorarSesion({session,onClose,onSaved}){
+  const{th}=useTheme();const{biblio,reloadBiblio}=useData();const{teamId}=useAppContext();
+  const lib=Object.fromEntries((biblio?.list||[]).map(e=>[String(e.id),e]));
+  const items=(session.exObjs||[]).filter(e=>e.type==="catalog"&&lib[String(e.id)]);
+  const libres=(session.exObjs||[]).filter(e=>e.type==="free"&&e.name);
+  const[val,setVal]=useState({});const[com,setCom]=useState({});const[loading,setLoading]=useState(true);const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
+  useEffect(()=>{(async()=>{
+    const{data,error}=await sb.from("valoraciones").select("ejercicio_id,nota,comentario").eq("equipo",teamId).eq("session_id",String(session.id));
+    if(error){setMsg("❌ "+error.message+(error.code==="42P01"?" (falta ejecutar el SQL de valoraciones)":""));}
+    else{setVal(Object.fromEntries((data||[]).map(r=>[r.ejercicio_id,r.nota])));setCom(Object.fromEntries((data||[]).map(r=>[r.ejercicio_id,r.comentario||""])));}
+    setLoading(false);
+  })();},[session.id,teamId]);
+  const guardar=async()=>{
+    setBusy(true);setMsg("");
+    try{
+      const filas=items.filter(e=>val[e.id]>0).map(e=>({ejercicio_id:e.id,equipo:teamId,session_id:String(session.id),fecha:session.date||null,nota:val[e.id],comentario:(com[e.id]||"").trim()||null}));
+      const borrar=items.filter(e=>!val[e.id]).map(e=>e.id);
+      if(filas.length){const{error}=await sb.from("valoraciones").upsert(filas,{onConflict:"equipo,session_id,ejercicio_id"});if(error)throw error;}
+      if(borrar.length){const{error}=await sb.from("valoraciones").delete().eq("equipo",teamId).eq("session_id",String(session.id)).in("ejercicio_id",borrar);if(error)throw error;}
+      await reloadBiblio();onSaved(filas.length);onClose();
+    }catch(e){console.error(e);setMsg("❌ "+(e.message||"No se ha podido guardar"));}
+    finally{setBusy(false);}
+  };
+  return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:th.card,borderRadius:16,padding:24,maxWidth:640,width:"100%",maxHeight:"85vh",display:"flex",flexDirection:"column",border:`1px solid ${th.border}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text}}>Valorar ejercicios</p>
+        <button onClick={onClose} style={{background:"transparent",border:`1px solid ${th.border2}`,borderRadius:8,cursor:"pointer",color:th.muted,padding:"4px 10px"}}>✕</button>
+      </div>
+      <p style={{fontSize:12,color:th.muted,marginBottom:14}}>{session.title} · {session.date} — ¿cómo han funcionado? La IA priorizará los mejor valorados.</p>
+      <div style={{overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:8}}>
+        {loading&&<p style={{fontSize:12,color:th.muted}}>Cargando…</p>}
+        {!loading&&!items.length&&<p style={{fontSize:13,color:th.sub}}>Esta sesión no tiene ejercicios de la biblioteca (solo se pueden valorar los añadidos "Del catálogo").</p>}
+        {!loading&&items.map(e=>{const cur=lib[String(e.id)];return <div key={e.id} style={{padding:"10px 12px",background:th.card2,borderRadius:8,border:`1px solid ${th.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <div><p style={{fontSize:14,fontWeight:700,color:th.text}}>{cur?.name||e.name}</p>
+              <p style={{fontSize:11,color:th.muted}}>{e.sesMin?`${e.sesMin}' · `:""}{cur?.row?.n_valoraciones?`media actual ★ ${cur.row.valoracion} (${cur.row.n_valoraciones})`:"sin valoraciones todavía"}</p></div>
+            <Estrellas value={val[e.id]||0} onChange={v=>setVal(x=>({...x,[e.id]:v}))}/>
+          </div>
+          {val[e.id]>0&&<input value={com[e.id]||""} onChange={ev=>{const v=ev.target.value;setCom(x=>({...x,[e.id]:v}));}} placeholder="Comentario (opcional): qué ha funcionado, qué cambiar…" style={{marginTop:8,fontSize:12}}/>}
+        </div>;})}
+        {!loading&&libres.length>0&&<p style={{fontSize:11,color:th.muted,marginTop:4}}>No se pueden valorar los ejercicios libres ({libres.map(e=>e.name).join(", ")}) porque no están en la biblioteca.</p>}
+      </div>
+      {msg&&<p style={{fontSize:12,color:"#ef4444",marginTop:10}}>{msg}</p>}
+      <div style={{display:"flex",gap:8,marginTop:14}}>
+        <Btn onClick={guardar} disabled={busy||loading||!items.length}>{busy?"Guardando…":"Guardar valoraciones"}</Btn>
+        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+      </div>
     </div>
   </div>;
 }
@@ -2332,7 +2578,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
 
 function Entrenamientos(){
   const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios,biblio}=useData();
-  const[showCal,setShowCal]=useState(false);const[showIA,setShowIA]=useState(false);
+  const[showCal,setShowCal]=useState(false);const[showIA,setShowIA]=useState(false);const[rateSes,setRateSes]=useState(null);
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
   const[editSes,setEditSes]=useState(null);
@@ -2562,7 +2808,8 @@ function Entrenamientos(){
       <Btn onClick={()=>{setShowAdd(true);setEditSes(null);setShowTemplates(false);}} icon={<Plus size={14}/>}>Nueva Sesión</Btn>
     </div>}/>
     {showCal&&<CalendarioEntrenos onClose={()=>setShowCal(false)}/>}
-    {showIA&&<PlanificadorIA onClose={()=>setShowIA(false)} onResult={s=>{setShowIA(false);setEditSes({...s,id:null});setShowAdd(true);}}/>}
+    {showIA&&<PlanificadorIA onClose={()=>setShowIA(false)} onResult={s=>{setShowIA(false);setEditSes({...s,id:null});setShowAdd(true);}} onEdit={s=>{setShowIA(false);setShowAdd(false);setEditSes(s);}}/>}
+    {rateSes&&<ValorarSesion session={rateSes} onClose={()=>setRateSes(null)} onSaved={n=>setSessions(p=>p.map(x=>x.id===rateSes.id?{...x,valorada:n>0}:x))}/>}
 
     {/* Plantillas */}
     {showTemplates&&<div className="card" style={{padding:18,marginBottom:14,borderColor:"rgba(139,92,246,.3)"}}>
@@ -2614,6 +2861,7 @@ function Entrenamientos(){
             <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
               <button onClick={()=>setEditSes(s)} title="Editar" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Edit2 size={13}/></button>
               <button onClick={()=>setSaveAsTemplate(s.id)} title="Guardar como plantilla" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#8b5cf6"}}><Copy size={13}/></button>
+              <button onClick={()=>setRateSes(s)} title="Valorar ejercicios" style={{width:30,height:30,borderRadius:7,border:`1px solid ${s.valorada?"#f59e0b":th.border2}`,background:s.valorada?"rgba(245,158,11,.12)":th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#f59e0b"}}><Star size={13} fill={s.valorada?"#f59e0b":"transparent"}/></button>
               <button onClick={()=>exportPDF(s)} title="PDF" style={{width:30,height:30,borderRadius:7,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub}}><Printer size={13}/></button>
               {(s.exObjs||[]).length>0&&<button onClick={()=>startGym(s)} title="Modo Gimnasio" style={{display:"flex",alignItems:"center",gap:5,padding:"0 10px",height:30,borderRadius:7,border:"1px solid rgba(16,185,129,.4)",background:"rgba(16,185,129,.1)",cursor:"pointer",color:"#10b981",fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12}}>▶ Gimnasio {getGymExs(s).length>0?"("+getGymExs(s).length+"ex)":""}</button>}
               <Trash2 size={13} color="#ef4444" style={{cursor:"pointer"}} onClick={()=>setSessions(p=>p.filter(x=>x.id!==s.id))}/>
@@ -3213,7 +3461,7 @@ function Ejercicios(){
   const[q,setQ]=useState("");
   const[editEx,setEditEx]=useState(null);const[showAdd,setShowAdd]=useState(false);
   const[viewImg,setViewImg]=useState(null);const[busy,setBusy]=useState(false);const[msg,setMsg]=useState("");
-  const[openDesc,setOpenDesc]=useState({});const[showImport,setShowImport]=useState(false);
+  const[openDesc,setOpenDesc]=useState({});const[showImport,setShowImport]=useState(false);const[orden,setOrden]=useState("nombre");
 
   if(!biblio?.loaded)return <div><SH title="Ejercicios" sub="Biblioteca"/><p style={{color:th.muted,fontSize:13}}>Cargando biblioteca…</p></div>;
   if(biblio.error)return <div><SH title="Ejercicios" sub="Biblioteca"/>
@@ -3227,7 +3475,8 @@ function Ejercicios(){
     (fEstado==="activos"?e.estado!=="descartado":e.estado===fEstado)
     &&(fTipo==="Todos"||(fTipo==="__sin"?e.tipos.length===0:e.tipos.includes(fTipo)))
     &&(fCat==="Todas"||(fCat==="__sin"?e.categorias.length===0:e.categorias.includes(fCat)))
-    &&(!q||(e.name+" "+e.desc).toLowerCase().includes(q.toLowerCase())));
+    &&(!q||(e.name+" "+e.desc).toLowerCase().includes(q.toLowerCase())))
+    .sort((a,b)=>orden==="valoracion"?((b.row.valoracion??-1)-(a.row.valoracion??-1))||((b.row.n_valoraciones||0)-(a.row.n_valoraciones||0)):orden==="uso"?String(b.row.ultimo_uso||"").localeCompare(String(a.row.ultimo_uso||"")):a.name.localeCompare(b.name));
 
   const run=async(fn,ok)=>{
     setBusy(true);setMsg("");
@@ -3267,6 +3516,9 @@ function Ejercicios(){
         {BIB_CATS.map(c=><option key={c} value={c}>{c}</option>)}
         <option value="__sin">Sin categoría</option>
       </select>
+      <select value={orden} onChange={e=>setOrden(e.target.value)} style={{width:"auto",minWidth:150}}>
+        <option value="nombre">Orden: nombre</option><option value="valoracion">Orden: mejor valorados</option><option value="uso">Orden: usados recientemente</option>
+      </select>
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar…" style={{flex:1,minWidth:160}}/>
       <span style={{fontSize:12,color:th.muted}}>{filtered.length} resultados</span>
     </div>
@@ -3290,6 +3542,7 @@ function Ejercicios(){
                 <Badge color={ec} sm>{ex.estado}</Badge>
                 {ex.tipos.length?ex.tipos.map(t=><Badge key={t} color={tagColor(t)} sm>{t}</Badge>):<Badge color="#94a3b8" sm>Sin clasificar</Badge>}
                 {ex.categorias.map(k=><Badge key={k} color="#3b82f6" sm>{k}</Badge>)}
+                {ex.row.n_valoraciones>0&&<Badge color="#f59e0b" sm>★ {ex.row.valoracion} ({ex.row.n_valoraciones})</Badge>}
                 {ex.dur&&<Badge color="#06b6d4" sm>{ex.row.duracion_max&&ex.row.duracion_max!==ex.row.duracion_min?`${ex.row.duracion_min}-${ex.row.duracion_max}'`:ex.dur}</Badge>}
               </div>
             </div>
