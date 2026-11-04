@@ -2943,7 +2943,7 @@ function Entrenamientos(){
    7. ASISTENCIA — Todo el año, Mar+Mié+Jue+Vie, paginación mensual
 ══════════════════════════════════════════════════════════ */
 function Asistencia(){
-  const{th}=useTheme();const{players,attDates,setAttDates}=useData();
+  const{th}=useTheme();const{players,attDates,setAttDates,attInjured,setAttInjured}=useData();
   const today=new Date();
   const[monthIdx,setMonthIdx]=useState(()=>{
     const start=new Date(SEASON_START);
@@ -2956,19 +2956,39 @@ function Asistencia(){
   const curMonthDate=new Date(startMonth.getFullYear(),startMonth.getMonth()+monthIdx,1);
   const curMonthDates=ALL_TRAINING_DATES.filter(d=>{const[y,m]=d.split("-").map(Number);return y===curMonthDate.getFullYear()&&(m-1)===curMonthDate.getMonth();});
 
-  const toggle=(date,pid)=>setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:c.includes(pid)?c.filter(id=>id!==pid):[...c,pid]};});
-  const rate=pid=>{const withData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined);return withData.length?Math.round(withData.filter(d=>(attDates[d]||[]).includes(pid)).length/withData.length*100):0;};
+  // Cycle: ausente → presente → lesionado → ausente
+  const toggle=(date,pid)=>{
+    const pr=(attDates[date]||[]).includes(pid);
+    const inj=(attInjured[date]||[]).includes(pid);
+    if(!pr&&!inj){
+      setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:[...c,pid]};});
+    } else if(pr&&!inj){
+      setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:c.filter(id=>id!==pid)};});
+      setAttInjured(prev=>{const c=prev[date]||[];return{...prev,[date]:[...c,pid]};});
+    } else {
+      setAttInjured(prev=>{const c=prev[date]||[];return{...prev,[date]:c.filter(id=>id!==pid)};});
+    }
+  };
+  // % excluye días de lesión del denominador
+  const rate=pid=>{
+    const withData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined||(attInjured[d]||[]).includes(pid));
+    const eligible=withData.filter(d=>!(attInjured[d]||[]).includes(pid));
+    return eligible.length?Math.round(eligible.filter(d=>(attDates[d]||[]).includes(pid)).length/eligible.length*100):0;
+  };
 
   const monthName=curMonthDate.toLocaleDateString("es",{month:"long",year:"numeric"});
   const allPresent=pid=>curMonthDates.every(d=>(attDates[d]||[]).includes(pid));
   const toggleAll=pid=>{
-    if(allPresent(pid)){setAttDates(prev=>{const n={...prev};curMonthDates.forEach(d=>{n[d]=(n[d]||[]).filter(id=>id!==pid);});return n;});}
-    else{setAttDates(prev=>{const n={...prev};curMonthDates.forEach(d=>{if(!(n[d]||[]).includes(pid))n[d]=[...(n[d]||[]),pid];});return n;});}
+    if(allPresent(pid)){
+      setAttDates(prev=>{const n={...prev};curMonthDates.forEach(d=>{n[d]=(n[d]||[]).filter(id=>id!==pid);});return n;});
+    } else {
+      setAttDates(prev=>{const n={...prev};curMonthDates.forEach(d=>{if(!(n[d]||[]).includes(pid))n[d]=[...(n[d]||[]),pid];});return n;});
+      setAttInjured(prev=>{const n={...prev};curMonthDates.forEach(d=>{n[d]=(n[d]||[]).filter(id=>id!==pid);});return n;});
+    }
   };
 
   return <div>
     <SH title="Asistencia" sub="Control de presencia · Lun · Mar · Jue"/>
-    {/* Month navigation */}
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
       <button onClick={()=>setMonthIdx(m=>Math.max(0,m-1))} disabled={monthIdx===0} style={{width:34,height:34,borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:th.sub,opacity:monthIdx===0?.35:1}}><ChevronLeft size={16}/></button>
       <p style={{fontFamily:"Barlow Condensed",fontSize:20,fontWeight:700,color:th.text,textTransform:"capitalize",flex:1,textAlign:"center"}}>{monthName}</p>
@@ -2993,11 +3013,15 @@ function Asistencia(){
               {!p.active&&<Badge color="#ef4444" sm>Baja</Badge>}
             </div>
           </td>
-          {curMonthDates.map(d=>{const pr=(attDates[d]||[]).includes(p.id);return <td key={d} style={{padding:"8px 8px",textAlign:"center"}}>
-            <div onClick={()=>toggle(d,p.id)} style={{width:26,height:26,borderRadius:6,cursor:"pointer",margin:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:pr?"#10b981":"transparent",border:`1px solid ${pr?"#10b981":th.border2}`,transition:"all .15s"}}>
-              {pr?<Check size={12} color="#fff"/>:<span style={{fontSize:11,color:th.border2}}>–</span>}
-            </div>
-          </td>;})}
+          {curMonthDates.map(d=>{
+            const pr=(attDates[d]||[]).includes(p.id);
+            const inj=(attInjured[d]||[]).includes(p.id);
+            return <td key={d} style={{padding:"8px 8px",textAlign:"center"}}>
+              <div onClick={()=>toggle(d,p.id)} title={pr?"Presente — clic: marcar lesionado":inj?"Lesionado — clic: quitar":"Ausente — clic: marcar presente"} style={{width:26,height:26,borderRadius:6,cursor:"pointer",margin:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:pr?"#10b981":inj?"rgba(249,115,22,.2)":"transparent",border:`1px solid ${pr?"#10b981":inj?"#f97316":th.border2}`,transition:"all .15s"}}>
+                {pr?<Check size={12} color="#fff"/>:inj?<span style={{fontSize:13,lineHeight:1}}>🩹</span>:<span style={{fontSize:11,color:th.border2}}>–</span>}
+              </div>
+            </td>;
+          })}
           <td style={{padding:"8px 10px",textAlign:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
               <div style={{flex:1,height:4,background:th.border2,borderRadius:2,overflow:"hidden"}}><div style={{width:`${r}%`,height:"100%",background:rc,borderRadius:2}}/></div>
@@ -3008,7 +3032,10 @@ function Asistencia(){
         </tbody>
       </table>
     </div>}
-    <p style={{fontSize:11,color:th.muted,marginTop:8}}>💡 Haz clic en el nombre para marcar/desmarcar todos los días del mes</p>
+    <div style={{display:"flex",gap:16,marginTop:8,flexWrap:"wrap"}}>
+      <p style={{fontSize:11,color:th.muted}}>✓ verde = presente &nbsp;·&nbsp; 🩹 naranja = lesionado &nbsp;·&nbsp; – = ausente</p>
+      <p style={{fontSize:11,color:th.muted}}>El % excluye días de lesión · Clic en nombre: marcar/desmarcar todo el mes</p>
+    </div>
   </div>;
 }
 
@@ -7856,6 +7883,7 @@ function AppMain(){
   const[matches,   setMatchesRaw]  = useState(DM);
   const[sessions,  setSessionsRaw] = useState(DS);
   const[attDates,  setAttDatesRaw] = useState(DA);
+  const[attInjured,setAttInjuredRaw]=useState({});
   const[quintets,  setQuintetsRaw] = useState(DEFAULT_QUINTETS);
   const[recursos,  setRecursosRaw] = useState(DEFAULT_RECURSOS);
   const[plays,     setPlaysRaw]    = useState(DEFAULT_PLAYS);
@@ -7889,7 +7917,7 @@ function AppMain(){
     setCalendario(cal);
   },[]);
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,attInjured:{},quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -7954,6 +7982,21 @@ function AppMain(){
       return n;
     });
   },[]);
+  const setAttInjured=useCallback(fn=>{
+    setAttInjuredRaw(prev=>{
+      const n=typeof fn==="function"?fn(prev):fn;
+      stRef.current={...stRef.current,attInjured:n};
+      setSync("saving");
+      (async()=>{
+        try{
+          const{error}=await sb.from("dashboard").upsert({id:TEAM_ROWS[teamIdRef.current]||TEAM_ROWS[teamId],data:stRef.current,updated_at:new Date().toISOString()});
+          if(error)throw error;
+          setSync("saved");
+        }catch(e){console.error("AttInjured save:",e);setSync("offline");}
+      })();
+      return n;
+    });
+  },[]);
   const setQuintets =useCallback(fn=>setQuintetsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({quintets:n});return n;}),[persist]);
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
@@ -8006,6 +8049,7 @@ function AppMain(){
       // sessions, planMesos, planMicro always loaded (even if empty) so new data isn't lost
       if(Array.isArray(d.sessions))       {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;}
       if(d.attDates&&Object.keys(d.attDates).length>0){setAttDatesRaw(d.attDates);stRef.current.attDates=d.attDates;loaded=true;}
+      if(d.attInjured){setAttInjuredRaw(d.attInjured);stRef.current.attInjured=d.attInjured;}
       if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
       if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
       if(d.plays&&d.plays.length>0)     {setPlaysRaw(d.plays);           stRef.current.plays=d.plays;}
@@ -8097,7 +8141,7 @@ function AppMain(){
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
     <AppCtx.Provider value={{teamId,teamsConfig}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,calendario,saveCalendario,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,attInjured,setAttInjured,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,calendario,saveCalendario,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
