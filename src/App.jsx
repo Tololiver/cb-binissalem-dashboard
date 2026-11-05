@@ -2337,11 +2337,12 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
         estado:"borrador",
         descripcion:ex.desc?.trim()||null,
         objetivo:null,reglas:null,variantes:null,puntos_clave:null,
-        tipologias:[],categorias:[],fase_sesion:"cualquiera",
+        tipologia_ids:[],categorias:[],fase_sesion:"cualquiera",
         intensidad:null,
         duracion_min:ex.sesMin?parseInt(ex.sesMin)||null:null,
         duracion_max:ex.sesMin?parseInt(ex.sesMin)||null:null,
         jugadores_min:null,jugadores_max:null,canastas:null,material:[],
+        creado_por_ia:false,
       };
       const{error}=await sb.from("ejercicios").insert({...fields,slug:bibSlug(fields.nombre)});
       if(error)throw error;
