@@ -21,7 +21,7 @@ import {
   Sun, Moon, Plus, Check, X, Activity, Target, Upload, ChevronRight, ChevronLeft,
   Trash2, RotateCcw, Edit2, Trophy, Shield, Wifi, WifiOff, Loader, Link,
   Search, ExternalLink, Globe, Save, Star, Zap, Image, FileText, Printer,
-  Copy, Brain, ChevronDown, Camera
+  Copy, Brain, ChevronDown, Camera, BookmarkPlus
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
@@ -2327,6 +2327,27 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
   },[f.date,calendario,teamId,dateTouched]);
   const[showPicker,setShowPicker]=useState(false);
   const[viewEx,setViewEx]=useState(null);
+  const[archiveStatus,setArchiveStatus]=useState({});// {[exId]: "idle"|"saving"|"saved"|"error"}
+  const archivarEjercicio=async(ex)=>{
+    if(!ex.name?.trim()){alert("El ejercicio necesita un título para archivarse.");return;}
+    setArchiveStatus(p=>({...p,[ex.id]:"saving"}));
+    try{
+      const fields={
+        nombre:ex.name.trim(),
+        estado:"borrador",
+        descripcion:ex.desc?.trim()||null,
+        objetivo:null,reglas:null,variantes:null,puntos_clave:null,
+        tipologias:[],categorias:[],fase_sesion:"cualquiera",
+        intensidad:null,
+        duracion_min:ex.sesMin?parseInt(ex.sesMin)||null:null,
+        duracion_max:ex.sesMin?parseInt(ex.sesMin)||null:null,
+        jugadores_min:null,jugadores_max:null,canastas:null,material:[],
+      };
+      const{error}=await sb.from("ejercicios").insert({...fields,slug:bibSlug(fields.nombre)});
+      if(error)throw error;
+      setArchiveStatus(p=>({...p,[ex.id]:"saved"}));
+    }catch(e){console.error("Archivar ejercicio:",e);setArchiveStatus(p=>({...p,[ex.id]:"error"}));}
+  };
 
   const addExFromCatalog=ids=>{
     const toAdd=ids.map(id=>ejercicios.find(e=>e.id===id)).filter(Boolean)
@@ -2534,6 +2555,20 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
                         placeholder="Descripción, variantes, instrucciones…"
                         rows={2}
                         style={{width:"100%",fontSize:11,lineHeight:1.5,resize:"vertical",borderRadius:6,border:`1px solid ${th.border2}`,background:th.inputBg,color:th.text,padding:"5px 8px",fontFamily:"inherit"}}/>
+                      {/* Botón archivar en biblioteca */}
+                      {(()=>{const st=archiveStatus[ex.id]||"idle";return(
+                        <button
+                          onClick={()=>archivarEjercicio(ex)}
+                          disabled={st==="saving"||st==="saved"}
+                          title="Guardar como borrador en la biblioteca de ejercicios"
+                          style={{alignSelf:"flex-start",display:"flex",alignItems:"center",gap:4,fontSize:10,fontFamily:"Barlow Condensed",fontWeight:700,textTransform:"uppercase",letterSpacing:.4,cursor:st==="saved"?"default":"pointer",background:"transparent",border:`1px solid ${st==="saved"?"#10b981":st==="error"?"#ef4444":"#3b82f6"}`,borderRadius:5,padding:"2px 8px",color:st==="saved"?"#10b981":st==="error"?"#ef4444":"#3b82f6",opacity:st==="saving"?.6:1,transition:"all .2s"}}>
+                          {st==="saving"&&<span style={{fontSize:9}}>⏳</span>}
+                          {st==="saved"&&<span style={{fontSize:9}}>✓</span>}
+                          {st==="error"&&<span style={{fontSize:9}}>✗</span>}
+                          {st==="idle"&&<BookmarkPlus size={10}/>}
+                          {st==="idle"?"Archivar en biblioteca":st==="saving"?"Guardando…":st==="saved"?"Guardado como borrador":"Error al guardar"}
+                        </button>
+                      )})()}
                     </div>
                   : /* Ejercicio del catálogo */
                     <div>
