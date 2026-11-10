@@ -2294,7 +2294,7 @@ function EjercicioPicker({ejercicios,onAdd,onClose}){
 function SesionForm({session,ejercicios,onSave,onCancel}){
   const{th}=useTheme();
   const isEdit=!!session;
-  const{teamId}=useAppContext();const{calendario}=useData();
+  const{teamId}=useAppContext();const{calendario,players}=useData();
 
   // Migrate legacy exs (textarea) to unified exObjs on load
   const migrateExObjs=()=>{
@@ -2315,6 +2315,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
     dur:session?.dur||90,
     title:session?.title||"",
     exObjs:migrateExObjs(),
+    quintetos:session?.quintetos||[[null,null,null,null,null],[null,null,null,null,null],[null,null,null,null,null],[null,null,null,null,null]],
     notes:session?.notes||"",
     images:session?.images||[],
   });
@@ -2391,6 +2392,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
       id:session?.id||Date.now(),
       date:f.date,time:f.time,type:f.type,dur:+f.dur,
       title:f.title,exs:[],exObjs:f.exObjs,
+      quintetos:f.quintetos,
       notes:f.notes,images:f.images,
     });
   };
@@ -2606,6 +2608,52 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
         </div>}
     </div>
 
+    {/* ── Quintetos 5c5 ──────────────────────────────────────── */}
+    {(()=>{
+      const activePl=(players||[]).filter(p=>!p.lesionado).sort((a,b)=>a.dorsal-b.dorsal);
+      const setSlot=(qi,pos,pid)=>setF(prev=>{
+        const qs=prev.quintetos.map((q,i)=>i===qi?q.map((v,j)=>j===pos?pid:v):q);
+        return{...prev,quintetos:qs};
+      });
+      const usedIn=(qi,pid)=>f.quintetos.some((q,i)=>i!==qi&&q.includes(pid));
+      return(
+        <div style={{marginBottom:16}}>
+          <Lbl>Quintetos 5c5</Lbl>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {f.quintetos.map((q,qi)=>(
+              <div key={qi} style={{border:`1px solid ${th.border2}`,borderRadius:8,padding:"8px 10px",background:th.card}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                  <span style={{fontFamily:"Barlow Condensed",fontWeight:700,fontSize:12,color:"#f97316",background:"rgba(249,115,22,.12)",padding:"1px 8px",borderRadius:4}}>Q{qi+1}</span>
+                  {q.some(v=>v)&&<button onClick={()=>setF(p=>({...p,quintetos:p.quintetos.map((x,i)=>i===qi?[null,null,null,null,null]:x)}))} style={{marginLeft:"auto",background:"transparent",border:"none",cursor:"pointer",fontSize:10,color:th.muted,fontFamily:"inherit"}}>✕ limpiar</button>}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5}}>
+                  {q.map((pid,pos)=>{
+                    const pl=activePl.find(p=>p.id===pid);
+                    const inOther=pid&&usedIn(qi,pid);
+                    return(
+                      <div key={pos} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                        <span style={{fontSize:9,fontFamily:"Barlow Condensed",fontWeight:700,color:th.muted}}>{pos+1}</span>
+                        <select
+                          value={pid||""}
+                          onChange={e=>setSlot(qi,pos,e.target.value||null)}
+                          style={{width:"100%",fontSize:10,borderRadius:5,border:`1px solid ${inOther?"#f59e0b":pl?"#f97316":th.border2}`,background:pl?"rgba(249,115,22,.08)":th.inputBg,color:th.text,padding:"3px 2px",fontFamily:"inherit",cursor:"pointer",textAlign:"center"}}>
+                          <option value="">—</option>
+                          {activePl.map(p=>(
+                            <option key={p.id} value={p.id}>{p.dorsal?`#${p.dorsal} `:""}  {p.name}</option>
+                          ))}
+                        </select>
+                        {pl&&<span style={{fontSize:9,color:"#f97316",fontFamily:"Barlow Condensed",fontWeight:700,lineHeight:1,textAlign:"center",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{pl.name.split(" ")[0]}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{fontSize:10,color:th.muted,marginTop:4}}>💡 Define hasta 4 quintetos para los 5c5 del entreno. Los jugadores lesionados no aparecen.</p>
+        </div>
+      );
+    })()}
     <div style={{marginBottom:12}}><Lbl>Notas de la sesión</Lbl><textarea rows={2} value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Objetivos, instrucciones, observaciones…"/></div>
     <div style={{marginBottom:16}}><Lbl>Imágenes de la sesión (hasta 4)</Lbl><ImageUploader images={f.images} setImages={imgs=>setF(p=>({...p,images:imgs}))}/></div>
     <div style={{display:"flex",gap:8}}><Btn onClick={save}>Guardar</Btn><Btn onClick={onCancel} variant="ghost">Cancelar</Btn></div>
@@ -2949,6 +2997,30 @@ function Entrenamientos(){
                 </div>;})}
               </div>
             </div>}
+
+            {/* Quintetos 5c5 */}
+            {(s.quintetos||[]).some(q=>q.some(v=>v))&&(()=>{
+              const pMap=Object.fromEntries((players||[]).map(p=>[p.id,p]));
+              return(
+                <div style={{marginBottom:12}}>
+                  <p style={{fontFamily:"Barlow Condensed",fontSize:11,fontWeight:700,color:th.muted,textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>Quintetos 5c5</p>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {(s.quintetos||[]).map((q,qi)=>q.some(v=>v)&&(
+                      <div key={qi} style={{border:"1px solid rgba(249,115,22,.3)",borderRadius:8,padding:"6px 10px",background:"rgba(249,115,22,.05)",minWidth:120}}>
+                        <p style={{fontFamily:"Barlow Condensed",fontWeight:700,fontSize:11,color:"#f97316",marginBottom:4}}>Q{qi+1}</p>
+                        {q.map((pid,pos)=>{const pl=pid&&pMap[pid];return pl?(
+                          <div key={pos} style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
+                            <span style={{fontFamily:"DM Mono",fontSize:9,color:"#f97316",minWidth:12}}>{pos+1}</span>
+                            {pl.dorsal&&<span style={{fontFamily:"Barlow Condensed",fontWeight:700,fontSize:11,color:th.sub}}>#{pl.dorsal}</span>}
+                            <span style={{fontSize:11,color:th.text,fontFamily:"Barlow Condensed",fontWeight:600}}>{pl.name}</span>
+                          </div>
+                        ):null;})}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Ejercicios libres — soporta formato "min | descripción" */}
             {(s.exs||[]).length>0&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
