@@ -1109,7 +1109,7 @@ function sesTotalMin(exObjs){
 const sesEsc=t=>String(t??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const sesNl=t=>sesEsc(t).replace(/\n/g,"<br/>");
 
-function exportSessionPDF(s,biblioList=[]){
+function exportSessionPDF(s,biblioList=[],playersList=[]){
   const exObjs=s.exObjs||[];
   const bi=sesBlockInfo(exObjs);
   const lib=Object.fromEntries((biblioList||[]).map(x=>[String(x.id),x]));
@@ -1164,6 +1164,9 @@ function exportSessionPDF(s,biblioList=[]){
   const legacy=(s.exs&&!exObjs.length)?(Array.isArray(s.exs)?s.exs:String(s.exs).split("\n")).filter(Boolean):[];
   const legacyHtml=legacy.length?`<div class="section"><div class="section-title">Ejercicios</div><div class="section-body">${legacy.map((e,i)=>`<div class="item"><div class="item-dot"></div><div class="item-text"><strong>${i+1}.</strong> ${sesEsc(e)}</div></div>`).join("")}</div></div>`:"";
   const sesImgs=(s.images||[]).length?`<div class="section"><div class="section-title">Imágenes de la sesión</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${s.images.map(img=>`<img src="${img}" style="height:120px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0"/>`).join("")}</div></div>`:"";
+  const pMap=Object.fromEntries((playersList||[]).map(p=>[String(p.id),p]));
+  const qsWithData=(s.quintetos||[]).filter(q=>q.some(v=>v));
+  const quintHtml=qsWithData.length?`<div class="section" style="break-inside:avoid"><div class="section-title">Quintetos 5c5</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">${qsWithData.map((q,qi)=>`<div style="border:1px solid #fed7aa;border-radius:8px;padding:8px 12px;background:#fff7ed;min-width:130px"><div style="font-size:11px;font-weight:800;color:#f97316;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Q${qi+1}</div>${q.map((pid,pos)=>{const pl=pid&&pMap[String(pid)];return pl?`<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-family:monospace;font-size:9px;color:#f97316;min-width:12px">${pos+1}</span>${pl.dorsal?`<span style="font-weight:700;font-size:11px;color:#64748b">#${pl.dorsal}</span>`:"<span></span>"}<span style="font-size:12px;font-weight:600;color:#1e293b">${sesEsc(pl.name)}</span></div>`:"";}).join("")}</div>`).join("")}</div></div>`:"";
   const sub=[s.date,s.time?s.time+"h":"",s.dur?s.dur+" min":"",s.type].filter(Boolean).join(" · ");
 
   const w=window.open("","_blank");
@@ -1173,7 +1176,7 @@ function exportSessionPDF(s,biblioList=[]){
     +(s.notes?`<div class="section"><div class="section-title">Notas y objetivos</div><div class="section-body">${mdToHtml(s.notes)}</div></div>`:"")
     +barsHtml
     +(body?`<div class="section"><div class="section-title">Contenido de la sesión</div><div class="section-body">${body}</div></div>`:"")
-    +legacyHtml+sesImgs
+    +legacyHtml+quintHtml+sesImgs
     +pdfClose());
   w.document.close();
   // Espera a que carguen las imágenes (máx. 6 s) antes de imprimir
@@ -2661,7 +2664,7 @@ function SesionForm({session,ejercicios,onSave,onCancel}){
 }
 
 function Entrenamientos(){
-  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios,biblio}=useData();
+  const{th}=useTheme();const{sessions,setSessions,sesionTemplates,setSesionTemplates,ejercicios,biblio,players}=useData();
   const[showCal,setShowCal]=useState(false);const[showIA,setShowIA]=useState(false);const[rateSes,setRateSes]=useState(null);
   const[exp,setExp]=useState(null);
   const[showAdd,setShowAdd]=useState(false);
@@ -2879,7 +2882,7 @@ function Entrenamientos(){
   };
   const delTemplate=id=>setSesionTemplates(prev=>prev.filter(t=>t.id!==id));
 
-  const exportPDF=s=>exportSessionPDF(s,biblio?.list||[]);
+  const exportPDF=s=>exportSessionPDF(s,biblio?.list||[],players||[]);
 
   return <div>
     {viewEx&&<EjercicioModal ex={viewEx} onClose={()=>setViewEx(null)}/>}
