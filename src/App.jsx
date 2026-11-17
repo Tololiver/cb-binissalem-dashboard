@@ -3053,8 +3053,150 @@ function Entrenamientos(){
 /* ══════════════════════════════════════════════════════════
    7. ASISTENCIA — Todo el año, Mar+Mié+Jue+Vie, paginación mensual
 ══════════════════════════════════════════════════════════ */
+
+// ── Exportar PDF de asistencia ────────────────────────────────────────────────
+async function exportAttPDF(mode, curMonthDate, players, ALL_TRAINING_DATES, attDates, attInjured, attNoShow){
+  // Dynamically load jsPDF if not already loaded
+  if(!window.jspdf){
+    await new Promise((resolve,reject)=>{
+      const s=document.createElement("script");
+      s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      s.onload=resolve;s.onerror=reject;
+      document.head.appendChild(s);
+    });
+  }
+  const{jsPDF}=window.jspdf;
+
+  // Filter dates by mode
+  let dates;
+  let titlePeriod;
+  if(mode==="month"&&curMonthDate){
+    dates=ALL_TRAINING_DATES.filter(d=>{const[y,m]=d.split("-").map(Number);return y===curMonthDate.getFullYear()&&(m-1)===curMonthDate.getMonth();});
+    titlePeriod=curMonthDate.toLocaleDateString("es",{month:"long",year:"numeric"});
+  } else {
+    dates=[...ALL_TRAINING_DATES];
+    titlePeriod="Temporada 2026-27";
+  }
+  if(!dates.length){alert("No hay entrenos en el período seleccionado.");return;}
+
+  const activePlayers=[...players].filter(p=>p.active).sort((a,b)=>(+a.num||0)-(+b.num||0));
+
+  // Page setup
+  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const PW=297,PH=210;
+  const ML=10,MR=10,MT=18,MB=10;
+  const contentW=PW-ML-MR;
+
+  // Colors
+  const C={orange:[249,115,22],dark:[15,15,20],white:[255,255,255],
+    green:[16,185,129],red:[239,68,68],
+    gray:[180,180,185],lightgray:[240,240,242],muted:[120,120,128]};
+
+  // Header bar
+  doc.setFillColor(...C.dark);
+  doc.rect(0,0,PW,14,"F");
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...C.orange);
+  doc.text("TOLOLIVER BASKETBALL COACH",ML,9);
+  doc.setFontSize(8);
+  doc.setTextColor(...C.white);
+  const titleText=`Resum Assistència · ${titlePeriod}`;
+  doc.text(titleText,PW/2,9,{align:"center"});
+  doc.setFontSize(7);
+  doc.setTextColor(...C.muted);
+  doc.text(new Date().toLocaleDateString("es",{day:"2-digit",month:"2-digit",year:"numeric"}),PW-MR,9,{align:"right"});
+
+  // Pagination: split dates into pages of max ~20 columns
+  const MAX_COLS=20;
+  const dateChunks=[];
+  for(let i=0;i<dates.length;i+=MAX_COLS)dateChunks.push(dates.slice(i,i+MAX_COLS));
+
+  dateChunks.forEach((chunk,pageIdx)=>{
+    if(pageIdx>0)doc.addPage();
+
+    const colW=(contentW-50)/chunk.length; // 50mm for player name column
+    const nameColW=50;
+    const rowH=6;
+    let y=MT;
+
+    // Column headers (dates)
+    doc.setFillColor(...C.lightgray);
+    doc.rect(ML,y,contentW,7,"F");
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.muted);
+    doc.text("JUGADOR",ML+2,y+5);
+    chunk.forEach((d,i)=>{
+      const dt=new Date(d+"T12:00:00");
+      const x=ML+nameColW+i*colW;
+      doc.text(String(dt.getDate()).padStart(2,"0"),x+colW/2,y+3,{align:"center"});
+      const dow=["D","L","M","X","J","V","S"][dt.getDay()];
+      doc.text(dow,x+colW/2,y+6.5,{align:"center"});
+    });
+    // Header for totals
+    const totX=ML+nameColW+chunk.length*colW;
+    const totCols=[{l:"✓",w:7},{l:"🩹",w:7},{l:"✕",w:7},{l:"%",w:9}];
+    let tx=totX;
+    totCols.forEach(({l,w})=>{doc.text(l,tx+w/2,y+5,{align:"center"});tx+=w;});
+    y+=8;
+
+    // Player rows
+    activePlayers.forEach((p,ri)=>{
+      if(ri%2===0){doc.setFillColor(...C.lightgray);}else{doc.setFillColor(255,255,255);}
+      doc.rect(ML,y,contentW,rowH,"F");
+
+      // Player name
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...C.dark);
+      doc.text(`${p.num} · ${p.name.split(" ").slice(0,2).join(" ")}`,ML+2,y+4);
+
+      // Status cells
+      let present=0,injured=0,noshow=0;
+      chunk.forEach((d,i)=>{
+        const pr=(attDates[d] ||[]).includes(p.id);
+        const inj=(attInjured[d]||[]).includes(p.id);
+        const ns=(attNoShow[d] ||[]).includes(p.id);
+        const cx=ML+nameColW+i*colW+colW/2;
+        const cy=y+rowH/2;
+        if(pr){present++;doc.setFillColor(...C.green);doc.circle(cx,cy,1.8,"F");}
+        else if(inj){injured++;doc.setFillColor(...C.orange);doc.circle(cx,cy,1.5,"F");}
+        else if(ns){noshow++;doc.setFillColor(...C.red);doc.circle(cx,cy,1.5,"F");}
+        else{doc.setFillColor(...C.gray);doc.circle(cx,cy,0.8,"F");}
+      });
+
+      // Totals
+      const eligible=chunk.filter(d=>!(attInjured[d]||[]).includes(p.id)).length;
+      const pct=eligible?Math.round(present/eligible*100):0;
+      const pctColor=pct>=80?C.green:pct>=60?C.orange:C.red;
+      doc.setFontSize(6.5);
+      let tx2=totX;
+      [[present,C.green],[injured,C.orange],[noshow,C.red]].forEach(([v,c])=>{
+        const tw=7;
+        doc.setTextColor(...c);doc.setFont("helvetica","bold");
+        doc.text(String(v),tx2+tw/2,y+4,{align:"center"});tx2+=tw;
+      });
+      doc.setTextColor(...pctColor);doc.text(`${pct}%`,tx2+4.5,y+4,{align:"center"});
+
+      y+=rowH;
+    });
+
+    // Footer
+    doc.setDrawColor(...C.gray);doc.setLineWidth(0.3);
+    doc.line(ML,PH-MB-4,PW-MR,PH-MB-4);
+    doc.setFontSize(6);doc.setFont("helvetica","normal");doc.setTextColor(...C.muted);
+    doc.text(`✓ Presente  ● Lesionat  ✕ No avisà  · ${titlePeriod}  |  Pàg. ${pageIdx+1}/${dateChunks.length}`,ML,PH-MB);
+    doc.text("tololiver.com",PW-MR,PH-MB,{align:"right"});
+  });
+
+  const fname=mode==="month"
+    ?`Assistencia_${titlePeriod.replace(/\s/g,"_")}.pdf`
+    :"Assistencia_Temporada_2026-27.pdf";
+  doc.save(fname);
+}
 function Asistencia(){
-  const{th}=useTheme();const{players,attDates,setAttDates,attInjured,setAttInjured}=useData();
+  const{th}=useTheme();const{players,attDates,setAttDates,attInjured,setAttInjured,attNoShow,setAttNoShow}=useData();
   const today=new Date();
   const[monthIdx,setMonthIdx]=useState(()=>{
     const start=new Date(SEASON_START);
@@ -3067,22 +3209,30 @@ function Asistencia(){
   const curMonthDate=new Date(startMonth.getFullYear(),startMonth.getMonth()+monthIdx,1);
   const curMonthDates=ALL_TRAINING_DATES.filter(d=>{const[y,m]=d.split("-").map(Number);return y===curMonthDate.getFullYear()&&(m-1)===curMonthDate.getMonth();});
 
-  // Cycle: ausente → presente → lesionado → ausente
+  // Cycle: ausente(gris) → presente(verde) → lesionado(naranja) → no-show(rojo) → ausente
   const toggle=(date,pid)=>{
-    const pr=(attDates[date]||[]).includes(pid);
+    const pr =(attDates[date] ||[]).includes(pid);
     const inj=(attInjured[date]||[]).includes(pid);
-    if(!pr&&!inj){
+    const ns =(attNoShow[date] ||[]).includes(pid);
+    if(!pr&&!inj&&!ns){
+      // ausente → presente
       setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:[...c,pid]};});
-    } else if(pr&&!inj){
+    } else if(pr){
+      // presente → lesionado
       setAttDates(prev=>{const c=prev[date]||[];return{...prev,[date]:c.filter(id=>id!==pid)};});
       setAttInjured(prev=>{const c=prev[date]||[];return{...prev,[date]:[...c,pid]};});
-    } else {
+    } else if(inj){
+      // lesionado → no-show (rojo)
       setAttInjured(prev=>{const c=prev[date]||[];return{...prev,[date]:c.filter(id=>id!==pid)};});
+      setAttNoShow(prev=>{const c=prev[date]||[];return{...prev,[date]:[...c,pid]};});
+    } else {
+      // no-show → ausente (gris)
+      setAttNoShow(prev=>{const c=prev[date]||[];return{...prev,[date]:c.filter(id=>id!==pid)};});
     }
   };
-  // % excluye días de lesión del denominador
+  // % excluye días de lesión del denominador; no-show cuenta como ausente
   const rate=pid=>{
-    const withData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined||(attInjured[d]||[]).includes(pid));
+    const withData=ALL_TRAINING_DATES.filter(d=>attDates[d]!==undefined||(attInjured[d]||[]).includes(pid)||(attNoShow[d]||[]).includes(pid));
     const eligible=withData.filter(d=>!(attInjured[d]||[]).includes(pid));
     return eligible.length?Math.round(eligible.filter(d=>(attDates[d]||[]).includes(pid)).length/eligible.length*100):0;
   };
@@ -3095,6 +3245,7 @@ function Asistencia(){
     } else {
       setAttDates(prev=>{const n={...prev};curMonthDates.forEach(d=>{if(!(n[d]||[]).includes(pid))n[d]=[...(n[d]||[]),pid];});return n;});
       setAttInjured(prev=>{const n={...prev};curMonthDates.forEach(d=>{n[d]=(n[d]||[]).filter(id=>id!==pid);});return n;});
+      setAttNoShow(prev=>{const n={...prev};curMonthDates.forEach(d=>{n[d]=(n[d]||[]).filter(id=>id!==pid);});return n;});
     }
   };
 
@@ -3125,11 +3276,15 @@ function Asistencia(){
             </div>
           </td>
           {curMonthDates.map(d=>{
-            const pr=(attDates[d]||[]).includes(p.id);
+            const pr=(attDates[d] ||[]).includes(p.id);
             const inj=(attInjured[d]||[]).includes(p.id);
+            const ns=(attNoShow[d] ||[]).includes(p.id);
+            const bg=pr?"#10b981":inj?"rgba(249,115,22,.2)":ns?"rgba(239,68,68,.15)":"transparent";
+            const border=pr?"#10b981":inj?"#f97316":ns?"#ef4444":th.border2;
+            const title=pr?"Presente — clic: lesionado":inj?"Lesionado — clic: no-show":ns?"No avisó — clic: quitar":"Ausente — clic: presente";
             return <td key={d} style={{padding:"8px 8px",textAlign:"center"}}>
-              <div onClick={()=>toggle(d,p.id)} title={pr?"Presente — clic: marcar lesionado":inj?"Lesionado — clic: quitar":"Ausente — clic: marcar presente"} style={{width:26,height:26,borderRadius:6,cursor:"pointer",margin:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:pr?"#10b981":inj?"rgba(249,115,22,.2)":"transparent",border:`1px solid ${pr?"#10b981":inj?"#f97316":th.border2}`,transition:"all .15s"}}>
-                {pr?<Check size={12} color="#fff"/>:inj?<span style={{fontSize:13,lineHeight:1}}>🩹</span>:<span style={{fontSize:11,color:th.border2}}>–</span>}
+              <div onClick={()=>toggle(d,p.id)} title={title} style={{width:26,height:26,borderRadius:6,cursor:"pointer",margin:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:bg,border:`1px solid ${border}`,transition:"all .15s"}}>
+                {pr?<Check size={12} color="#fff"/>:inj?<span style={{fontSize:13,lineHeight:1}}>🩹</span>:ns?<span style={{fontSize:13,lineHeight:1,color:"#ef4444",fontWeight:700}}>✕</span>:<span style={{fontSize:11,color:th.border2}}>–</span>}
               </div>
             </td>;
           })}
@@ -3143,9 +3298,17 @@ function Asistencia(){
         </tbody>
       </table>
     </div>}
-    <div style={{display:"flex",gap:16,marginTop:8,flexWrap:"wrap"}}>
-      <p style={{fontSize:11,color:th.muted}}>✓ verde = presente &nbsp;·&nbsp; 🩹 naranja = lesionado &nbsp;·&nbsp; – = ausente</p>
+    <div style={{display:"flex",gap:16,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+      <p style={{fontSize:11,color:th.muted}}>✓ verde = presente &nbsp;·&nbsp; 🩹 naranja = lesionado &nbsp;·&nbsp; ✕ <span style={{color:"#ef4444"}}>rojo = no avisó</span> &nbsp;·&nbsp; – = ausente</p>
       <p style={{fontSize:11,color:th.muted}}>El % excluye días de lesión · Clic en nombre: marcar/desmarcar todo el mes</p>
+      <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+        <button onClick={()=>exportAttPDF("month",curMonthDate,players,ALL_TRAINING_DATES,attDates,attInjured,attNoShow)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:600,letterSpacing:.5}}>
+          <span>📄</span> PDF Mes
+        </button>
+        <button onClick={()=>exportAttPDF("season",null,players,ALL_TRAINING_DATES,attDates,attInjured,attNoShow)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,border:`1px solid ${th.border2}`,background:th.card2,color:th.sub,fontSize:11,cursor:"pointer",fontFamily:"Barlow Condensed",fontWeight:600,letterSpacing:.5}}>
+          <span>📄</span> PDF Temporada
+        </button>
+      </div>
     </div>
   </div>;
 }
@@ -7995,6 +8158,7 @@ function AppMain(){
   const[sessions,  setSessionsRaw] = useState(DS);
   const[attDates,  setAttDatesRaw] = useState(DA);
   const[attInjured,setAttInjuredRaw]=useState({});
+  const[attNoShow, setAttNoShowRaw] =useState({});
   const[quintets,  setQuintetsRaw] = useState(DEFAULT_QUINTETS);
   const[recursos,  setRecursosRaw] = useState(DEFAULT_RECURSOS);
   const[plays,     setPlaysRaw]    = useState(DEFAULT_PLAYS);
@@ -8028,7 +8192,7 @@ function AppMain(){
     setCalendario(cal);
   },[]);
 
-  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,attInjured:{},quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
+  const stRef=useRef({players:DP,matches:DM,sessions:DS,attDates:DA,attInjured:{},attNoShow:{},quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,plays:DEFAULT_PLAYS,ejercicios:DEFAULT_EJS,customEx:[],savedDrawings:[],planMesos:null,planMicro:null,sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],dark:true});
   const tmr=useRef(null);
 
   const persist=useCallback((patch)=>{
@@ -8108,6 +8272,21 @@ function AppMain(){
       return n;
     });
   },[]);
+  const setAttNoShow=useCallback(fn=>{
+    setAttNoShowRaw(prev=>{
+      const n=typeof fn==="function"?fn(prev):fn;
+      stRef.current={...stRef.current,attNoShow:n};
+      setSync("saving");
+      (async()=>{
+        try{
+          const{error}=await sb.from("dashboard").upsert({id:TEAM_ROWS[teamIdRef.current]||TEAM_ROWS[teamId],data:stRef.current,updated_at:new Date().toISOString()});
+          if(error)throw error;
+          setSync("saved");
+        }catch(e){console.error("AttNoShow save:",e);setSync("offline");}
+      })();
+      return n;
+    });
+  },[]);
   const setQuintets =useCallback(fn=>setQuintetsRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({quintets:n});return n;}),[persist]);
   const setRecursos =useCallback(fn=>setRecursosRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({recursos:n});return n;}),[persist]);
   const setCustomEx =useCallback(fn=>setCustomExRaw(prev=>{const n=typeof fn==="function"?fn(prev):fn;persist({customEx:n});return n;}),[persist]);
@@ -8161,6 +8340,7 @@ function AppMain(){
       if(Array.isArray(d.sessions))       {setSessionsRaw(d.sessions);  stRef.current.sessions=d.sessions;}
       if(d.attDates&&Object.keys(d.attDates).length>0){setAttDatesRaw(d.attDates);stRef.current.attDates=d.attDates;loaded=true;}
       if(d.attInjured){setAttInjuredRaw(d.attInjured);stRef.current.attInjured=d.attInjured;}
+      if(d.attNoShow) {setAttNoShowRaw(d.attNoShow);  stRef.current.attNoShow=d.attNoShow;}
       if(d.quintets)  {setQuintetsRaw(d.quintets);  stRef.current.quintets=d.quintets;}
       if(d.recursos)  {setRecursosRaw(d.recursos);  stRef.current.recursos=d.recursos;}
       if(d.plays&&d.plays.length>0)     {setPlaysRaw(d.plays);           stRef.current.plays=d.plays;}
@@ -8185,7 +8365,7 @@ function AppMain(){
       const rowId=TEAM_ROWS[teamIdRef.current]||"state_26_27_mini_masc";
 
       // Reset to clean empty state
-      stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,
+      stRef.current={players:DP,matches:DM,sessions:[],attDates:DA,attInjured:{},attNoShow:{},
         quintets:DEFAULT_QUINTETS,recursos:DEFAULT_RECURSOS,
         plays:[],ejercicios:[],customEx:[],savedDrawings:[],
         sesionTemplates:[],scouting:[],matchAnalyses:[],basketballIQ:[],
@@ -8213,6 +8393,7 @@ function AppMain(){
         if(d.matches)    setMatchesRaw(d.matches);
         if(d.sessions)   setSessionsRaw(d.sessions);
         if(d.attDates)   setAttDatesRaw(d.attDates);
+        if(d.attNoShow)  setAttNoShowRaw(d.attNoShow);
         if(d.quintets)   setQuintetsRaw(d.quintets);
         if(d.recursos)   setRecursosRaw(d.recursos);
         if(d.plays)      setPlaysRaw(d.plays);
@@ -8252,7 +8433,7 @@ function AppMain(){
   return(
     <ThemeCtx.Provider value={{th,dark,setDark}}>
     <AppCtx.Provider value={{teamId,teamsConfig}}>
-      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,attInjured,setAttInjured,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,calendario,saveCalendario,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
+      <DataCtx.Provider value={{players,setPlayers,matches,setMatches,sessions,setSessions,attDates,setAttDates,attInjured,setAttInjured,attNoShow,setAttNoShow,quintets,setQuintets,recursos,setRecursos,plays,setPlays,ejercicios:bibPickList,setEjercicios,biblio,reloadBiblio,calendario,saveCalendario,customEx,setCustomEx,savedDrawings,setSavedDrawings,planMesos,setPlanMesos,planMicro,setPlanMicro,sesionTemplates,setSesionTemplates,scouting,setScouting,matchAnalyses,setMatchAnalyses,basketballIQ,setBasketballIQ,apiKey,setApiKey}}>
         <GS th={th}/>
         <div style={{display:"flex",height:"100dvh",overflow:"hidden",background:th.bg}}>
 
