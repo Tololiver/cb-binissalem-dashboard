@@ -3132,16 +3132,15 @@ async function exportAttPDF(mode, curMonthDate, players, ALL_TRAINING_DATES, att
   // Columnes de dades (mesos o dies)
   const nCols=cols.length; // incl TOTAL
   const dataW=contentW-leftW; // 213mm
-  // Última col (TOTAL) lleugerament més ampla
-  const totalColExtra=3;
-  const colW=(dataW-totalColExtra)/(nCols-1); // amplada de cada mes/dia
-  // colW per 11 cols: (213-3)/10 = 21mm — perfecte
+  // TOTAL col lleugerament més ampla; la resta es reparteix equitativament
+  const totalColW=22;
+  const colW=(dataW-totalColW)/(nCols-1); // amplada de cada col regular
 
   const getColX=(i)=>{
     if(i===nCols-1) return ML+leftW+(nCols-1)*colW; // TOTAL
     return ML+leftW+i*colW;
   };
-  const getColW=(i)=>i===nCols-1?colW+totalColExtra:colW;
+  const getColW=(i)=>i===nCols-1?totalColW:colW;
 
   // Files per jugador: 4 files × rowH + gap
   const rowH=4.5;  // alçada de cada sub-fila
