@@ -3054,9 +3054,8 @@ function Entrenamientos(){
    7. ASISTENCIA — Todo el año, Mar+Mié+Jue+Vie, paginación mensual
 ══════════════════════════════════════════════════════════ */
 
-// ── Exportar PDF de asistencia ────────────────────────────────────────────────
+// ── Exportar PDF de asistencia — format RESUM ────────────────────────────────
 async function exportAttPDF(mode, curMonthDate, players, ALL_TRAINING_DATES, attDates, attInjured, attNoShow){
-  // Dynamically load jsPDF if not already loaded
   if(!window.jspdf){
     await new Promise((resolve,reject)=>{
       const s=document.createElement("script");
@@ -3067,132 +3066,267 @@ async function exportAttPDF(mode, curMonthDate, players, ALL_TRAINING_DATES, att
   }
   const{jsPDF}=window.jspdf;
 
-  // Filter dates by mode
-  let dates;
-  let titlePeriod;
+  const today=new Date();
+
+  // ── Determinar rang de dates ──────────────────────────────────────────────
+  let dates, titlePeriod, fname;
   if(mode==="month"&&curMonthDate){
-    dates=ALL_TRAINING_DATES.filter(d=>{const[y,m]=d.split("-").map(Number);return y===curMonthDate.getFullYear()&&(m-1)===curMonthDate.getMonth();});
-    titlePeriod=curMonthDate.toLocaleDateString("es",{month:"long",year:"numeric"});
+    dates=ALL_TRAINING_DATES.filter(d=>{
+      const[y,m]=d.split("-").map(Number);
+      return y===curMonthDate.getFullYear()&&(m-1)===curMonthDate.getMonth();
+    });
+    titlePeriod=curMonthDate.toLocaleDateString("ca",{month:"long",year:"numeric"});
+    fname=`Assistencia_${titlePeriod.replace(/\s/g,"_")}.pdf`;
   } else {
-    dates=[...ALL_TRAINING_DATES];
+    // Temporada: només mesos ja passats (fins al mes actual inclòs)
+    dates=ALL_TRAINING_DATES.filter(d=>{
+      const dt=new Date(d+"T12:00:00");
+      return dt<=today;
+    });
     titlePeriod="Temporada 2026-27";
+    fname="Assistencia_Temporada_2026-27.pdf";
   }
-  if(!dates.length){alert("No hay entrenos en el período seleccionado.");return;}
+  if(!dates.length){alert("No hi ha entrenaments en el període seleccionat.");return;}
+
+  // ── Calcular mesos presents en les dates filtrades ────────────────────────
+  const monthKeys=[...new Set(dates.map(d=>d.slice(0,7)))].sort();
+  const monthLabels=monthKeys.map(k=>{
+    const[y,m]=k.split("-").map(Number);
+    return new Date(y,m-1,1).toLocaleDateString("ca",{month:"short"}).replace(".","").toUpperCase();
+  });
 
   const activePlayers=[...players].filter(p=>p.active).sort((a,b)=>(+a.num||0)-(+b.num||0));
 
-  // Page setup
-  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
-  const PW=297,PH=210;
-  const ML=10,MR=10,MT=18,MB=10;
-  const contentW=PW-ML-MR;
-
-  // Colors
-  const C={orange:[249,115,22],dark:[15,15,20],white:[255,255,255],
-    green:[16,185,129],red:[239,68,68],
-    gray:[180,180,185],lightgray:[240,240,242],muted:[120,120,128]};
-
-  // Header bar
-  doc.setFillColor(...C.dark);
-  doc.rect(0,0,PW,14,"F");
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...C.orange);
-  doc.text("TOLOLIVER BASKETBALL COACH",ML,9);
-  doc.setFontSize(8);
-  doc.setTextColor(...C.white);
-  const titleText=`Resum Assistència · ${titlePeriod}`;
-  doc.text(titleText,PW/2,9,{align:"center"});
-  doc.setFontSize(7);
-  doc.setTextColor(...C.muted);
-  doc.text(new Date().toLocaleDateString("es",{day:"2-digit",month:"2-digit",year:"numeric"}),PW-MR,9,{align:"right"});
-
-  // Pagination: split dates into pages of max ~20 columns
-  const MAX_COLS=20;
-  const dateChunks=[];
-  for(let i=0;i<dates.length;i+=MAX_COLS)dateChunks.push(dates.slice(i,i+MAX_COLS));
-
-  dateChunks.forEach((chunk,pageIdx)=>{
-    if(pageIdx>0)doc.addPage();
-
-    const colW=(contentW-50)/chunk.length; // 50mm for player name column
-    const nameColW=50;
-    const rowH=6;
-    let y=MT;
-
-    // Column headers (dates)
-    doc.setFillColor(...C.lightgray);
-    doc.rect(ML,y,contentW,7,"F");
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(6.5);
-    doc.setTextColor(...C.muted);
-    doc.text("JUGADOR",ML+2,y+5);
-    chunk.forEach((d,i)=>{
-      const dt=new Date(d+"T12:00:00");
-      const x=ML+nameColW+i*colW;
-      doc.text(String(dt.getDate()).padStart(2,"0"),x+colW/2,y+3,{align:"center"});
-      const dow=["D","L","M","X","J","V","S"][dt.getDay()];
-      doc.text(dow,x+colW/2,y+6.5,{align:"center"});
+  // ── Stats per jugador ─────────────────────────────────────────────────────
+  const stats=activePlayers.map(p=>{
+    // Per mes
+    const byMonth=monthKeys.map(mk=>{
+      const mDates=dates.filter(d=>d.startsWith(mk));
+      const pr=mDates.filter(d=>(attDates[d]||[]).includes(p.id)).length;
+      const inj=mDates.filter(d=>(attInjured[d]||[]).includes(p.id)).length;
+      const ns=mDates.filter(d=>(attNoShow[d]||[]).includes(p.id)).length;
+      const ab=mDates.length-pr-inj-ns;
+      return{total:mDates.length,pr,inj,ns,ab};
     });
-    // Header for totals
-    const totX=ML+nameColW+chunk.length*colW;
-    const totCols=[{l:"✓",w:7},{l:"🩹",w:7},{l:"✕",w:7},{l:"%",w:9}];
-    let tx=totX;
-    totCols.forEach(({l,w})=>{doc.text(l,tx+w/2,y+5,{align:"center"});tx+=w;});
-    y+=8;
-
-    // Player rows
-    activePlayers.forEach((p,ri)=>{
-      if(ri%2===0){doc.setFillColor(...C.lightgray);}else{doc.setFillColor(255,255,255);}
-      doc.rect(ML,y,contentW,rowH,"F");
-
-      // Player name
-      doc.setFont("helvetica","normal");
-      doc.setFontSize(7);
-      doc.setTextColor(...C.dark);
-      doc.text(`${p.num} · ${p.name.split(" ").slice(0,2).join(" ")}`,ML+2,y+4);
-
-      // Status cells
-      let present=0,injured=0,noshow=0;
-      chunk.forEach((d,i)=>{
-        const pr=(attDates[d] ||[]).includes(p.id);
-        const inj=(attInjured[d]||[]).includes(p.id);
-        const ns=(attNoShow[d] ||[]).includes(p.id);
-        const cx=ML+nameColW+i*colW+colW/2;
-        const cy=y+rowH/2;
-        if(pr){present++;doc.setFillColor(...C.green);doc.circle(cx,cy,1.8,"F");}
-        else if(inj){injured++;doc.setFillColor(...C.orange);doc.circle(cx,cy,1.5,"F");}
-        else if(ns){noshow++;doc.setFillColor(...C.red);doc.circle(cx,cy,1.5,"F");}
-        else{doc.setFillColor(...C.gray);doc.circle(cx,cy,0.8,"F");}
-      });
-
-      // Totals
-      const eligible=chunk.filter(d=>!(attInjured[d]||[]).includes(p.id)).length;
-      const pct=eligible?Math.round(present/eligible*100):0;
-      const pctColor=pct>=80?C.green:pct>=60?C.orange:C.red;
-      doc.setFontSize(6.5);
-      let tx2=totX;
-      [[present,C.green],[injured,C.orange],[noshow,C.red]].forEach(([v,c])=>{
-        const tw=7;
-        doc.setTextColor(...c);doc.setFont("helvetica","bold");
-        doc.text(String(v),tx2+tw/2,y+4,{align:"center"});tx2+=tw;
-      });
-      doc.setTextColor(...pctColor);doc.text(`${pct}%`,tx2+4.5,y+4,{align:"center"});
-
-      y+=rowH;
-    });
-
-    // Footer
-    doc.setDrawColor(...C.gray);doc.setLineWidth(0.3);
-    doc.line(ML,PH-MB-4,PW-MR,PH-MB-4);
-    doc.setFontSize(6);doc.setFont("helvetica","normal");doc.setTextColor(...C.muted);
-    doc.text(`✓ Presente  ● Lesionat  ✕ No avisà  · ${titlePeriod}  |  Pàg. ${pageIdx+1}/${dateChunks.length}`,ML,PH-MB);
-    doc.text("tololiver.com",PW-MR,PH-MB,{align:"right"});
+    // Totals temporada/mes
+    const totDates=dates.length;
+    const totPr=dates.filter(d=>(attDates[d]||[]).includes(p.id)).length;
+    const totInj=dates.filter(d=>(attInjured[d]||[]).includes(p.id)).length;
+    const totNs=dates.filter(d=>(attNoShow[d]||[]).includes(p.id)).length;
+    const totAb=totDates-totPr-totInj-totNs;
+    const eligible=totDates-totInj;
+    const pct=eligible>0?Math.round(totPr/eligible*100):0;
+    return{p,byMonth,totDates,totPr,totInj,totNs,totAb,pct};
   });
 
-  const fname=mode==="month"
-    ?`Assistencia_${titlePeriod.replace(/\s/g,"_")}.pdf`
-    :"Assistencia_Temporada_2026-27.pdf";
+  // ── PDF setup ─────────────────────────────────────────────────────────────
+  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const PW=297,PH=210;
+  const ML=12,MR=12;
+  const C={
+    orange:[249,115,22],
+    dark:  [15,15,20],
+    white: [255,255,255],
+    green: [16,185,129],
+    red:   [239,68,68],
+    gray:  [170,170,178],
+    lightgray:[243,243,246],
+    altrow:[235,235,240],
+    muted: [130,130,138],
+    headbg:[30,30,36],
+  };
+
+  // ── Capçalera ─────────────────────────────────────────────────────────────
+  doc.setFillColor(...C.dark);
+  doc.rect(0,0,PW,16,"F");
+  // accent line
+  doc.setFillColor(...C.orange);
+  doc.rect(0,16,PW,1.2,"F");
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...C.orange);
+  doc.text("TOLOLIVER BASKETBALL COACH",ML,10.5);
+
+  doc.setFontSize(9);
+  doc.setTextColor(...C.white);
+  doc.text(`Resum Assistència · ${titlePeriod}`,PW/2,10.5,{align:"center"});
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.muted);
+  doc.text(today.toLocaleDateString("ca",{day:"2-digit",month:"2-digit",year:"numeric"}),PW-MR,10.5,{align:"right"});
+
+  // ── Subhead amb periode ───────────────────────────────────────────────────
+  const firstDate=new Date(dates[0]+"T12:00:00");
+  const lastDate=new Date(dates[dates.length-1]+"T12:00:00");
+  const fmtDate=d=>d.toLocaleDateString("ca",{day:"2-digit",month:"short",year:"numeric"}).replace(".","");
+  doc.setFontSize(7);doc.setFont("helvetica","normal");doc.setTextColor(...C.muted);
+  doc.text(`Període: ${fmtDate(firstDate)} → ${fmtDate(lastDate)}  ·  ${dates.length} entrenaments`,ML,22);
+
+  // ── Capçalera taula ───────────────────────────────────────────────────────
+  const tableY=25;
+  const nameW=52;
+  const monthW=16;
+  const nMon=monthKeys.length;
+  const statColW=10; // ✓ 🩹 ✕ absent
+  const totW=10;     // TOTAL entrenos
+  const pctW=24;     // barra %
+  const sepW=3;      // separador visual
+
+  // Calculate total used width to verify fit
+  const usedW=nameW+nMon*monthW+sepW+totW+statColW*4+sepW+pctW;
+  const tableW=Math.min(usedW,PW-ML-MR);
+  const rowH=8.5;
+  const headH=10;
+
+  // Header background
+  doc.setFillColor(...C.headbg);
+  doc.rect(ML,tableY,tableW,headH,"F");
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.muted);
+  doc.text("JUGADOR",ML+2,tableY+headH-3);
+
+  // Month columns header
+  monthKeys.forEach((mk,i)=>{
+    const x=ML+nameW+i*monthW;
+    doc.setTextColor(...C.white);
+    doc.text(monthLabels[i],x+monthW/2,tableY+headH-3,{align:"center"});
+  });
+
+  // Separator line
+  let hx=ML+nameW+nMon*monthW+sepW;
+  doc.setTextColor(...C.muted);
+  doc.text("TOT",hx+totW/2,tableY+headH-3,{align:"center"});
+  hx+=totW;
+
+  // Stat headers with colored dots
+  const statHeaders=[
+    {label:"Assist.",color:C.green},
+    {label:"Lesion.",color:C.orange},
+    {label:"No avis.",color:C.red},
+    {label:"Absent",color:C.gray},
+  ];
+  statHeaders.forEach(({label,color},i)=>{
+    const x=hx+i*statColW;
+    doc.setTextColor(...color);
+    doc.text(label,x+statColW/2,tableY+headH-3,{align:"center"});
+  });
+  hx+=statColW*4+sepW;
+  doc.setTextColor(...C.white);
+  doc.text("% ASSISTENCIA",hx+pctW/2,tableY+headH-3,{align:"center"});
+
+  // Thin orange bottom border on header
+  doc.setDrawColor(...C.orange);doc.setLineWidth(0.5);
+  doc.line(ML,tableY+headH,ML+tableW,tableY+headH);
+
+  // ── Files de jugadors ─────────────────────────────────────────────────────
+  stats.forEach(({p,byMonth,totDates,totPr,totInj,totNs,totAb,pct},ri)=>{
+    const ry=tableY+headH+ri*rowH;
+
+    // Row background
+    doc.setFillColor(...(ri%2===0?C.lightgray:C.white));
+    doc.rect(ML,ry,tableW,rowH,"F");
+
+    // Player name + dorsal badge
+    doc.setFillColor(...C.orange);
+    doc.roundedRect(ML+2,ry+1.8,7,5,1,1,"F");
+    doc.setFont("helvetica","bold");doc.setFontSize(6);doc.setTextColor(...C.white);
+    doc.text(String(p.num),ML+5.5,ry+5.5,{align:"center"});
+
+    doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.setTextColor(...C.dark);
+    const shortName=p.name.split(" ").slice(0,2).join(" ");
+    doc.text(shortName,ML+11,ry+6);
+
+    // Month totals — just the present count per month in color
+    monthKeys.forEach((mk,i)=>{
+      const{pr,inj,ns,ab,total}=byMonth[i];
+      const x=ML+nameW+i*monthW;
+      // mini bar under number
+      const barW=monthW-4;const barH=2;const barY=ry+rowH-2.5;
+      doc.setFillColor(...C.lightgray);
+      if(ri%2===0)doc.setFillColor(220,220,225);
+      doc.rect(x+2,barY,barW,barH,"F");
+      if(total>0){
+        const fillW=barW*(pr/total);
+        const barColor=pr/total>=0.8?C.green:pr/total>=0.6?C.orange:C.red;
+        doc.setFillColor(...barColor);
+        doc.rect(x+2,barY,fillW,barH,"F");
+      }
+      // number
+      const monthColor=pr===0&&inj===0&&ns===0&&ab>0?C.muted:C.dark;
+      doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...monthColor);
+      doc.text(String(pr),x+monthW/2,ry+6,{align:"center"});
+    });
+
+    // Total entrenos
+    let cx=ML+nameW+nMon*monthW+sepW;
+    doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...C.muted);
+    doc.text(String(totDates),cx+totW/2,ry+6,{align:"center"});
+    cx+=totW;
+
+    // Stats: ✓ 🩹 ✕ absent — with color
+    [[totPr,C.green],[totInj,C.orange],[totNs,C.red],[totAb,C.gray]].forEach(([v,color],i)=>{
+      const x=cx+i*statColW;
+      doc.setFont("helvetica","bold");doc.setFontSize(7.5);doc.setTextColor(...color);
+      doc.text(String(v),x+statColW/2,ry+6,{align:"center"});
+    });
+    cx+=statColW*4+sepW;
+
+    // % + barra de color
+    const barTotalW=pctW-6;const barTotalH=3;const barTotalY=ry+(rowH-barTotalH)/2;
+    const pctColor=pct>=80?C.green:pct>=60?C.orange:C.red;
+    // background bar
+    doc.setFillColor(220,220,225);
+    doc.roundedRect(cx+1,barTotalY,barTotalW,barTotalH,0.8,0.8,"F");
+    // fill
+    if(pct>0){
+      doc.setFillColor(...pctColor);
+      doc.roundedRect(cx+1,barTotalY,barTotalW*(pct/100),barTotalH,0.8,0.8,"F");
+    }
+    // label
+    doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...pctColor);
+    doc.text(`${pct}%`,cx+pctW-2,ry+6,{align:"right"});
+  });
+
+  // Bottom border of table
+  const tableBottom=tableY+headH+stats.length*rowH;
+  doc.setDrawColor(...C.gray);doc.setLineWidth(0.3);
+  doc.line(ML,tableBottom,ML+tableW,tableBottom);
+
+  // ── Llegenda ──────────────────────────────────────────────────────────────
+  const legY=tableBottom+6;
+  doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(...C.dark);
+  doc.text("LLEGENDA:",ML,legY);
+
+  const legItems=[
+    {color:C.green, label:"Assistit — el jugador ha assistit a l'entrenament"},
+    {color:C.orange,label:"Lesionat — baixa per lesió (no compta per al %)"},
+    {color:C.red,   label:"No ha avisat — absent sense justificació prèvia"},
+    {color:C.gray,  label:"Absent — falta justificada o no registrada"},
+  ];
+  let lx=ML+18;
+  legItems.forEach(({color,label})=>{
+    doc.setFillColor(...color);
+    doc.circle(lx-5,legY-1.2,2,"F");
+    doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(...C.dark);
+    doc.text(label,lx,legY);
+    lx+=68;
+  });
+
+  // Note sobre %
+  doc.setFontSize(6);doc.setFont("helvetica","italic");doc.setTextColor(...C.muted);
+  doc.text("* El % d'assistència s'calcula sobre els entrenaments disponibles (exclou dies de lesió del denominador).",ML,legY+6);
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  doc.setFillColor(...C.dark);
+  doc.rect(0,PH-10,PW,10,"F");
+  doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(...C.muted);
+  doc.text(`${titlePeriod}  ·  Generat el ${today.toLocaleDateString("ca",{day:"2-digit",month:"long",year:"numeric"})}`,ML,PH-3.5);
+  doc.setTextColor(...C.orange);
+  doc.text("tololiver.com",PW-MR,PH-3.5,{align:"right"});
+
   doc.save(fname);
 }
 function Asistencia(){
